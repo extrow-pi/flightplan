@@ -15,3 +15,5 @@ export const organizerSignups = pgTable(
   },
   (t) => [uniqueIndex("organizer_signups_email_idx").on(t.email)],
 );
+
+export * from "./auth-schema.js";

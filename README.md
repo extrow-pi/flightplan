@@ -16,6 +16,7 @@ Requires Node 20+ and pnpm 10 (`npm install -g pnpm@10`, or prefix commands with
 
 ```bash
 pnpm install
+cp apps/api/.env.example apps/api/.env   # then set BETTER_AUTH_SECRET
 pnpm dev          # web on http://localhost:5173, API on http://localhost:3001
 ```
 
@@ -32,9 +33,91 @@ Migrations run automatically when the API starts. After changing `apps/api/src/d
 pnpm db:generate
 ```
 
+## Organizer login
+
+Built on [Better Auth](https://better-auth.com). Organizers can sign up or log in with email and password, or with Google.
+Pages: `/signup`, `/login`, and `/dashboard` (signed-in only).
+
+### Enabling Google sign-in
+
+Until Google credentials are set, the "Continue with Google" button is disabled and email/password login still works.
+This takes about 5 minutes and needs a Google account.
+
+**1. Create a Google Cloud project**
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com/) and sign in.
+2. Open the project picker at the top of the page and choose **New project**. Name it `Flightplan` and click **Create**.
+3. Make sure the new project is selected in the project picker.
+
+**2. Set up the OAuth consent screen**
+
+This is what people see when Google asks "Sign in to Flightplan?".
+
+1. Go to **APIs & Services → OAuth consent screen**. In newer consoles this is **Google Auth Platform**, split into **Branding** and **Audience**.
+2. Click **Get started**, or **Configure consent screen** if that's what you see.
+3. Fill in:
+   - **App name:** `Flightplan`
+   - **User support email:** your email
+   - **Audience / User type:** **External**
+   - **Developer contact email:** your email
+4. Save. The only scopes needed are the defaults: `openid`, `email` and `profile`. Nothing sensitive is requested.
+5. **Add test users.** While the app is in *Testing* mode, **only listed test users can sign in with Google**. Under **Audience** (or **Test users**), add the Google accounts you'll test with, including your own.
+
+**3. Create the OAuth client**
+
+1. Go to **APIs & Services → Credentials**, or **Google Auth Platform → Clients**.
+2. Click **Create credentials → OAuth client ID**, or **Create client**.
+3. **Application type:** **Web application**. **Name:** `Flightplan (local dev)`.
+4. Under **Authorized JavaScript origins**, add:
+   ```
+   http://localhost:5173
+   ```
+5. Under **Authorized redirect URIs**, add exactly:
+   ```
+   http://localhost:5173/api/auth/callback/google
+   ```
+6. Click **Create**, then copy the **Client ID** and **Client secret**.
+
+**4. Add the credentials to the API**
+
+In `apps/api/.env` (copy it from `apps/api/.env.example` if it doesn't exist):
+
+```bash
+GOOGLE_CLIENT_ID=1234567890-abc123.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxx
+```
+
+`.env` is ignored by git. Never commit these values.
+
+**5. Restart and test**
+
+1. Stop `pnpm dev` and start it again. The API log should say `Google sign-in enabled`.
+2. Open http://localhost:5173/login and click **Continue with Google**.
+3. Pick a test user account. You should end up on `/dashboard` with your Google name and photo.
+
+**Troubleshooting**
+
+| Problem | Fix |
+|---|---|
+| Google shows `Error 400: redirect_uri_mismatch` | The redirect URI in Google must match `http://localhost:5173/api/auth/callback/google` exactly: `http`, not `https`, port `5173`, and no trailing slash. Changes can take a few minutes to apply. |
+| `Access blocked: … has not completed the Google verification process` | The account you picked isn't a test user. Add it under **Audience → Test users**. |
+| The button is still disabled | The API didn't pick up the credentials. Check the variable names in `apps/api/.env` and restart `pnpm dev`. |
+| You're sent back to `/login` with an error | Check the API logs in the `pnpm dev` output for details. |
+
+**Going to production**
+
+1. In the OAuth client, add your production origin, e.g. `https://flightplan.example.com`, and the redirect URI `https://flightplan.example.com/api/auth/callback/google`. Consider a separate OAuth client for production.
+2. On the production server, set `BETTER_AUTH_URL=https://flightplan.example.com`, a new `BETTER_AUTH_SECRET`, and the Google client ID and secret.
+3. On the consent screen, add your app's homepage, privacy policy and terms links, then click **Publish app** so any Google user can sign in, not just test users.
+
+If someone signs in with Google using the same email as an existing email/password account, the two are linked into one account.
+
 ## API
 
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/health` | Health check |
+| * | `/api/auth/*` | Better Auth: sign up/in/out, Google OAuth, session |
+| GET | `/api/auth-config` | Which sign-in methods are configured |
+| GET | `/api/me` | The signed-in organizer (401 if signed out) |
 | POST | `/api/organizers/signup` | Early-access organizer signup (validated with the shared Zod schema) |
