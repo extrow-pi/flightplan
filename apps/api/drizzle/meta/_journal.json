@@ -22,6 +22,27 @@
       "when": 1790155157568,
       "tag": "0002_loving_guardsmen",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790156047190,
+      "tag": "0003_event_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790156048623,
+      "tag": "0004_move_event_times_to_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790156050137,
+      "tag": "0005_drop_event_single_day_columns",
+      "breakpoints": true
     }
   ]
 }

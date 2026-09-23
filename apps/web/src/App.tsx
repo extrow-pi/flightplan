@@ -5,6 +5,7 @@ import DashboardLayout from "./pages/dashboard/DashboardLayout";
 import OverviewPage from "./pages/dashboard/OverviewPage";
 import EventsPage from "./pages/dashboard/EventsPage";
 import EventFormPage from "./pages/dashboard/EventFormPage";
+import TemplatesPage from "./pages/dashboard/TemplatesPage";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -18,6 +19,9 @@ const router = createBrowserRouter([
       { path: "events", element: <EventsPage /> },
       { path: "events/new", element: <EventFormPage /> },
       { path: "events/:id", element: <EventFormPage /> },
+      { path: "templates", element: <TemplatesPage /> },
+      { path: "templates/new", element: <EventFormPage kind="template" /> },
+      { path: "templates/:id", element: <EventFormPage kind="template" /> },
     ],
   },
   { path: "*", element: <LandingPage /> },

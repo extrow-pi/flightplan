@@ -62,7 +62,7 @@ export function useSaveEvent(id?: string) {
 export function useSetEventStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: EventStatus }) =>
+    mutationFn: ({ id, status }: { id: string; status: Exclude<EventStatus, "template"> }) =>
       request<{ event: EventRecord }>(`/events/${id}/status`, { method: "PATCH", body: { status } }).then((r) => r.event),
     onSuccess: (event) => {
       qc.setQueryData(eventKeys.detail(event.id), event);
@@ -78,6 +78,21 @@ export function useDeleteEvent() {
     onSuccess: (_, id) => {
       qc.removeQueries({ queryKey: eventKeys.detail(id) });
       qc.setQueryData<EventRecord[]>(eventKeys.all, (list) => list?.filter((e) => e.id !== id));
+    },
+  });
+}
+
+/** Create a draft from a template, starting on startDate. */
+export function useSpawnFromTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ templateId, startDate }: { templateId: string; startDate: string }) =>
+      request<{ event: EventRecord }>(`/events/${templateId}/spawn`, { method: "POST", body: { startDate } }).then(
+        (r) => r.event,
+      ),
+    onSuccess: (event) => {
+      qc.setQueryData(eventKeys.detail(event.id), event);
+      return qc.invalidateQueries({ queryKey: eventKeys.all, exact: true });
     },
   });
 }

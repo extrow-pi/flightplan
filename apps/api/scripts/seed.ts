@@ -35,6 +35,23 @@ function inDays(days: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** The first Friday on or after `days` from today */
+function fridayAfter(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7));
+  return inDays(Math.round((d.getTime() - Date.now()) / 86_400_000));
+}
+
+const oneDay = (startTime: string, endTime: string) => [{ dayOffset: 0, startTime, endTime }];
+
+// Fri 2pm–8pm, Sat 10am–6pm, Sun 10am–5pm
+const weekend = [
+  { dayOffset: 0, startTime: "14:00", endTime: "20:00" },
+  { dayOffset: 1, startTime: "10:00", endTime: "18:00" },
+  { dayOffset: 2, startTime: "10:00", endTime: "17:00" },
+];
+
 const sampleEvents: EventInput[] = [
   {
     name: "Layover Card Show",
@@ -42,9 +59,8 @@ const sampleEvents: EventInput[] = [
     venueName: "RRGC Hall",
     address: "7400 River Rd",
     city: "Richmond, BC",
-    date: inDays(12),
-    startTime: "11:00",
-    endTime: "16:00",
+    startDate: inDays(12),
+    days: oneDay("11:00", "16:00"),
     vendorTables: 48,
     tablePriceCents: 8000,
     ticketPriceCents: 500,
@@ -56,9 +72,8 @@ const sampleEvents: EventInput[] = [
     venueName: "RRGC Hall",
     address: "7400 River Rd",
     city: "Richmond, BC",
-    date: inDays(33),
-    startTime: "19:00",
-    endTime: "23:00",
+    startDate: inDays(33),
+    days: oneDay("19:00", "23:00"),
     vendorTables: 30,
     tablePriceCents: 6000,
     ticketPriceCents: 0,
@@ -66,13 +81,12 @@ const sampleEvents: EventInput[] = [
   },
   {
     name: "The Dreamliner Show",
-    description: "Our biggest show of the year, with two halls, 120 vendors and a tournament stage.",
+    description: "Our biggest show of the year: a full weekend with two halls, 120 vendors and a tournament stage.",
     venueName: "Richmond Curling Centre",
     address: "5540 Hollybridge Way",
     city: "Richmond, BC",
-    date: inDays(75),
-    startTime: "10:00",
-    endTime: "17:00",
+    startDate: fridayAfter(70),
+    days: weekend,
     vendorTables: 120,
     tablePriceCents: 12500,
     ticketPriceCents: 1000,
@@ -84,13 +98,24 @@ const sampleEvents: EventInput[] = [
     venueName: "RRGC Hall",
     address: "7400 River Rd",
     city: "Richmond, BC",
-    date: inDays(-40),
-    startTime: "11:00",
-    endTime: "16:00",
+    startDate: inDays(-40),
+    days: oneDay("11:00", "16:00"),
     vendorTables: 40,
     tablePriceCents: 7500,
     ticketPriceCents: 500,
     status: "published",
+  },
+  {
+    name: "Layover Weekend",
+    description: "Our three-day weekend format. Use it to plan the next one.",
+    venueName: "RRGC Hall",
+    address: "7400 River Rd",
+    city: "Richmond, BC",
+    days: weekend,
+    vendorTables: 60,
+    tablePriceCents: 15000,
+    ticketPriceCents: 800,
+    status: "template",
   },
 ];
 
@@ -119,16 +144,15 @@ async function main() {
     console.log(`Account ${TEST_ORGANIZER.email} already exists`);
   }
 
+  // Add any sample events and templates the account doesn't have yet (matched by name)
   const existing = await api<{ events: EventRecord[] }>("/events");
-  if (existing.data.events.length) {
-    console.log(`Account already has ${existing.data.events.length} events, so no samples were added`);
-  } else {
-    for (const event of sampleEvents) {
-      const res = await api("/events", { method: "POST", body: event });
-      if (res.status !== 201) throw new Error(`Failed to create "${event.name}": ${JSON.stringify(res.data)}`);
-    }
-    console.log(`Added ${sampleEvents.length} sample events`);
+  const names = new Set(existing.data.events.map((e) => e.name));
+  const missing = sampleEvents.filter((e) => !names.has(e.name));
+  for (const event of missing) {
+    const res = await api("/events", { method: "POST", body: event });
+    if (res.status !== 201) throw new Error(`Failed to create "${event.name}": ${JSON.stringify(res.data)}`);
   }
+  console.log(missing.length ? `Added ${missing.map((e) => e.name).join(", ")}` : "All sample events already exist");
 
   console.log(`\nLog in at ${WEB_URL}/login\n  Email:    ${TEST_ORGANIZER.email}\n  Password: ${TEST_ORGANIZER.password}`);
 }

@@ -31,12 +31,13 @@ pnpm seed
 ```
 
 Then log in at http://localhost:5173/login with **organizer@flightplan.test** / **flightplan-test-2026**.
-The script is safe to re-run: it skips sample events if the account already has some. It goes through the API, so it works with PGlite or Postgres.
+The script is safe to re-run: it only adds sample events and templates (matched by name) that the account doesn't have yet. It goes through the API, so it works with PGlite or Postgres.
 
 ### Database
 
 With no `DATABASE_URL` set, the API uses **PGlite**, an embedded Postgres stored in `apps/api/.data/`. You don't need to install a database.
 Only one process can open PGlite at a time. Don't run a second API instance or other scripts against `apps/api/.data` while `pnpm dev` is running, because that can damage the database. To start fresh, stop the dev server and delete `apps/api/.data/`.
+**Stop the dev server before generating or editing migrations.** The API re-runs migrations every time it restarts, and it restarts whenever `schema.ts` changes, so it can apply a migration you haven't finished writing.
 To use a real Postgres server (Neon, Supabase, local), copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL`.
 
 Migrations run automatically when the API starts. After changing `apps/api/src/db/schema.ts`:
@@ -52,6 +53,16 @@ Pages: `/signup` and `/login`. Signed-in organizers use the dashboard at `/dashb
 
 - **Overview:** upcoming-show stats, a countdown to the next show, later shows and a getting-started checklist
 - **Events:** list with Upcoming / Drafts / Past / All filters, plus create, edit, publish/unpublish and delete
+- **Templates:** reusable show setups with no dates
+
+### Shows, days and templates
+
+- A show has **one or more days**, each with its own hours (e.g. Fri 2pm–8pm, Sat 10am–6pm, Sun 10am–5pm).
+  They're stored as `events.start_date` plus `event_days` rows (`day_offset` 0 = first day, start/end time).
+- Every show is a **template**, a **draft** or **published**:
+  - **Template:** no dates, just Day 1, Day 2… and their hours. Create one from scratch, or use **Save as template** on any show (this copies it, including unsaved edits).
+  - **Use template:** pick the first day's date to create a **draft**. Day N lands N−1 days after the first day, and the template itself doesn't change.
+  - **Draft:** customize anything, then **Publish**.
 
 ### Enabling Google sign-in
 
@@ -136,6 +147,7 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET | `/api/auth-config` | Which sign-in methods are configured |
 | GET | `/api/me` | The signed-in organizer (401 if signed out) |
 | GET / POST | `/api/events` | List / create the organizer's events |
-| GET / PUT / DELETE | `/api/events/:id` | Read / update / delete one of the organizer's events |
-| PATCH | `/api/events/:id/status` | Publish or unpublish: body `{ "status": "published" }` or `{ "status": "draft" }` |
+| GET / PUT / DELETE | `/api/events/:id` | Read / update (including the day schedule) / delete one of the organizer's events or templates |
+| POST | `/api/events/:id/spawn` | Create a draft from a template: body `{ "startDate": "2026-11-13" }` |
+| PATCH | `/api/events/:id/status` | Publish or unpublish a dated event: body `{ "status": "published" }` or `{ "status": "draft" }` |
 | POST | `/api/organizers/signup` | Early-access organizer signup (validated with the shared Zod schema) |

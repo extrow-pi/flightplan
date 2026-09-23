@@ -35,3 +35,25 @@ export function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
+
+/** "2pm", "10:30am" */
+export function shortTime(time: string) {
+  const [h, m] = time.split(":").map(Number);
+  const suffix = h < 12 ? "am" : "pm";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}${m ? `:${String(m).padStart(2, "0")}` : ""}${suffix}`;
+}
+
+/** "2pm–8pm" */
+export function timeRange(start: string, end: string) {
+  return `${shortTime(start)}–${shortTime(end)}`;
+}
+
+/** "Oct 10", or "Oct 10 – 12", or "Oct 31 – Nov 2" */
+export function formatDateRange(start: string, end: string) {
+  const s = formatDate(start, { month: "short", day: "numeric" });
+  if (start === end) return s;
+  const sameMonth = start.slice(0, 7) === end.slice(0, 7);
+  const e = formatDate(end, sameMonth ? { day: "numeric" } : { month: "short", day: "numeric" });
+  return `${s} – ${e}`;
+}

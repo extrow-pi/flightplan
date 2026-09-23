@@ -4,6 +4,7 @@ import Logo from "../../components/Logo";
 import {
   CalendarIcon,
   CloseIcon,
+  CopyIcon,
   HomeIcon,
   LogOutIcon,
   MenuIcon,
@@ -24,6 +25,7 @@ type NavItem = {
 const nav: NavItem[] = [
   { to: "/dashboard", label: "Overview", icon: HomeIcon, end: true },
   { to: "/dashboard/events", label: "Events", icon: CalendarIcon },
+  { to: "/dashboard/templates", label: "Templates", icon: CopyIcon },
   { to: "/dashboard/vendors", label: "Vendors", icon: UsersIcon, soon: true },
   { to: "/dashboard/tickets", label: "Tickets", icon: TicketIcon, soon: true },
   { to: "/dashboard/settings", label: "Settings", icon: SettingsIcon, soon: true },

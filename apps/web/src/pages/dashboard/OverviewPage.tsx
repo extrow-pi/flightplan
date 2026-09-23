@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { EventRecord } from "@flightplan/shared";
-import { DateTile, EventMeta, EventRow, StatusBadge } from "../../components/events";
+import { DateTile, EventMeta, EventRow, isPast, isTemplate, StatusBadge } from "../../components/events";
 import { CalendarIcon, CheckIcon, PlusIcon, TableIcon, TicketIcon } from "../../components/Icons";
 import { useEvents } from "../../lib/api";
 import { useSession } from "../../lib/auth-client";
@@ -12,7 +12,9 @@ export default function OverviewPage() {
   const { data: events, isPending, error } = useEvents();
   const firstName = session?.user.name.split(" ")[0];
 
-  const upcoming = (events ?? []).filter((e) => daysUntil(e.date) >= 0);
+  const dated = (events ?? []).filter((e) => !isTemplate(e));
+  const templates = (events ?? []).filter(isTemplate);
+  const upcoming = dated.filter((e) => !isPast(e));
   const nextShow = upcoming.find((e) => e.status === "published") ?? upcoming[0];
   const drafts = upcoming.filter((e) => e.status === "draft");
   const publishedUpcoming = upcoming.filter((e) => e.status === "published");
@@ -32,8 +34,8 @@ export default function OverviewPage() {
         <ErrorCard message={error.message} />
       ) : isPending ? (
         <LoadingCards />
-      ) : !events.length ? (
-        <FirstEventCard />
+      ) : !dated.length ? (
+        <FirstEventCard templates={templates.length} />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -41,7 +43,7 @@ export default function OverviewPage() {
             <StatCard
               icon={CalendarIcon}
               label="Next show in"
-              value={nextShow ? dayLabel(daysUntil(nextShow.date)) : "—"}
+              value={nextShow ? dayLabel(daysUntil(nextShow.startDate!)) : "—"}
             />
             <StatCard icon={TableIcon} label="Vendor tables on sale" value={tablesOnSale} />
             <StatCard
@@ -81,7 +83,7 @@ export default function OverviewPage() {
             </div>
 
             <aside className="space-y-6">
-              <Checklist events={events} />
+              <Checklist events={dated} templates={templates.length} />
               {drafts.length > 0 && (
                 <div className="rounded-3xl bg-[#fff4cc] p-5">
                   <p className="font-extrabold text-gold-ink">
@@ -128,7 +130,7 @@ function StatCard({
 }
 
 function NextShowCard({ event }: { event: EventRecord }) {
-  const days = daysUntil(event.date);
+  const days = daysUntil(event.startDate!);
   return (
     <section className="relative overflow-hidden rounded-3xl bg-slate p-6 text-white sm:p-8">
       <svg
@@ -141,19 +143,21 @@ function NextShowCard({ event }: { event: EventRecord }) {
       </svg>
       <p className="text-sm font-bold tracking-wider text-gold uppercase">✈️ Next show</p>
       <div className="relative mt-4 flex flex-col gap-6 sm:flex-row sm:items-center">
-        <DateTile date={event.date} size="lg" />
+        <DateTile event={event} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-2xl font-extrabold">{event.name}</h2>
-            <StatusBadge status={event.status} date={event.date} />
+            <StatusBadge event={event} />
           </div>
-          <div className="mt-2 [&_*]:text-white/80 [&_svg]:text-white/60">
-            <EventMeta event={event} />
+          <div className="mt-2">
+            <EventMeta event={event} tone="dark" />
           </div>
         </div>
         <div className="sm:text-right">
-          <p className="text-5xl leading-none font-extrabold text-gold">{days === 0 ? "Today" : days}</p>
-          {days > 0 && <p className="mt-1 text-xs font-bold tracking-wider text-white/70 uppercase">days to go</p>}
+          <p className="text-5xl leading-none font-extrabold text-gold">{days <= 0 ? "Now" : days}</p>
+          <p className="mt-1 text-xs font-bold tracking-wider text-white/70 uppercase">
+            {days < 0 ? "happening" : days === 0 ? "starts today" : "days to go"}
+          </p>
         </div>
       </div>
       <div className="relative mt-6 flex flex-wrap gap-3">
@@ -171,11 +175,12 @@ function NextShowCard({ event }: { event: EventRecord }) {
   );
 }
 
-function Checklist({ events }: { events: EventRecord[] }) {
+function Checklist({ events, templates }: { events: EventRecord[]; templates: number }) {
   const steps = [
     { label: "Create your organizer account", done: true },
     { label: "Create your first event", done: events.length > 0 },
     { label: "Publish an event", done: events.some((e) => e.status === "published") },
+    { label: "Save a show as a template", done: templates > 0 },
     { label: "Open vendor table booking", done: false, soon: true },
     { label: "Start selling tickets", done: false, soon: true },
   ];
@@ -218,7 +223,7 @@ function Checklist({ events }: { events: EventRecord[] }) {
   );
 }
 
-function FirstEventCard() {
+function FirstEventCard({ templates }: { templates: number }) {
   return (
     <section className="flex flex-col items-center rounded-3xl border-2 border-dashed border-coral/30 bg-white px-6 py-16 text-center">
       <span className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-coral to-gold text-white shadow-md">
@@ -226,8 +231,13 @@ function FirstEventCard() {
       </span>
       <h2 className="mt-5 text-2xl font-extrabold">Plan your first show</h2>
       <p className="mt-2 max-w-md text-ink-soft">
-        Add the date, venue and how many vendor tables you have. You can keep it as a draft until you're ready.
+        Add the dates, venue and how many vendor tables you have. You can keep it as a draft until you're ready.
       </p>
+      {templates > 0 && (
+        <Link to="/dashboard/templates" className="mt-3 text-sm font-bold text-coral-ink hover:underline">
+          Or start from one of your {templates} template{templates > 1 ? "s" : ""}
+        </Link>
+      )}
       <Link
         to="/dashboard/events/new"
         className="mt-6 inline-flex items-center gap-2 rounded-full bg-coral px-6 py-3 font-bold text-white transition hover:bg-coral-deep"

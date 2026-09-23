@@ -1,22 +1,22 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import type { EventRecord } from "@flightplan/shared";
-import { EventRow } from "../../components/events";
+import { EventRow, isPast, isTemplate } from "../../components/events";
 import { useEvents } from "../../lib/api";
-import { daysUntil } from "../../lib/format";
 import { ErrorCard, LoadingCards, PageHeader } from "./ui";
 
 const filters = {
-  upcoming: { label: "Upcoming", test: (e: EventRecord) => daysUntil(e.date) >= 0 },
-  drafts: { label: "Drafts", test: (e: EventRecord) => daysUntil(e.date) >= 0 && e.status === "draft" },
-  past: { label: "Past", test: (e: EventRecord) => daysUntil(e.date) < 0 },
+  upcoming: { label: "Upcoming", test: (e: EventRecord) => !isPast(e) },
+  drafts: { label: "Drafts", test: (e: EventRecord) => !isPast(e) && e.status === "draft" },
+  past: { label: "Past", test: (e: EventRecord) => isPast(e) },
   all: { label: "All", test: () => true },
 } satisfies Record<string, { label: string; test: (e: EventRecord) => boolean }>;
 
 type Filter = keyof typeof filters;
 
 export default function EventsPage() {
-  const { data: events, isPending, error } = useEvents();
+  const { data, isPending, error } = useEvents();
+  const events = data?.filter((e) => !isTemplate(e));
   const [filter, setFilter] = useState<Filter>("upcoming");
 
   const shown = (events ?? []).filter(filters[filter].test);

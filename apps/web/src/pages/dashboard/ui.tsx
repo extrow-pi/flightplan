@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { PlusIcon } from "../../components/Icons";
 
@@ -7,24 +8,25 @@ export function PageHeader({
   eyebrow,
   title,
   subtitle,
-  action = true,
+  action,
 }: {
   eyebrow: string;
   title: string;
   subtitle?: string;
-  action?: boolean;
+  /** Defaults to a "Create event" button */
+  action?: ReactNode;
 }) {
   return (
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
+      <div className="max-w-2xl">
         <p className="text-sm font-bold tracking-wider text-coral-ink uppercase">{eyebrow}</p>
         <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
         {subtitle && <p className="mt-2 text-ink-soft">{subtitle}</p>}
       </div>
-      {action && (
+      {action ?? (
         <Link
           to="/dashboard/events/new"
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full whitespace-nowrap bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"
         >
           <PlusIcon className="size-4" strokeWidth={3} />
           Create event

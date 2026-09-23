@@ -32,10 +32,8 @@ export const events = pgTable(
     venueName: text("venue_name").notNull(),
     address: text("address").notNull().default(""),
     city: text("city").notNull(),
-    // Local wall-clock date/time of the event
-    date: date("date", { mode: "string" }).notNull(),
-    startTime: text("start_time").notNull(),
-    endTime: text("end_time").notNull(),
+    // First day of the show (local date). Null for templates.
+    startDate: date("start_date", { mode: "string" }),
     vendorTables: integer("vendor_tables").notNull().default(0),
     tablePriceCents: integer("table_price_cents").notNull().default(0),
     ticketPriceCents: integer("ticket_price_cents").notNull().default(0),
@@ -46,5 +44,20 @@ export const events = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [index("events_organizer_date_idx").on(t.organizerId, t.date)],
+  (t) => [index("events_organizer_start_date_idx").on(t.organizerId, t.startDate)],
+);
+
+// One row per show day. The date is events.start_date + day_offset; times are local wall-clock.
+export const eventDays = pgTable(
+  "event_days",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    dayOffset: integer("day_offset").notNull(),
+    startTime: text("start_time").notNull(),
+    endTime: text("end_time").notNull(),
+  },
+  (t) => [uniqueIndex("event_days_event_offset_idx").on(t.eventId, t.dayOffset)],
 );
