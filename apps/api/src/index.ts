@@ -8,6 +8,9 @@ import { db, schema } from "./db/index.js";
 import { auth, googleEnabled } from "./auth.js";
 import { requireUser } from "./middleware.js";
 import { eventRoutes } from "./routes/events.js";
+import { alertRoutes, bookingRoutes, eventBookingRoutes, inviteRoutes, vendorRoutes } from "./routes/bookings.js";
+import { publicRoutes } from "./routes/public.js";
+import { uploadRoutes } from "./uploads.js";
 
 const app = new Hono().basePath("/api");
 
@@ -24,6 +27,15 @@ app.get("/auth-config", (c) => c.json({ google: googleEnabled }));
 app.get("/me", requireUser, (c) => c.json({ user: c.var.user }));
 
 app.route("/events", eventRoutes);
+app.route("/events", eventBookingRoutes);
+app.route("/bookings", bookingRoutes);
+app.route("/invites", inviteRoutes);
+app.route("/alerts", alertRoutes);
+app.route("/vendors", vendorRoutes);
+
+// No sign-in needed: vendor booking pages and floor map images
+app.route("/public", publicRoutes);
+app.route("/uploads", uploadRoutes);
 
 app.post("/organizers/signup", async (c) => {
   const body = await c.req.json().catch(() => null);

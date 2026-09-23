@@ -1,18 +1,27 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import {
   addDays,
   daysBetween,
   eventInputSchema,
+  FLOOR_MAP_MAX_BYTES,
+  FLOOR_MAP_TYPES,
   MAX_EVENT_DAYS,
   type EventInput,
   type EventRecord,
   type EventStatus,
 } from "@flightplan/shared";
-import { SpawnDialog } from "../../components/events";
+import { EventTabs, SpawnDialog } from "../../components/events";
 import { ArrowLeftIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon } from "../../components/Icons";
-import { ApiRequestError, useDeleteEvent, useEvent, useSaveEvent } from "../../lib/api";
+import {
+  ApiRequestError,
+  useDeleteEvent,
+  useEvent,
+  useRemoveFloorMap,
+  useSaveEvent,
+  useUploadFloorMap,
+} from "../../lib/api";
 import { formatDate, todayISO } from "../../lib/format";
 
 type Kind = "event" | "template";
@@ -31,9 +40,15 @@ type FormState = {
   vendorTables: string;
   tablePrice: string;
   ticketPrice: string;
+  // Vendor booking
+  requiresApproval: boolean;
+  paymentDueDays: string;
+  noDeadline: boolean;
+  bookingOpen: boolean;
+  paymentInstructions: string;
 };
 
-type Errors = Partial<Record<Exclude<keyof FormState, "days">, string>> & {
+type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen">, string>> & {
   days?: string;
   rows?: Record<number, Partial<Record<"date" | "day" | "startTime" | "endTime", string>>>;
 };
@@ -51,6 +66,11 @@ const emptyForm = (): FormState => ({
   vendorTables: "",
   tablePrice: "",
   ticketPrice: "0",
+  requiresApproval: false,
+  paymentDueDays: "7",
+  noDeadline: false,
+  bookingOpen: false,
+  paymentInstructions: "",
 });
 
 function fromEvent(e: EventRecord): FormState {
@@ -71,6 +91,11 @@ function fromEvent(e: EventRecord): FormState {
     vendorTables: String(e.vendorTables),
     tablePrice: (e.tablePriceCents / 100).toString(),
     ticketPrice: (e.ticketPriceCents / 100).toString(),
+    requiresApproval: e.requiresApproval,
+    paymentDueDays: String(e.paymentDueDays ?? 7),
+    noDeadline: e.paymentDueDays === null,
+    bookingOpen: e.bookingOpen,
+    paymentInstructions: e.paymentInstructions,
   };
 }
 
@@ -102,6 +127,11 @@ function toInput(f: FormState, status: EventStatus, rowsAreDated: boolean): Even
     tablePriceCents: toCents(f.tablePrice),
     ticketPriceCents: toCents(f.ticketPrice),
     status,
+    requiresApproval: f.requiresApproval,
+    paymentDueDays: f.noDeadline ? null : toInt(f.paymentDueDays),
+    // Templates never take bookings; drafts made from them start closed
+    bookingOpen: status === "template" ? false : f.bookingOpen,
+    paymentInstructions: f.paymentInstructions,
   };
 }
 
@@ -163,7 +193,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
   const location = useLocation();
   const fromTemplate = (location.state as { fromTemplate?: string } | null)?.fromTemplate;
   const save = useSaveEvent(event?.id);
-  const saveAsTemplate = useSaveEvent();
+  const saveAsTemplate = useSaveEvent(undefined, { floorMapFrom: event?.id });
   const del = useDeleteEvent();
   const [initial] = useState<FormState>(() => (event ? fromEvent(event) : emptyForm()));
   const [form, setForm] = useState<FormState>(initial);
@@ -303,6 +333,8 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
               : "This event is a draft. Only you can see it."}
       </p>
 
+      {!isNew && !isTemplateForm && <EventTabs eventId={event.id} />}
+
       {fromTemplate && !isTemplateForm && (
         <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#e8f8f5] px-5 py-4 text-[#2d7a6a]" role="status">
           <CopyIcon className="mt-0.5 size-5 shrink-0" />
@@ -413,6 +445,80 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             />
           </Field>
         </Section>
+
+        <Section title="Vendor booking">
+          <Toggle
+            id="requiresApproval"
+            className="sm:col-span-2"
+            checked={form.requiresApproval}
+            onChange={(v) => update("requiresApproval", v)}
+            label="Approve vendors before they get a table"
+            description="Requests from booking links wait for your approval. Tables you assign yourself are always approved."
+          />
+          <Field label="Vendors pay within" id="paymentDueDays" error={errors.paymentDueDays}>
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <input
+                  id="paymentDueDays"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={90}
+                  disabled={form.noDeadline}
+                  className={`${inputClass} pr-14 disabled:bg-cream-50 disabled:text-ink-muted`}
+                  value={form.noDeadline ? "" : form.paymentDueDays}
+                  aria-invalid={!!errors.paymentDueDays}
+                  onChange={(e) => update("paymentDueDays", e.target.value)}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-semibold text-ink-muted">
+                  days
+                </span>
+              </div>
+              <label className="flex shrink-0 items-center gap-2 text-sm font-semibold">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-coral"
+                  checked={form.noDeadline}
+                  onChange={(e) => update("noDeadline", e.target.checked)}
+                />
+                No deadline
+              </label>
+            </div>
+          </Field>
+          <p className="self-end text-xs text-ink-muted sm:pb-3">
+            The clock starts when a table is approved. If it runs out, you'll see it on your dashboard and can release
+            the table or give more time.
+          </p>
+          {!isTemplateForm && (
+            <Toggle
+              id="bookingOpen"
+              className="sm:col-span-2"
+              checked={form.bookingOpen}
+              onChange={(v) => update("bookingOpen", v)}
+              label="Public booking link is open"
+              description="Anyone with the event's booking link can request a table once the event is published. Personal invite links work either way."
+            />
+          )}
+          <Field
+            label="Payment instructions"
+            id="paymentInstructions"
+            optional
+            error={errors.paymentInstructions}
+            className="sm:col-span-2"
+            hint="Shown to vendors after they book, e.g. where to send an e-transfer."
+          >
+            <textarea
+              id="paymentInstructions"
+              rows={2}
+              className={`${inputClass} resize-y`}
+              placeholder="E-transfer the table fee to tables@yourshow.com with your business name in the message."
+              value={form.paymentInstructions}
+              onChange={(e) => update("paymentInstructions", e.target.value)}
+            />
+          </Field>
+        </Section>
+
+        <FloorMapSection event={event} />
 
         {generalError && (
           <p className="rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
@@ -749,6 +855,159 @@ function MoneyInput({
         aria-invalid={invalid}
         onChange={(e) => onChange(e.target.value)}
       />
+    </div>
+  );
+}
+
+function Toggle({
+  id,
+  checked,
+  onChange,
+  label,
+  description,
+  className = "",
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  description?: string;
+  className?: string;
+}) {
+  return (
+    <label htmlFor={id} className={`flex cursor-pointer items-start gap-4 ${className}`}>
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        className="peer sr-only"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span
+        aria-hidden="true"
+        className="relative mt-0.5 h-7 w-12 shrink-0 rounded-full bg-ink/15 transition peer-checked:bg-coral peer-focus-visible:ring-4 peer-focus-visible:ring-coral/25 after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"
+      />
+      <span>
+        <span className="block font-bold">{label}</span>
+        {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
+      </span>
+    </label>
+  );
+}
+
+/** Upload, replace or remove the floor map image. Needs a saved event to attach it to. */
+function FloorMapSection({ event }: { event?: EventRecord }) {
+  return (
+    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+      <legend className="sr-only">Floor map</legend>
+      <h2 className="text-lg font-extrabold" aria-hidden="true">
+        Floor map
+      </h2>
+      <p className="mt-1 text-sm text-ink-soft">
+        An image of your floor plan with the table numbers on it. Vendors see it when they pick a table.
+      </p>
+      {event ? (
+        <FloorMapUpload event={event} />
+      ) : (
+        <p className="mt-4 rounded-2xl bg-cream-50 px-4 py-3 text-sm font-semibold text-ink-soft ring-1 ring-ink/5">
+          Save first, then you can upload a floor map here.
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+function FloorMapUpload({ event }: { event: EventRecord }) {
+  const upload = useUploadFloorMap(event.id);
+  const remove = useRemoveFloorMap(event.id);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const error = localError ?? upload.error?.message ?? remove.error?.message;
+  const maxMb = FLOOR_MAP_MAX_BYTES / 1024 / 1024;
+
+  function onFile(file: File | undefined) {
+    setLocalError(null);
+    if (!file) return;
+    if (!(FLOOR_MAP_TYPES as readonly string[]).includes(file.type)) {
+      return setLocalError("Upload a PNG, JPEG or WebP image");
+    }
+    if (file.size > FLOOR_MAP_MAX_BYTES) return setLocalError(`Images can be up to ${maxMb} MB`);
+    upload.mutate(file);
+  }
+
+  return (
+    <div className="mt-5">
+      {event.floorMapUrl ? (
+        <a
+          href={event.floorMapUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="block overflow-hidden rounded-2xl ring-1 ring-ink/10"
+          title="Open full size"
+        >
+          <img
+            src={event.floorMapUrl}
+            alt={`Floor map for ${event.name}`}
+            className="max-h-96 w-full bg-cream-50 object-contain"
+          />
+        </a>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            onFile(e.dataTransfer.files[0]);
+          }}
+          className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 py-10 text-center transition hover:border-coral hover:bg-peach/40"
+        >
+          <span className="font-bold text-coral-ink">{upload.isPending ? "Uploading…" : "Upload floor map"}</span>
+          <span className="mt-1 text-sm text-ink-soft">
+            PNG, JPEG or WebP, up to {maxMb} MB. Click or drop a file here.
+          </span>
+        </button>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept={FLOOR_MAP_TYPES.join(",")}
+        className="sr-only"
+        tabIndex={-1}
+        aria-label="Floor map image"
+        onChange={(e) => {
+          onFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+
+      {event.floorMapUrl && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={upload.isPending}
+            className="rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
+          >
+            {upload.isPending ? "Uploading…" : "Replace image"}
+          </button>
+          <button
+            type="button"
+            onClick={() => remove.mutate()}
+            disabled={remove.isPending}
+            className="rounded-full px-4 py-2 text-sm font-bold text-coral-ink hover:bg-peach disabled:opacity-60"
+          >
+            {remove.isPending ? "Removing…" : "Remove"}
+          </button>
+        </div>
+      )}
+      {error && (
+        <p className="mt-3 text-sm font-semibold text-coral-ink" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

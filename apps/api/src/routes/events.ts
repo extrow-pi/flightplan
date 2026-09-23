@@ -1,15 +1,19 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { and, asc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   eventInputSchema,
+  FLOOR_MAP_MAX_BYTES,
   spawnFromTemplateSchema,
   type ApiError,
   type EventDay,
   type EventInput,
 } from "@flightplan/shared";
+import { syncTables, TablesInUseError, type Tx } from "../bookings.js";
 import { db, schema } from "../db/index.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
+import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
 
 const { events, eventDays } = schema;
 
@@ -20,7 +24,6 @@ const idSchema = z.uuid();
 const statusSchema = z.object({ status: z.enum(["draft", "published"]) });
 
 type EventOutput = z.output<typeof eventInputSchema>;
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 function invalid(error: z.ZodError) {
   return { error: "Please fix the highlighted fields", fieldErrors: z.flattenError(error).fieldErrors } satisfies ApiError;
@@ -28,8 +31,10 @@ function invalid(error: z.ZodError) {
 
 const notFound = { error: "Event not found" } satisfies ApiError;
 
-/** Load events (by id) with their days attached, in the order given. */
-async function withDays<T extends { id: string }>(rows: T[]): Promise<(T & { days: EventDay[] })[]> {
+/** Attach days to event rows and swap the stored floor map file name for its URL. */
+async function withDays<T extends { id: string; floorMapFile: string | null }>(
+  rows: T[],
+): Promise<(Omit<T, "floorMapFile"> & { days: EventDay[]; floorMapUrl: string | null })[]> {
   if (!rows.length) return [];
   const days = await db
     .select({
@@ -51,7 +56,11 @@ async function withDays<T extends { id: string }>(rows: T[]): Promise<(T & { day
   for (const { eventId, ...day } of days) {
     byEvent.set(eventId, [...(byEvent.get(eventId) ?? []), day]);
   }
-  return rows.map((r) => ({ ...r, days: byEvent.get(r.id) ?? [] }));
+  return rows.map(({ floorMapFile, ...r }) => ({
+    ...r,
+    days: byEvent.get(r.id) ?? [],
+    floorMapUrl: uploadUrl(floorMapFile),
+  }));
 }
 
 async function findOwned(id: string, organizerId: string) {
@@ -63,14 +72,32 @@ async function findOwned(id: string, organizerId: string) {
   return (await withDays([row]))[0];
 }
 
-async function insertEvent(tx: Tx, organizerId: string, { days, ...fields }: EventOutput) {
+async function insertEvent(
+  tx: Tx,
+  organizerId: string,
+  { days, ...fields }: EventOutput,
+  floorMapFile: string | null = null,
+) {
   const [row] = await tx
     .insert(events)
-    .values({ ...fields, organizerId })
+    .values({ ...fields, organizerId, floorMapFile })
     .returning({ id: events.id });
   await tx.insert(eventDays).values(days.map((d) => ({ ...d, eventId: row.id })));
+  await syncTables(tx, row.id, fields.vendorTables);
   return row.id;
 }
+
+/** Delete a floor map file once no event or template uses it any more. */
+async function deleteFloorMapIfUnused(file: string | null) {
+  if (!file) return;
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(events)
+    .where(eq(events.floorMapFile, file));
+  if (count === 0) await deleteUpload(file);
+}
+
+const tablesInUse = (err: unknown) => (err instanceof TablesInUseError ? ({ error: err.message } satisfies ApiError) : null);
 
 // All routes are scoped to the signed-in organizer's own events and templates
 export const eventRoutes = new Hono<AuthEnv>()
@@ -86,11 +113,22 @@ export const eventRoutes = new Hono<AuthEnv>()
     return c.json({ events: await withDays(rows) });
   })
 
+  // ?floorMapFrom=<event id> reuses another of the organizer's floor maps (used by "Save as template")
   .post("/", async (c) => {
     const parsed = eventInputSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
 
-    const id = await db.transaction((tx) => insertEvent(tx, c.var.user.id, parsed.data));
+    let floorMapFile: string | null = null;
+    const from = c.req.query("floorMapFrom");
+    if (from && idSchema.safeParse(from).success) {
+      const [source] = await db
+        .select({ floorMapFile: events.floorMapFile })
+        .from(events)
+        .where(and(eq(events.id, from), eq(events.organizerId, c.var.user.id)));
+      floorMapFile = source?.floorMapFile ?? null;
+    }
+
+    const id = await db.transaction((tx) => insertEvent(tx, c.var.user.id, parsed.data, floorMapFile));
     return c.json({ event: await findOwned(id, c.var.user.id) }, 201);
   })
 
@@ -116,11 +154,18 @@ export const eventRoutes = new Hono<AuthEnv>()
     }
 
     const { days, ...fields } = parsed.data;
-    await db.transaction(async (tx) => {
-      await tx.update(events).set(fields).where(eq(events.id, id));
-      await tx.delete(eventDays).where(eq(eventDays.eventId, id));
-      await tx.insert(eventDays).values(days.map((d) => ({ ...d, eventId: id })));
-    });
+    try {
+      await db.transaction(async (tx) => {
+        await tx.update(events).set(fields).where(eq(events.id, id));
+        await tx.delete(eventDays).where(eq(eventDays.eventId, id));
+        await tx.insert(eventDays).values(days.map((d) => ({ ...d, eventId: id })));
+        await syncTables(tx, id, fields.vendorTables);
+      });
+    } catch (err) {
+      const conflict = tablesInUse(err);
+      if (conflict) return c.json(conflict, 409);
+      throw err;
+    }
     return c.json({ event: await findOwned(id, c.var.user.id) });
   })
 
@@ -152,9 +197,20 @@ export const eventRoutes = new Hono<AuthEnv>()
     const template = await findOwned(id, c.var.user.id);
     if (!template || template.status !== "template") return c.json(notFound, 404);
 
-    const { id: _id, createdAt: _c, updatedAt: _u, ...copy } = template;
-    const draft: EventInput = { ...copy, status: "draft", startDate: parsed.data.startDate };
-    const newId = await db.transaction((tx) => insertEvent(tx, c.var.user.id, eventInputSchema.parse(draft)));
+    const {
+      id: _id,
+      createdAt: _c,
+      updatedAt: _u,
+      bookingToken: _t,
+      floorMapUrl: _f,
+      ...copy
+    } = template;
+    const [{ floorMapFile }] = await db.select({ floorMapFile: events.floorMapFile }).from(events).where(eq(events.id, id));
+    // The draft gets its own booking link, closed until the organizer opens it
+    const draft: EventInput = { ...copy, status: "draft", startDate: parsed.data.startDate, bookingOpen: false };
+    const newId = await db.transaction((tx) =>
+      insertEvent(tx, c.var.user.id, eventInputSchema.parse(draft), floorMapFile),
+    );
     return c.json({ event: await findOwned(newId, c.var.user.id) }, 201);
   })
 
@@ -162,11 +218,52 @@ export const eventRoutes = new Hono<AuthEnv>()
     const id = c.req.param("id");
     if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
 
-    // event_days rows are removed by ON DELETE CASCADE
+    // Days, tables, bookings and invites are removed by ON DELETE CASCADE
     const deleted = await db
       .delete(events)
       .where(and(eq(events.id, id), eq(events.organizerId, c.var.user.id)))
-      .returning({ id: events.id });
+      .returning({ id: events.id, floorMapFile: events.floorMapFile });
     if (!deleted.length) return c.json(notFound, 404);
+    await deleteFloorMapIfUnused(deleted[0].floorMapFile);
     return c.body(null, 204);
+  })
+
+  // Upload (or replace) the floor map image. multipart/form-data with a "file" field.
+  .post("/:id/floor-map", bodyLimit({ maxSize: FLOOR_MAP_MAX_BYTES + 64 * 1024 }), async (c) => {
+    const id = c.req.param("id");
+    if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
+    const [existing] = await db
+      .select({ floorMapFile: events.floorMapFile })
+      .from(events)
+      .where(and(eq(events.id, id), eq(events.organizerId, c.var.user.id)));
+    if (!existing) return c.json(notFound, 404);
+
+    const body = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
+    const file = body["file"];
+    if (!(file instanceof File)) return c.json<ApiError>({ error: "Choose an image to upload" }, 400);
+
+    let name: string;
+    try {
+      name = await saveImage(file);
+    } catch (err) {
+      if (err instanceof UploadError) return c.json<ApiError>({ error: err.message }, 400);
+      throw err;
+    }
+    await db.update(events).set({ floorMapFile: name }).where(eq(events.id, id));
+    await deleteFloorMapIfUnused(existing.floorMapFile);
+    return c.json({ event: await findOwned(id, c.var.user.id) });
+  })
+
+  .delete("/:id/floor-map", async (c) => {
+    const id = c.req.param("id");
+    if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
+    const [existing] = await db
+      .select({ floorMapFile: events.floorMapFile })
+      .from(events)
+      .where(and(eq(events.id, id), eq(events.organizerId, c.var.user.id)));
+    if (!existing) return c.json(notFound, 404);
+
+    await db.update(events).set({ floorMapFile: null }).where(eq(events.id, id));
+    await deleteFloorMapIfUnused(existing.floorMapFile);
+    return c.json({ event: await findOwned(id, c.var.user.id) });
   });

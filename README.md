@@ -64,6 +64,23 @@ Pages: `/signup` and `/login`. Signed-in organizers use the dashboard at `/dashb
   - **Use template:** pick the first day's date to create a **draft**. Day N lands N−1 days after the first day, and the template itself doesn't change.
   - **Draft:** customize anything, then **Publish**.
 
+### Vendor table booking
+
+Each show has numbered tables (1…N, from **Vendor tables**) and an optional **floor map** image (PNG/JPEG/WebP, up to 10 MB), stored in `apps/api/.data/uploads/` or `UPLOADS_DIR`.
+
+Settings (per event, and copied from templates):
+
+- **Approve vendors first:** requests from links wait as *Needs approval*. Tables the organizer assigns skip approval.
+- **Vendors pay within N days** (or no deadline): the clock starts at approval, or at booking if no approval is needed. Free tables are confirmed immediately.
+- **Public booking link** `/book/:token`: anyone can request an open table while the event is published and the link is open.
+- **Personal invites** `/invite/:token`: single-use links for specific vendors. They work while the public link is closed, and on drafts.
+- **Payment instructions:** shown to vendors after they book. Payments happen outside the app; the organizer clicks **Mark paid**.
+
+Booking statuses: `pending` → `awaiting_payment` → `paid`, or `rejected` / `released` / `cancelled`. A table can hold only one active booking at a time (enforced by a partial unique index).
+When a payment deadline passes, the booking shows as **Payment overdue** in *Needs your attention* on the dashboard and on the event's **Tables & vendors** tab. From there the organizer can **Release table**, **Keep, +N days** or **Keep, no deadline**.
+
+**Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
+
 ### Enabling Google sign-in
 
 Until Google credentials are set, the "Continue with Google" button is disabled and email/password login still works.
@@ -149,5 +166,17 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET / POST | `/api/events` | List / create the organizer's events |
 | GET / PUT / DELETE | `/api/events/:id` | Read / update (including the day schedule) / delete one of the organizer's events or templates |
 | POST | `/api/events/:id/spawn` | Create a draft from a template: body `{ "startDate": "2026-11-13" }` |
+| POST / DELETE | `/api/events/:id/floor-map` | Upload (multipart `file`) or remove the floor map |
+| GET | `/api/events/:id/tables` | Tables with their active bookings, past bookings and invites |
+| POST | `/api/events/:id/bookings` | Organizer assigns a table: `{ tableId, vendorId }` or `{ tableId, contact }`, optional `paid` |
+| POST | `/api/events/:id/invites` | Create a personal invite link: `{ name?, email? }` |
+| DELETE | `/api/invites/:id` | Cancel an unused invite |
+| POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` · `release` | Booking actions |
+| POST | `/api/bookings/:id/keep` | Keep an overdue booking: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
+| GET | `/api/alerts` | Overdue payments and requests awaiting approval |
+| GET | `/api/vendors` | The organizer's vendor list |
+| GET / POST | `/api/public/book/:token` | Public booking page data / request a table (no sign-in) |
+| GET / POST | `/api/public/invite/:token` | Same, for a personal invite link |
+| GET | `/api/uploads/:file` | Uploaded images (floor maps) |
 | PATCH | `/api/events/:id/status` | Publish or unpublish a dated event: body `{ "status": "published" }` or `{ "status": "draft" }` |
 | POST | `/api/organizers/signup` | Early-access organizer signup (validated with the shared Zod schema) |

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, NavLink, useNavigate } from "react-router";
 import { addDays, eventDayDates, eventEndDate, type EventRecord } from "@flightplan/shared";
 import { useDeleteEvent, useSetEventStatus, useSpawnFromTemplate } from "../lib/api";
 import { daysUntil, formatDate, formatDateRange, timeRange, todayISO } from "../lib/format";
@@ -148,6 +148,32 @@ export function EventMeta({ event, tone = "light" }: { event: EventRecord; tone?
   );
 }
 
+/** Switch between an event's settings and its table bookings. */
+export function EventTabs({ eventId }: { eventId: string }) {
+  const tabs = [
+    { to: `/dashboard/events/${eventId}`, label: "Details", end: true },
+    { to: `/dashboard/events/${eventId}/tables`, label: "Tables & vendors", end: false },
+  ];
+  return (
+    <nav className="mt-6 flex gap-1 border-b border-ink/10" aria-label="Event sections">
+      {tabs.map((t) => (
+        <NavLink
+          key={t.to}
+          to={t.to}
+          end={t.end}
+          className={({ isActive }) =>
+            `-mb-px border-b-4 px-4 py-2.5 text-sm font-bold transition ${
+              isActive ? "border-coral text-coral-ink" : "border-transparent text-ink-soft hover:text-ink"
+            }`
+          }
+        >
+          {t.label}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
 // ── Rows ─────────────────────────────────────────────────────────────────
 
 function DeleteConfirm({ onConfirm, onCancel, pending }: { onConfirm: () => void; onCancel: () => void; pending: boolean }) {
@@ -245,6 +271,12 @@ export function EventRow({ event }: { event: EventRecord }) {
                 {event.status === "published" ? "Unpublish" : "Publish"}
               </button>
             )}
+            <Link
+              to={`/dashboard/events/${event.id}/tables`}
+              className="rounded-full px-3 py-2 text-sm font-bold text-slate transition hover:bg-cream"
+            >
+              Tables
+            </Link>
             <IconActions event={event} editTo={editTo} onDelete={() => setConfirming(true)} />
           </>
         )}

@@ -1,8 +1,9 @@
 import { Link } from "react-router";
 import type { EventRecord } from "@flightplan/shared";
+import { BookingActions, paymentDueLabel } from "../../components/bookings";
 import { DateTile, EventMeta, EventRow, isPast, isTemplate, StatusBadge } from "../../components/events";
-import { CalendarIcon, CheckIcon, PlusIcon, TableIcon, TicketIcon } from "../../components/Icons";
-import { useEvents } from "../../lib/api";
+import { BellIcon, CalendarIcon, CheckIcon, PlusIcon, TableIcon, TicketIcon } from "../../components/Icons";
+import { useAlerts, useEvents } from "../../lib/api";
 import { useSession } from "../../lib/auth-client";
 import { daysUntil, formatMoney, greeting } from "../../lib/format";
 import { ErrorCard, LoadingCards, PageHeader } from "./ui";
@@ -38,6 +39,7 @@ export default function OverviewPage() {
         <FirstEventCard templates={templates.length} />
       ) : (
         <>
+          <AlertsCard events={events} />
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard icon={CalendarIcon} label="Upcoming shows" value={upcoming.length} />
             <StatCard
@@ -167,9 +169,12 @@ function NextShowCard({ event }: { event: EventRecord }) {
         >
           Edit event
         </Link>
-        <span className="rounded-full border border-white/25 px-5 py-2.5 text-sm font-bold text-white/70">
-          Vendor booking · coming soon
-        </span>
+        <Link
+          to={`/dashboard/events/${event.id}/tables`}
+          className="rounded-full border border-white/40 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-white/10"
+        >
+          Tables & vendors
+        </Link>
       </div>
     </section>
   );
@@ -181,7 +186,7 @@ function Checklist({ events, templates }: { events: EventRecord[]; templates: nu
     { label: "Create your first event", done: events.length > 0 },
     { label: "Publish an event", done: events.some((e) => e.status === "published") },
     { label: "Save a show as a template", done: templates > 0 },
-    { label: "Open vendor table booking", done: false, soon: true },
+    { label: "Open vendor table booking", done: events.some((e) => e.bookingOpen && e.status === "published") },
     { label: "Start selling tickets", done: false, soon: true },
   ];
   const completed = steps.filter((s) => s.done).length;
@@ -245,6 +250,64 @@ function FirstEventCard({ templates }: { templates: number }) {
         <PlusIcon className="size-4" strokeWidth={3} />
         Create your first event
       </Link>
+    </section>
+  );
+}
+
+/** Overdue payments and table requests waiting for approval, across all events. */
+function AlertsCard({ events }: { events: EventRecord[] }) {
+  const { data: alerts } = useAlerts();
+  if (!alerts?.length) return null;
+  const overdue = alerts.filter((a) => a.kind === "overdue").length;
+  const pending = alerts.length - overdue;
+
+  return (
+    <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-2 ring-coral/40" aria-labelledby="alerts-title">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-full bg-coral text-white">
+          <BellIcon className="size-5" />
+        </span>
+        <div>
+          <h2 id="alerts-title" className="text-lg font-extrabold">
+            Needs your attention
+          </h2>
+          <p className="text-sm text-ink-soft">
+            {[
+              overdue && `${overdue} overdue payment${overdue > 1 ? "s" : ""}`,
+              pending && `${pending} table request${pending > 1 ? "s" : ""} to review`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-4 divide-y divide-ink/5">
+        {alerts.map((a) => {
+          const event = events.find((e) => e.id === a.eventId);
+          return (
+            <li key={a.booking.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold">
+                  {a.booking.name}
+                  {a.booking.businessName && <span className="font-semibold text-ink-soft"> · {a.booking.businessName}</span>}
+                </p>
+                <p className="text-sm text-ink-soft">
+                  <Link to={`/dashboard/events/${a.eventId}/tables`} className="font-semibold text-coral-ink hover:underline">
+                    {a.eventName}
+                  </Link>{" "}
+                  · table {a.tableLabel} ·{" "}
+                  {a.kind === "overdue" ? (
+                    <span className="font-bold text-coral-ink">{paymentDueLabel(a.booking)}</span>
+                  ) : (
+                    "wants a table"
+                  )}
+                </p>
+              </div>
+              <BookingActions booking={a.booking} eventId={a.eventId} paymentDueDays={event?.paymentDueDays ?? 7} />
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
