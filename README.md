@@ -84,6 +84,32 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
 
+### Vendor emails
+
+Flightplan emails vendors and organizers as bookings change. Emails are queued in the `emails` table and sent by a background worker, with up to 5 retries. Every email also appears in the dashboard **Email log**.
+
+| Email | To | When |
+|---|---|---|
+| Request received | Vendor | Booked from a link, approval needed |
+| Tables held, please pay | Vendor | Approved, booked without approval, or assigned by the organizer |
+| You're booked | Vendor | Marked paid, or a free table |
+| Request not approved | Vendor | Rejected |
+| Tables released | Vendor | One or more tables released |
+| More time to pay | Vendor | Organizer keeps an overdue request |
+| Payment reminder | Vendor | ~24h before the deadline (skipped if approved less than a day before it) |
+| New request / new booking | Organizer | A vendor books from a link |
+| Payment overdue | Organizer | Once, when a deadline passes |
+
+Vendor emails set reply-to to the organizer, and they link to a private status page at `/booking/:requestId` showing the vendor's tables, status, deadline and payment instructions. Reminders and overdue notices are checked every 5 minutes.
+
+**Turning on delivery:** without `RESEND_API_KEY`, emails are only recorded ("Not sent" in the Email log). To send them:
+
+1. Create an account at [resend.com](https://resend.com) and an API key under **API Keys**.
+2. Add it to `apps/api/.env` as `RESEND_API_KEY=re_...` and restart `pnpm dev`.
+3. For testing, the default sender `onboarding@resend.dev` only delivers to your own Resend account's email. To email real vendors, verify your domain in Resend and set `EMAIL_FROM="Your Show <tables@yourdomain.com>"`.
+
+`APP_TIMEZONE` (default `America/Vancouver`) sets the timezone for deadlines in emails, and `APP_URL` (default `BETTER_AUTH_URL`) sets the base for links.
+
 ### Enabling Google sign-in
 
 Until Google credentials are set, the "Continue with Google" button is disabled and email/password login still works.
@@ -179,6 +205,10 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
 | GET | `/api/vendors` | The organizer's vendor list |
+| GET | `/api/emails` | The organizer's email log, and whether delivery is enabled |
+| GET | `/api/emails/:id/html` | An email's HTML |
+| POST | `/api/emails/:id/retry` | Retry a failed email |
+| GET | `/api/public/request/:requestId` | A vendor's booking status page data (no sign-in) |
 | GET / POST | `/api/public/book/:token` | Public booking page data / request tables: `{ tableIds: [...], name, email, … }` (no sign-in) |
 | GET / POST | `/api/public/invite/:token` | Same, for a personal invite link |
 | GET | `/api/uploads/:file` | Uploaded images (floor maps) |

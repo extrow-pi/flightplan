@@ -9,12 +9,14 @@ import {
   type BookingSource,
   type PublicBookingPage,
   type PublicBookingResult,
+  type PublicRequestStatus,
 } from "@flightplan/shared";
 import { createBookings, findOrCreateVendor, TableTakenError } from "../bookings.js";
 import { db, schema } from "../db/index.js";
+import { notifyRequestCreated } from "../email/notifications.js";
 import { uploadUrl } from "../uploads.js";
 
-const { bookings, eventDays, events, eventTables, vendorInvites } = schema;
+const { bookings, eventDays, events, eventTables, user, vendorInvites } = schema;
 
 // Tokens are 32 hex characters
 const tokenSchema = z.string().regex(/^[0-9a-f]{32}$/);
@@ -167,8 +169,11 @@ function bookingHandlers(kind: "event" | "invite") {
           }
           return created;
         });
+        // Emails go out in the background once the booking is saved
+        void notifyRequestCreated(rows[0].requestId);
 
         const result: PublicBookingResult = {
+          requestId: rows[0].requestId,
           status: rows[0].status,
           tableLabels: picked.map((t) => t.label),
           paymentDueAt: rows[0].paymentDueAt?.toISOString() ?? null,
@@ -187,3 +192,59 @@ function bookingHandlers(kind: "event" | "invite") {
 
 // Public (no sign-in): /api/public/book/:token and /api/public/invite/:token
 export const publicRoutes = new Hono().route("/book", bookingHandlers("event")).route("/invite", bookingHandlers("invite"));
+
+// ── Vendor status page: /api/public/request/:requestId ───────────────────
+// Linked from every vendor email. The request id is a random UUID known only to the vendor
+// (and the organizer), so it works as the page's secret.
+
+const requestIdSchema = z.uuid();
+
+const requestStatusRoutes = new Hono().get("/:requestId", async (c) => {
+  const requestId = c.req.param("requestId");
+  if (!requestIdSchema.safeParse(requestId).success) return c.json<ApiError>({ error: "Booking not found" }, 404);
+
+  const rows = await db
+    .select({ booking: bookings, label: eventTables.label })
+    .from(bookings)
+    .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
+    .where(eq(bookings.requestId, requestId))
+    .orderBy(asc(eventTables.number));
+  if (!rows.length) return c.json<ApiError>({ error: "Booking not found" }, 404);
+
+  const first = rows[0].booking;
+  const [event] = await db.select().from(events).where(eq(events.id, first.eventId));
+  const [organizer] = await db.select({ name: user.name }).from(user).where(eq(user.id, event.organizerId));
+  const days = await db
+    .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+    .from(eventDays)
+    .where(eq(eventDays.eventId, event.id))
+    .orderBy(asc(eventDays.dayOffset));
+
+  const active = rows.filter((r) => (ACTIVE_BOOKING_STATUSES as readonly string[]).includes(r.booking.status));
+  const lead = active[0]?.booking;
+  const status: PublicRequestStatus["status"] = lead ? (lead.status as "pending" | "awaiting_payment" | "paid") : "closed";
+
+  const body: PublicRequestStatus = {
+    event: {
+      name: event.name,
+      venueName: event.venueName,
+      address: event.address,
+      city: event.city,
+      startDate: event.startDate!,
+      days,
+      tablePriceCents: event.tablePriceCents,
+      floorMapUrl: uploadUrl(event.floorMapFile),
+    },
+    organizerName: organizer?.name ?? "",
+    vendorName: first.name,
+    status,
+    closedAs: lead ? null : first.status,
+    tableLabels: active.map((r) => r.label),
+    paymentDueAt: lead?.paymentDueAt?.toISOString() ?? null,
+    overdue: Boolean(lead && lead.status === "awaiting_payment" && lead.paymentDueAt && lead.paymentDueAt.getTime() < Date.now()),
+    paymentInstructions: status === "pending" || status === "awaiting_payment" ? event.paymentInstructions : "",
+  };
+  return c.json(body);
+});
+
+publicRoutes.route("/request", requestStatusRoutes);

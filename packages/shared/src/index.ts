@@ -288,10 +288,54 @@ export type PublicBookingPage = {
 };
 
 export type PublicBookingResult = {
+  /** For the vendor status page, /booking/:requestId */
+  requestId: string;
   status: BookingStatus;
   tableLabels: string[];
   paymentDueAt: string | null;
   paymentInstructions: string;
+};
+
+/** A vendor's private status page for one request (/booking/:requestId, linked from emails). */
+export type PublicRequestStatus = {
+  event: {
+    name: string;
+    venueName: string;
+    address: string;
+    city: string;
+    startDate: string;
+    days: EventDay[];
+    tablePriceCents: number;
+    floorMapUrl: string | null;
+  };
+  organizerName: string;
+  vendorName: string;
+  /** The request's shared status; "closed" once none of its tables are held */
+  status: "pending" | "awaiting_payment" | "paid" | "closed";
+  /** How it ended, when status is "closed" */
+  closedAs: BookingStatus | null;
+  /** Tables the request still holds */
+  tableLabels: string[];
+  paymentDueAt: string | null;
+  overdue: boolean;
+  paymentInstructions: string;
+};
+
+// ── Email log ───────────────────────────────────────────────────────────────
+
+export type EmailStatus = "queued" | "sent" | "failed" | "logged";
+
+export type EmailLogEntry = {
+  id: string;
+  kind: string;
+  to: string;
+  subject: string;
+  status: EmailStatus;
+  eventId: string | null;
+  eventName: string | null;
+  createdAt: string;
+  sentAt: string | null;
+  lastError: string | null;
 };
 
 // ── Date helpers (YYYY-MM-DD strings, no timezones) ─────────────────────────

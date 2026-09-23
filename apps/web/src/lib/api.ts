@@ -5,6 +5,7 @@ import type {
   Booking,
   BookingAlert,
   CreateInviteInput,
+  EmailLogEntry,
   EventInput,
   EventRecord,
   EventStatus,
@@ -12,6 +13,7 @@ import type {
   Invite,
   PublicBookingPage,
   PublicBookingResult,
+  PublicRequestStatus,
   Vendor,
   VendorBookingInput,
 } from "@flightplan/shared";
@@ -269,5 +271,48 @@ export function useSubmitBooking(kind: BookingLinkKind, token: string) {
       request<PublicBookingResult>(`/public/${kind}/${token}`, { method: "POST", body: input }),
     // Refresh availability either way (e.g. someone else took the table)
     onSettled: () => qc.invalidateQueries({ queryKey: ["public", kind, token] }),
+  });
+}
+
+// ── Email log ────────────────────────────────────────────────────────────
+
+export function useEmailLog() {
+  return useQuery({
+    queryKey: ["emails"],
+    queryFn: () => request<{ emails: EmailLogEntry[]; deliveryEnabled: boolean }>("/emails"),
+    // Queued emails flip to sent within seconds
+    refetchInterval: 15_000,
+  });
+}
+
+/** An email's HTML, for previewing in a sandboxed iframe. */
+export function useEmailHtml(id: string) {
+  return useQuery({
+    queryKey: ["emails", id, "html"],
+    queryFn: async () => {
+      const res = await fetch(`/api/emails/${id}/html`);
+      if (!res.ok) throw new Error("Couldn't load this email");
+      return res.text();
+    },
+    staleTime: Infinity,
+  });
+}
+
+export function useRetryEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<{ ok: true }>(`/emails/${id}/retry`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["emails"] }),
+  });
+}
+
+// ── Vendor status page (no sign-in) ──────────────────────────────────────
+
+export function useRequestStatus(requestId: string | undefined) {
+  return useQuery({
+    queryKey: ["public", "request", requestId],
+    queryFn: () => request<PublicRequestStatus>(`/public/request/${requestId}`),
+    enabled: Boolean(requestId),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
   });
 }
