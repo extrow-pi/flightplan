@@ -8,6 +8,7 @@
     "dev:api": "pnpm --filter @flightplan/api dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @flightplan/api db:generate"
+    "db:generate": "pnpm --filter @flightplan/api db:generate",
+    "seed": "pnpm --filter @flightplan/api seed"
   }
 }

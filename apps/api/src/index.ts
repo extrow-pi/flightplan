@@ -1,25 +1,17 @@
 import "./env.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { createMiddleware } from "hono/factory";
 import { logger } from "hono/logger";
 import { z } from "zod";
 import { organizerSignupSchema, type ApiError } from "@flightplan/shared";
 import { db, schema } from "./db/index.js";
-import { auth, googleEnabled, type Session } from "./auth.js";
+import { auth, googleEnabled } from "./auth.js";
+import { requireUser } from "./middleware.js";
+import { eventRoutes } from "./routes/events.js";
 
 const app = new Hono().basePath("/api");
 
 app.use(logger());
-
-// Rejects requests without a valid session; otherwise exposes the organizer as c.var.user
-const requireUser = createMiddleware<{ Variables: Session }>(async (c, next) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) return c.json<ApiError>({ error: "Not signed in" }, 401);
-  c.set("user", session.user);
-  c.set("session", session.session);
-  await next();
-});
 
 // Better Auth: sign up, sign in, sign out, Google OAuth, sessions
 app.on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw));
@@ -30,6 +22,8 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.get("/auth-config", (c) => c.json({ google: googleEnabled }));
 
 app.get("/me", requireUser, (c) => c.json({ user: c.var.user }));
+
+app.route("/events", eventRoutes);
 
 app.post("/organizers/signup", async (c) => {
   const body = await c.req.json().catch(() => null);

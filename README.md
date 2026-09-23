@@ -22,9 +22,21 @@ pnpm dev          # web on http://localhost:5173, API on http://localhost:3001
 
 The web dev server proxies `/api/*` to the API.
 
+### Test organizer account
+
+With `pnpm dev` running, create a test organizer with sample events:
+
+```bash
+pnpm seed
+```
+
+Then log in at http://localhost:5173/login with **organizer@flightplan.test** / **flightplan-test-2026**.
+The script is safe to re-run: it skips sample events if the account already has some. It goes through the API, so it works with PGlite or Postgres.
+
 ### Database
 
 With no `DATABASE_URL` set, the API uses **PGlite**, an embedded Postgres stored in `apps/api/.data/`. You don't need to install a database.
+Only one process can open PGlite at a time. Don't run a second API instance or other scripts against `apps/api/.data` while `pnpm dev` is running, because that can damage the database. To start fresh, stop the dev server and delete `apps/api/.data/`.
 To use a real Postgres server (Neon, Supabase, local), copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL`.
 
 Migrations run automatically when the API starts. After changing `apps/api/src/db/schema.ts`:
@@ -36,7 +48,10 @@ pnpm db:generate
 ## Organizer login
 
 Built on [Better Auth](https://better-auth.com). Organizers can sign up or log in with email and password, or with Google.
-Pages: `/signup`, `/login`, and `/dashboard` (signed-in only).
+Pages: `/signup` and `/login`. Signed-in organizers use the dashboard at `/dashboard`:
+
+- **Overview:** upcoming-show stats, a countdown to the next show, later shows and a getting-started checklist
+- **Events:** list with Upcoming / Drafts / Past / All filters, plus create, edit, publish/unpublish and delete
 
 ### Enabling Google sign-in
 
@@ -120,4 +135,7 @@ If someone signs in with Google using the same email as an existing email/passwo
 | * | `/api/auth/*` | Better Auth: sign up/in/out, Google OAuth, session |
 | GET | `/api/auth-config` | Which sign-in methods are configured |
 | GET | `/api/me` | The signed-in organizer (401 if signed out) |
+| GET / POST | `/api/events` | List / create the organizer's events |
+| GET / PUT / DELETE | `/api/events/:id` | Read / update / delete one of the organizer's events |
+| PATCH | `/api/events/:id/status` | Publish or unpublish: body `{ "status": "published" }` or `{ "status": "draft" }` |
 | POST | `/api/organizers/signup` | Early-access organizer signup (validated with the shared Zod schema) |
