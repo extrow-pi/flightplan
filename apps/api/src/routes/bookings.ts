@@ -23,6 +23,14 @@ import {
   toBooking,
 } from "../bookings.js";
 import { db, schema } from "../db/index.js";
+import {
+  notifyApproved,
+  notifyKept,
+  notifyPaid,
+  notifyRejected,
+  notifyReleased,
+  notifyRequestCreated,
+} from "../email/notifications.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 
 const { bookings, events, eventTables, vendorInvites, vendors } = schema;
@@ -130,6 +138,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
         });
         return row;
       });
+      void notifyRequestCreated(booking.requestId);
       return c.json({ booking: toBooking(booking) }, 201);
     } catch (err) {
       if (err instanceof TableTakenError) return c.json<ApiError>({ error: "That table is already booked" }, 409);
@@ -194,14 +203,18 @@ export const bookingRoutes = new Hono<AuthEnv>()
     const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
     const rows = await transitionRequest(found.booking.requestId, ["pending"], approvedFields(found.event));
-    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("approve", found.booking.status), 409);
+    if (!rows.length) return c.json(cantDo("approve", found.booking.status), 409);
+    void notifyApproved(found.booking.requestId);
+    return c.json({ bookings: rows.map(toBooking) });
   })
 
   .post("/:id/reject", async (c) => {
     const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
     const rows = await transitionRequest(found.booking.requestId, ["pending"], { status: "rejected", closedAt: new Date() });
-    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("reject", found.booking.status), 409);
+    if (!rows.length) return c.json(cantDo("reject", found.booking.status), 409);
+    void notifyRejected(found.booking.requestId);
+    return c.json({ bookings: rows.map(toBooking) });
   })
 
   .post("/:id/mark-paid", async (c) => {
@@ -214,9 +227,9 @@ export const bookingRoutes = new Hono<AuthEnv>()
       paidAt: now,
       paymentDueAt: null,
     });
-    return rows.length
-      ? c.json({ bookings: rows.map(toBooking) })
-      : c.json(cantDo("mark as paid", found.booking.status), 409);
+    if (!rows.length) return c.json(cantDo("mark as paid", found.booking.status), 409);
+    void notifyPaid(found.booking.requestId);
+    return c.json({ bookings: rows.map(toBooking) });
   })
 
   // Free a table (or with { wholeRequest: true }, every table in the request)
@@ -235,7 +248,22 @@ export const bookingRoutes = new Hono<AuthEnv>()
           .set(set)
           .where(and(eq(bookings.id, found.booking.id), inArray(bookings.status, active)))
           .returning();
-    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("release", found.booking.status), 409);
+    if (!rows.length) return c.json(cantDo("release", found.booking.status), 409);
+    const released = await db
+      .select({ label: eventTables.label })
+      .from(eventTables)
+      .where(
+        inArray(
+          eventTables.id,
+          rows.map((r) => r.tableId),
+        ),
+      )
+      .orderBy(asc(eventTables.number));
+    void notifyReleased(
+      found.booking.requestId,
+      released.map((t) => t.label),
+    );
+    return c.json({ bookings: rows.map(toBooking) });
   })
 
   // Keep an unpaid request: extend its deadline by some days, or remove the deadline
@@ -247,8 +275,13 @@ export const bookingRoutes = new Hono<AuthEnv>()
     const { extendDays } = parsed.data;
     const rows = await transitionRequest(found.booking.requestId, ["awaiting_payment"], {
       paymentDueAt: extendDays ? new Date(Date.now() + extendDays * 86_400_000) : null,
+      // A new deadline gets its own reminder and overdue notice
+      reminderSentAt: null,
+      overdueNotifiedAt: null,
     });
-    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("keep", found.booking.status), 409);
+    if (!rows.length) return c.json(cantDo("keep", found.booking.status), 409);
+    void notifyKept(found.booking.requestId);
+    return c.json({ bookings: rows.map(toBooking) });
   });
 
 // ── Invites: /api/invites/:id ────────────────────────────────────────────

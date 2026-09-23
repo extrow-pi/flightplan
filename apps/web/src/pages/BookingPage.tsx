@@ -330,7 +330,7 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
             {due ? (
               <>
                 {" "}
-                by <strong>{due}</strong>. Unpaid tables may be released after that.
+                by <strong>{due}</strong> to keep {count > 1 ? "them" : "it"}. Unpaid tables may be released after the deadline.
               </>
             ) : (
               "."
@@ -338,6 +338,15 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
           </>
         )}
       </p>
+      <p className="mt-4 text-sm text-ink-soft">
+        You&apos;ll get email updates as your booking moves along, and you can check on it any time.
+      </p>
+      <a
+        href={`/booking/${result.requestId}`}
+        className="mt-4 inline-block rounded-full border-2 border-slate px-5 py-2 text-sm font-bold text-slate transition hover:bg-slate hover:text-white"
+      >
+        View your booking
+      </a>
       {result.status !== "paid" && result.paymentInstructions && (
         <div className="mt-6 rounded-2xl bg-cream-50 p-5 text-left ring-1 ring-ink/5">
           <p className="text-xs font-bold tracking-wider text-ink-muted uppercase">How to pay</p>

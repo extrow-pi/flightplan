@@ -13,7 +13,7 @@ export function PageHeader({
   eyebrow: string;
   title: string;
   subtitle?: string;
-  /** Defaults to a "Create event" button */
+  /** Defaults to a "Create event" button; pass null for none */
   action?: ReactNode;
 }) {
   return (
@@ -23,7 +23,7 @@ export function PageHeader({
         <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
         {subtitle && <p className="mt-2 text-ink-soft">{subtitle}</p>}
       </div>
-      {action ?? (
+      {action !== undefined ? action : (
         <Link
           to="/dashboard/events/new"
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full whitespace-nowrap bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"

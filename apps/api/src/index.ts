@@ -10,6 +10,9 @@ import { requireUser } from "./middleware.js";
 import { eventRoutes } from "./routes/events.js";
 import { alertRoutes, bookingRoutes, eventBookingRoutes, inviteRoutes, vendorRoutes } from "./routes/bookings.js";
 import { publicRoutes } from "./routes/public.js";
+import { emailRoutes } from "./routes/emails.js";
+import { emailDeliveryEnabled, startEmailWorker } from "./email/outbox.js";
+import { startNotificationScheduler } from "./email/notifications.js";
 import { uploadRoutes } from "./uploads.js";
 
 const app = new Hono().basePath("/api");
@@ -32,6 +35,7 @@ app.route("/bookings", bookingRoutes);
 app.route("/invites", inviteRoutes);
 app.route("/alerts", alertRoutes);
 app.route("/vendors", vendorRoutes);
+app.route("/emails", emailRoutes);
 
 // No sign-in needed: vendor booking pages and floor map images
 app.route("/public", publicRoutes);
@@ -57,6 +61,15 @@ app.post("/organizers/signup", async (c) => {
 });
 
 const port = Number(process.env.API_PORT ?? 3001);
-serve({ fetch: app.fetch, port }, () =>
-  console.log(`API listening on http://localhost:${port} (Google sign-in ${googleEnabled ? "enabled" : "not configured"})`),
-);
+serve({ fetch: app.fetch, port }, () => {
+  console.log(`API listening on http://localhost:${port} (Google sign-in ${googleEnabled ? "enabled" : "not configured"})`);
+  console.log(
+    emailDeliveryEnabled
+      ? "Emails: sending with Resend"
+      : "Emails: not sending (no RESEND_API_KEY); they appear in the dashboard Email log instead",
+  );
+});
+
+// Background jobs: send queued emails; payment reminders and overdue notices
+startEmailWorker();
+startNotificationScheduler();

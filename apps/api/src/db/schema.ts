@@ -141,6 +141,9 @@ export const bookings = pgTable(
     paidAt: timestamp("paid_at", { withTimezone: true }),
     // When it was rejected / released / cancelled
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    // Notification bookkeeping, so each reminder / overdue notice goes out once per deadline
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    overdueNotifiedAt: timestamp("overdue_notified_at", { withTimezone: true }),
   },
   (t) => [
     // At most one booking holds a table at a time
@@ -172,4 +175,30 @@ export const vendorInvites = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("vendor_invites_event_idx").on(t.eventId)],
+);
+
+// Every email the app sends: a queue for the background sender and a log organizers can read.
+// status: queued → sent | failed (after retries) | logged (no email provider configured)
+export const emails = pgTable(
+  "emails",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The organizer this email is about (their vendor emails, or emails to them)
+    organizerId: text("organizer_id").references(() => user.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+    requestId: uuid("request_id"),
+    kind: text("kind").notNull(),
+    to: text("to").notNull(),
+    replyTo: text("reply_to"),
+    subject: text("subject").notNull(),
+    html: text("html").notNull(),
+    text: text("text").notNull(),
+    status: text("status", { enum: ["queued", "sent", "failed", "logged"] }).notNull().default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    providerId: text("provider_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [index("emails_status_idx").on(t.status), index("emails_organizer_idx").on(t.organizerId, t.createdAt)],
 );
