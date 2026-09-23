@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+/* Brand palette, matched to jetlaggedcards.ca */
+@theme {
+  --color-coral: #e8856a;
+  --color-coral-deep: #d4694c;
+  --color-coral-ink: #c0442a;
+  --color-gold: #f5c842;
+  --color-gold-ink: #9a7000;
+  --color-sky: #9ecad4;
+  --color-slate: #5c6b8a;
+  --color-slate-deep: #4b5875;
+  --color-cream: #faf0dc;
+  --color-cream-50: #fffbf4;
+  --color-peach: #ffe0d8;
+  --color-ink: #4a3728;
+  --color-ink-soft: #7a6555;
+  --color-ink-muted: #9a8070;
+
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  background: var(--color-cream-50);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

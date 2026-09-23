@@ -1,0 +1,13 @@
+{
+  "name": "flightplan",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter @flightplan/web dev",
+    "dev:api": "pnpm --filter @flightplan/api dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @flightplan/api db:generate"
+  }
+}

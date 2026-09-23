@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flightplan",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": ["pnpm", "-r", "--parallel", "dev"],
+      "port": 5173
+    }
+  ]
+}
