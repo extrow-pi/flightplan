@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import type { EventRecord, EventTable, Invite } from "@flightplan/shared";
+import type { Booking, EventRecord, EventTable, Invite } from "@flightplan/shared";
 import {
   BookingActions,
   closedLabel,
   paymentDueLabel,
+  ReleaseTableButton,
   sourceLabels,
   TABLE_STATES,
   tableState,
@@ -24,6 +25,7 @@ import {
   useSaveEvent,
   useVendors,
 } from "../../lib/api";
+import { formatMoney } from "../../lib/format";
 
 type Filter = "all" | ReturnType<typeof tableState>;
 
@@ -32,6 +34,9 @@ export default function TablesPage() {
   const { data: event, isPending, error } = useEvent(id);
   const tables = useEventTables(event && event.status !== "template" ? id : undefined);
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = useState<"vendors" | "tables">("vendors");
+  // A request to point out after clicking "Review" in the table view
+  const [highlight, setHighlight] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<EventTable | null | "pick">(null);
 
   if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
@@ -49,14 +54,26 @@ export default function TablesPage() {
   }
 
   const all = tables.data?.tables ?? [];
-  // Tables still held by each vendor request, in floor order
-  const requestTables = new Map<string, string[]>();
-  for (const t of all) {
-    if (t.booking) requestTables.set(t.booking.requestId, [...(requestTables.get(t.booking.requestId) ?? []), t.label]);
-  }
-  const counts = Object.fromEntries(TABLE_STATES.map((s) => [s, all.filter((t) => tableState(t.booking) === s).length]));
-  const shown = filter === "all" ? all : all.filter((t) => tableState(t.booking) === filter);
+  const requests = groupRequests(all);
   const available = all.filter((t) => !t.booking);
+
+  // Filters count tables in the table view and vendor requests in the vendor view
+  const stateOf = (x: EventTable | VendorRequest) => ("requestId" in x ? x.state : tableState(x.booking));
+  const items: (EventTable | VendorRequest)[] = view === "tables" ? all : requests;
+  const filters = (["all", ...TABLE_STATES] as Filter[]).filter((f) => !(view === "vendors" && f === "available"));
+  const count = (f: Filter) => (f === "all" ? items.length : items.filter((x) => stateOf(x) === f).length);
+  const activeFilter = filters.includes(filter) ? filter : "all";
+  const matches = (x: EventTable | VendorRequest) => activeFilter === "all" || stateOf(x) === activeFilter;
+
+  function reviewRequest(requestId: string) {
+    setView("vendors");
+    setFilter("all");
+    setHighlight(requestId);
+    // Wait for the vendor view to render, then bring the card into view
+    requestAnimationFrame(() =>
+      document.getElementById(`request-${requestId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+    );
+  }
 
   return (
     <>
@@ -80,12 +97,34 @@ export default function TablesPage() {
       ) : (
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="min-w-0 space-y-4">
+            <div className="flex w-fit gap-1 rounded-full bg-white p-1 ring-1 ring-ink/10" role="radiogroup" aria-label="View">
+              {(
+                [
+                  ["vendors", `By vendor (${requests.length})`],
+                  ["tables", `By table (${all.length})`],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="radio"
+                  aria-checked={view === v}
+                  onClick={() => setView(v)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-bold transition ${
+                    view === v ? "bg-slate text-white" : "text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             {/* Filters double as the summary */}
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter tables">
-              {(["all", ...TABLE_STATES] as Filter[]).map((f) => {
-                const count = f === "all" ? all.length : counts[f];
-                if (f !== "all" && f !== "available" && !count) return null;
-                const active = f === filter;
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter">
+              {filters.map((f) => {
+                const n = count(f);
+                if (f !== "all" && f !== "available" && !n) return null;
+                const active = f === activeFilter;
                 return (
                   <button
                     key={f}
@@ -97,8 +136,8 @@ export default function TablesPage() {
                       active ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
                     }`}
                   >
-                    {f === "all" ? "All tables" : tableStateLabel(f)}
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${active ? "bg-white/20" : "bg-cream"}`}>{count}</span>
+                    {f === "all" ? (view === "tables" ? "All tables" : "All vendors") : tableStateLabel(f)}
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${active ? "bg-white/20" : "bg-cream"}`}>{n}</span>
                   </button>
                 );
               })}
@@ -112,18 +151,38 @@ export default function TablesPage() {
                 </Link>{" "}
                 tab.
               </p>
+            ) : view === "vendors" ? (
+              <div className="space-y-3">
+                {requests.filter(matches).map((r) => (
+                  <RequestCard key={r.requestId} request={r} event={event} highlighted={r.requestId === highlight} />
+                ))}
+                {requests.length === 0 ? (
+                  <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
+                    No vendors yet. Share the booking link or assign a table to get started.
+                  </p>
+                ) : (
+                  !requests.some(matches) && (
+                    <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
+                      No vendors match this filter.
+                    </p>
+                  )
+                )}
+              </div>
             ) : (
               <ul className="divide-y divide-ink/5 overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
-                {shown.map((t) => (
+                {all.filter(matches).map((t) => (
                   <TableRow
                     key={t.id}
                     table={t}
                     event={event}
-                    requestTables={t.booking ? (requestTables.get(t.booking.requestId) ?? [t.label]) : []}
+                    requestSize={
+                      t.booking ? (requests.find((r) => r.requestId === t.booking!.requestId)?.tables.length ?? 1) : 0
+                    }
                     onAssign={() => setAssigning(t)}
+                    onReview={() => t.booking && reviewRequest(t.booking.requestId)}
                   />
                 ))}
-                {shown.length === 0 && <li className="p-6 text-center text-ink-soft">No tables match this filter.</li>}
+                {!all.some(matches) && <li className="p-6 text-center text-ink-soft">No tables match this filter.</li>}
               </ul>
             )}
 
@@ -139,7 +198,8 @@ export default function TablesPage() {
                         {all.find((t) => t.id === b.tableId)?.label ?? "(removed)"}
                       </span>
                       <span>
-                        {closedLabel(b.status)} {b.closedAt && new Date(b.closedAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}
+                        {closedLabel(b.status)}{" "}
+                        {b.closedAt && new Date(b.closedAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}
                       </span>
                     </li>
                   ))}
@@ -176,71 +236,153 @@ export default function TablesPage() {
   );
 }
 
+// ── Vendor requests ──────────────────────────────────────────────────────
+
+/** A vendor's request: one or more tables booked together, sharing status and deadline. */
+type VendorRequest = {
+  requestId: string;
+  /** Representative booking (all bookings in a request share vendor, status and deadline) */
+  booking: Booking;
+  /** The request's tables that are still held, in floor order */
+  tables: { table: EventTable; booking: Booking }[];
+  state: ReturnType<typeof tableState>;
+};
+
+// Requests needing a decision come first
+const stateOrder: Record<ReturnType<typeof tableState>, number> = {
+  overdue: 0,
+  pending: 1,
+  awaiting_payment: 2,
+  paid: 3,
+  available: 4,
+};
+
+function groupRequests(tables: EventTable[]): VendorRequest[] {
+  const byId = new Map<string, VendorRequest>();
+  for (const t of tables) {
+    const b = t.booking;
+    if (!b) continue;
+    const existing = byId.get(b.requestId);
+    if (existing) existing.tables.push({ table: t, booking: b });
+    else {
+      byId.set(b.requestId, { requestId: b.requestId, booking: b, tables: [{ table: t, booking: b }], state: tableState(b) });
+    }
+  }
+  return [...byId.values()].sort(
+    (a, b) => stateOrder[a.state] - stateOrder[b.state] || a.booking.createdAt.localeCompare(b.booking.createdAt),
+  );
+}
+
+function RequestCard({
+  request,
+  event,
+  highlighted,
+}: {
+  request: VendorRequest;
+  event: EventRecord;
+  highlighted: boolean;
+}) {
+  const { booking: b, tables } = request;
+  const due = paymentDueLabel(b);
+  const labels = tables.map((t) => t.table.label);
+  const multiple = tables.length > 1;
+
+  return (
+    <article
+      id={`request-${request.requestId}`}
+      className={`rounded-3xl bg-white p-5 shadow-sm transition ${
+        highlighted ? "ring-2 ring-coral" : request.state === "overdue" ? "ring-2 ring-coral-ink/40" : "ring-1 ring-ink/5"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="font-extrabold">
+            {b.name}
+            {b.businessName && <span className="font-semibold text-ink-soft"> · {b.businessName}</span>}
+          </h3>
+          <p className="mt-0.5 text-sm break-words text-ink-soft">
+            <a href={`mailto:${b.email}`} className="hover:underline">
+              {b.email}
+            </a>
+            {b.phone && ` · ${b.phone}`} · {sourceLabels[b.source]}
+          </p>
+        </div>
+        <TableStateBadge state={request.state} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-ink-soft">{multiple ? `${tables.length} tables:` : "Table:"}</span>
+        {tables.map(({ table, booking }) => (
+          <span
+            key={table.id}
+            className={`inline-flex items-center rounded-lg bg-slate py-1 pl-2.5 text-sm font-extrabold text-white ${multiple ? "pr-1" : "pr-2.5"}`}
+          >
+            {table.label}
+            {/* Release one table of a multi-table request; releasing them all is in the actions below */}
+            {multiple && (
+              <ReleaseTableButton bookingId={booking.id} eventId={event.id} tableLabel={table.label} compact />
+            )}
+          </span>
+        ))}
+        {event.tablePriceCents > 0 && (
+          <span className="ml-auto text-sm font-bold text-ink-soft">{formatMoney(event.tablePriceCents * tables.length)}</span>
+        )}
+      </div>
+
+      {(due || b.message) && (
+        <div className="mt-2 space-y-0.5 text-sm text-ink-soft">
+          {due && <p className={b.overdue ? "font-bold text-coral-ink" : ""}>{due}</p>}
+          {b.message && <p className="italic">“{b.message}”</p>}
+        </div>
+      )}
+
+      <div className="mt-4 border-t border-ink/5 pt-3">
+        <BookingActions booking={b} eventId={event.id} paymentDueDays={event.paymentDueDays} requestTables={labels} />
+      </div>
+    </article>
+  );
+}
+
+// ── Tables (floor view) ──────────────────────────────────────────────────
+
 function TableRow({
   table,
   event,
-  requestTables,
+  requestSize,
   onAssign,
+  onReview,
 }: {
   table: EventTable;
   event: EventRecord;
-  /** Every table held by this booking's request, including this one */
-  requestTables: string[];
+  /** How many tables this table's request holds */
+  requestSize: number;
   onAssign: () => void;
+  onReview: () => void;
 }) {
   const b = table.booking;
-  const state = tableState(b);
-  const due = b && paymentDueLabel(b);
   return (
-    <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-      <div className="flex min-w-0 flex-1 items-start gap-4">
-        <span
-          className={`flex size-11 shrink-0 items-center justify-center rounded-2xl font-extrabold ${
-            b ? "bg-slate text-white" : "bg-sky/20 text-slate"
-          }`}
-          title={`Table ${table.label}`}
-        >
-          {table.label}
-        </span>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {b ? (
-              <span className="font-extrabold">
-                {b.name}
-                {b.businessName && <span className="font-semibold text-ink-soft"> · {b.businessName}</span>}
-              </span>
-            ) : (
-              <span className="font-semibold text-ink-muted">Open table</span>
-            )}
-            <TableStateBadge state={state} />
-          </div>
-          {b && (
-            <div className="mt-1 space-y-0.5 text-sm text-ink-soft">
-              <p className="break-all">
-                <a href={`mailto:${b.email}`} className="hover:underline">
-                  {b.email}
-                </a>
-                {b.phone && ` · ${b.phone}`} · {sourceLabels[b.source]}
-              </p>
-              {requestTables.length > 1 && (
-                <p className="font-semibold text-slate">Requested together: tables {requestTables.join(", ")}</p>
-              )}
-              {due && <p className={b.overdue ? "font-bold text-coral-ink" : ""}>{due}</p>}
-              {b.message && <p className="italic">“{b.message}”</p>}
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="sm:shrink-0">
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+      <span
+        className={`flex size-10 shrink-0 items-center justify-center rounded-xl font-extrabold ${
+          b ? "bg-slate text-white" : "bg-sky/20 text-slate"
+        }`}
+        title={`Table ${table.label}`}
+      >
+        {table.label}
+      </span>
+      <div className="min-w-0 flex-1">
         {b ? (
-          <BookingActions
-            booking={b}
-            eventId={event.id}
-            paymentDueDays={event.paymentDueDays}
-            requestTables={requestTables}
-            tableLabel={table.label}
-          />
+          <p className="truncate font-bold">
+            {b.businessName || b.name}
+            {requestSize > 1 && <span className="font-semibold text-ink-muted"> · 1 of {requestSize} tables</span>}
+          </p>
         ) : (
+          <p className="font-semibold text-ink-muted">Open table</p>
+        )}
+      </div>
+      <TableStateBadge state={tableState(b)} />
+      <div className="flex min-w-24 justify-end">
+        {!b ? (
           !isPast(event) && (
             <button
               type="button"
@@ -250,6 +392,17 @@ function TableRow({
               Assign
             </button>
           )
+        ) : b.status === "pending" || b.overdue ? (
+          // Decisions happen on the vendor's request card
+          <button
+            type="button"
+            onClick={onReview}
+            className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
+          >
+            Review
+          </button>
+        ) : (
+          <ReleaseTableButton bookingId={b.id} eventId={event.id} tableLabel={table.label} />
         )}
       </div>
     </li>

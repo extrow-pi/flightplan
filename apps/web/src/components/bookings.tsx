@@ -67,16 +67,14 @@ const btn = {
 };
 
 /**
- * The next steps for a vendor's request: approve / reject, mark paid, or for overdue payments,
- * release the tables or keep them with more time. Approve, reject, mark paid and keep act on the
- * whole request; on a table row, release can free just that table.
+ * The next steps for a vendor's request, applied to all of its tables: approve / reject, mark paid,
+ * release, or for overdue payments, keep them with more time. (ReleaseTableButton frees just one.)
  */
 export function BookingActions({
   booking,
   eventId,
   paymentDueDays,
   requestTables,
-  tableLabel,
 }: {
   booking: Booking;
   eventId?: string;
@@ -84,8 +82,6 @@ export function BookingActions({
   paymentDueDays: number | null;
   /** Labels of every table still held by this booking's request */
   requestTables: string[];
-  /** Set on a table row: the table this booking is for. Unset = acting on the whole request. */
-  tableLabel?: string;
 }) {
   const act = useBookingAction(eventId);
   const [confirmRelease, setConfirmRelease] = useState(false);
@@ -97,30 +93,18 @@ export function BookingActions({
   const all = count > 1 ? ` (${count} tables)` : "";
 
   if (confirmRelease) {
-    // On a table row of a multi-table request, offer this table alone or the whole request
-    const single = tableLabel !== undefined && count > 1;
     return (
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold text-coral-ink">
-          {single ? "Release which tables?" : count > 1 ? `Free tables ${requestTables.join(", ")}?` : "Free this table?"}
+          {count > 1 ? `Free tables ${requestTables.join(", ")}?` : "Free this table?"}
         </span>
-        {single && (
-          <button
-            type="button"
-            className={btn.primary}
-            disabled={busy}
-            onClick={() => run({ bookingId: id, action: "release" })}
-          >
-            Just table {tableLabel}
-          </button>
-        )}
         <button
           type="button"
-          className={single ? btn.secondary : btn.primary}
+          className={btn.primary}
           disabled={busy}
           onClick={() => run({ bookingId: id, action: "release", wholeRequest: true })}
         >
-          {busy ? "Releasing…" : count > 1 ? `All ${count} tables` : "Release"}
+          {busy ? "Releasing…" : count > 1 ? `Release all ${count}` : "Release"}
         </button>
         <button type="button" className={btn.danger} onClick={() => setConfirmRelease(false)}>
           Cancel
@@ -175,7 +159,7 @@ export function BookingActions({
 
       {booking.status !== "pending" && !(booking.status === "awaiting_payment" && booking.overdue) && (
         <button type="button" className={btn.danger} disabled={busy} onClick={() => setConfirmRelease(true)}>
-          Release
+          {count > 1 ? `Release all ${count}` : "Release"}
         </button>
       )}
 
@@ -185,5 +169,65 @@ export function BookingActions({
         </span>
       )}
     </div>
+  );
+}
+
+/** Free a single table (the rest of its request, if any, stays booked). Asks first. */
+export function ReleaseTableButton({
+  bookingId,
+  eventId,
+  tableLabel,
+  compact = false,
+}: {
+  bookingId: string;
+  eventId: string;
+  tableLabel: string;
+  /** A small × for use inside a table chip */
+  compact?: boolean;
+}) {
+  const act = useBookingAction(eventId);
+  const [confirming, setConfirming] = useState(false);
+
+  if (confirming) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 ${compact ? "ml-1 rounded-full bg-white py-0.5 pr-0.5 pl-2.5 shadow-sm" : ""}`}
+      >
+        <span className="text-xs font-semibold whitespace-nowrap text-coral-ink">
+          {compact ? "Release?" : `Release ${tableLabel}?`}
+        </span>
+        <button
+          type="button"
+          disabled={act.isPending}
+          onClick={() => act.mutate({ bookingId, action: "release" })}
+          className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-bold text-white disabled:opacity-60"
+        >
+          {act.isPending ? "…" : "Yes"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          className="rounded-full px-2 py-0.5 text-xs font-bold text-ink-soft hover:bg-cream"
+        >
+          No
+        </button>
+      </span>
+    );
+  }
+
+  return compact ? (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      className="ml-1 flex size-5 items-center justify-center rounded-full bg-white/90 text-sm leading-none font-bold text-ink transition hover:bg-coral hover:text-white"
+      aria-label={`Release table ${tableLabel} only`}
+      title={`Release table ${tableLabel} only`}
+    >
+      ×
+    </button>
+  ) : (
+    <button type="button" className={btn.danger} onClick={() => setConfirming(true)}>
+      Release
+    </button>
   );
 }
