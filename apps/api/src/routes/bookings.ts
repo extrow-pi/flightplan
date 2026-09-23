@@ -6,6 +6,7 @@ import {
   assignTableSchema,
   createInviteSchema,
   keepBookingSchema,
+  releaseBookingSchema,
   type ApiError,
   type BookingAlert,
   type BookingStatus,
@@ -15,7 +16,7 @@ import {
 } from "@flightplan/shared";
 import {
   approvedFields,
-  createBooking,
+  createBookings,
   findOrCreateVendor,
   overdueCondition,
   TableTakenError,
@@ -119,7 +120,15 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           contact = input.contact!;
           vendorId = await findOrCreateVendor(tx, c.var.user.id, contact);
         }
-        return createBooking(tx, { event, tableId: table.id, vendorId, contact, source: "organizer", paid: input.paid });
+        const [row] = await createBookings(tx, {
+          event,
+          tableIds: [table.id],
+          vendorId,
+          contact,
+          source: "organizer",
+          paid: input.paid,
+        });
+        return row;
       });
       return c.json({ booking: toBooking(booking) }, 201);
     } catch (err) {
@@ -161,71 +170,85 @@ async function findOwnedBooking(id: string, organizerId: string) {
   return row ?? null;
 }
 
-/** Apply a status change only if the booking is still in one of `from` (guards against double clicks). */
-async function transition(id: string, from: BookingStatus[], set: Partial<typeof bookings.$inferInsert>) {
-  const [row] = await db
+/**
+ * Apply a status change to every booking in a request that's still in one of `from`
+ * (tables already released keep their status; also guards against double clicks).
+ */
+async function transitionRequest(requestId: string, from: BookingStatus[], set: Partial<typeof bookings.$inferInsert>) {
+  return db
     .update(bookings)
     .set(set)
-    .where(and(eq(bookings.id, id), inArray(bookings.status, from)))
+    .where(and(eq(bookings.requestId, requestId), inArray(bookings.status, from)))
     .returning();
-  return row ?? null;
 }
 
 const cantDo = (action: string, status: BookingStatus) =>
   ({ error: `Can't ${action} a booking that is ${status.replace("_", " ")}` }) satisfies ApiError;
 
+// Actions are addressed by any booking in the request. Approve, reject, mark paid and keep apply
+// to the whole request (one vendor, one payment); release can free a single table or all of them.
 export const bookingRoutes = new Hono<AuthEnv>()
   .use(requireUser)
 
   .post("/:id/approve", async (c) => {
     const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
-    const row = await transition(found.booking.id, ["pending"], approvedFields(found.event));
-    return row ? c.json({ booking: toBooking(row) }) : c.json(cantDo("approve", found.booking.status), 409);
+    const rows = await transitionRequest(found.booking.requestId, ["pending"], approvedFields(found.event));
+    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("approve", found.booking.status), 409);
   })
 
   .post("/:id/reject", async (c) => {
     const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
-    const row = await transition(found.booking.id, ["pending"], { status: "rejected", closedAt: new Date() });
-    return row ? c.json({ booking: toBooking(row) }) : c.json(cantDo("reject", found.booking.status), 409);
+    const rows = await transitionRequest(found.booking.requestId, ["pending"], { status: "rejected", closedAt: new Date() });
+    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("reject", found.booking.status), 409);
   })
 
   .post("/:id/mark-paid", async (c) => {
     const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
     const now = new Date();
-    const row = await transition(found.booking.id, ["pending", "awaiting_payment"], {
+    const rows = await transitionRequest(found.booking.requestId, ["pending", "awaiting_payment"], {
       status: "paid",
       approvedAt: found.booking.approvedAt ?? now,
       paidAt: now,
       paymentDueAt: null,
     });
-    return row ? c.json({ booking: toBooking(row) }) : c.json(cantDo("mark as paid", found.booking.status), 409);
+    return rows.length
+      ? c.json({ bookings: rows.map(toBooking) })
+      : c.json(cantDo("mark as paid", found.booking.status), 409);
   })
 
-  // Free the table (e.g. unpaid past the deadline, or the vendor dropped out)
+  // Free a table (or with { wholeRequest: true }, every table in the request)
   .post("/:id/release", async (c) => {
     const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
-    const row = await transition(found.booking.id, [...ACTIVE_BOOKING_STATUSES], {
-      status: "released",
-      closedAt: new Date(),
-    });
-    return row ? c.json({ booking: toBooking(row) }) : c.json(cantDo("release", found.booking.status), 409);
+    const parsed = releaseBookingSchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!parsed.success) return c.json(invalid(parsed.error), 400);
+
+    const set = { status: "released" as const, closedAt: new Date() };
+    const active = [...ACTIVE_BOOKING_STATUSES];
+    const rows = parsed.data.wholeRequest
+      ? await transitionRequest(found.booking.requestId, active, set)
+      : await db
+          .update(bookings)
+          .set(set)
+          .where(and(eq(bookings.id, found.booking.id), inArray(bookings.status, active)))
+          .returning();
+    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("release", found.booking.status), 409);
   })
 
-  // Keep an unpaid booking: extend its deadline by some days, or remove the deadline
+  // Keep an unpaid request: extend its deadline by some days, or remove the deadline
   .post("/:id/keep", async (c) => {
     const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
     const parsed = keepBookingSchema.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
     const { extendDays } = parsed.data;
-    const row = await transition(found.booking.id, ["awaiting_payment"], {
+    const rows = await transitionRequest(found.booking.requestId, ["awaiting_payment"], {
       paymentDueAt: extendDays ? new Date(Date.now() + extendDays * 86_400_000) : null,
     });
-    return row ? c.json({ booking: toBooking(row) }) : c.json(cantDo("keep", found.booking.status), 409);
+    return rows.length ? c.json({ bookings: rows.map(toBooking) }) : c.json(cantDo("keep", found.booking.status), 409);
   });
 
 // ── Invites: /api/invites/:id ────────────────────────────────────────────
@@ -260,15 +283,25 @@ export const alertRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async (
     .innerJoin(events, eq(events.id, bookings.eventId))
     .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
     .where(and(eq(events.organizerId, c.var.user.id), or(eq(bookings.status, "pending"), overdueCondition)))
-    .orderBy(asc(bookings.paymentDueAt), asc(bookings.createdAt));
+    .orderBy(asc(bookings.paymentDueAt), asc(bookings.createdAt), asc(eventTables.number));
 
-  const alerts: BookingAlert[] = rows.map((r) => ({
-    kind: r.booking.status === "pending" ? "pending" : "overdue",
-    booking: toBooking(r.booking),
-    eventId: r.eventId,
-    eventName: r.eventName,
-    tableLabel: r.tableLabel,
-  }));
+  // One alert per vendor request, listing all of its tables
+  const byRequest = new Map<string, BookingAlert>();
+  for (const r of rows) {
+    const existing = byRequest.get(r.booking.requestId);
+    if (existing) {
+      existing.tableLabels.push(r.tableLabel);
+      continue;
+    }
+    byRequest.set(r.booking.requestId, {
+      kind: r.booking.status === "pending" ? "pending" : "overdue",
+      booking: toBooking(r.booking),
+      eventId: r.eventId,
+      eventName: r.eventName,
+      tableLabels: [r.tableLabel],
+    });
+  }
+  const alerts = [...byRequest.values()];
   // Overdue payments first: they need a decision
   alerts.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "overdue" ? -1 : 1));
   return c.json({ alerts });

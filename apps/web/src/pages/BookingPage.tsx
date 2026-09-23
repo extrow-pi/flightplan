@@ -118,7 +118,8 @@ function BookingForm({
   onBooked: (result: PublicBookingResult, name: string) => void;
 }) {
   const submit = useSubmitBooking(kind, token);
-  const [tableId, setTableId] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const max = page.event.maxTablesPerRequest;
   const [details, setDetails] = useState(() => {
     const remembered = loadRemembered();
     // An invite's name/email (if the organizer filled them in) take priority
@@ -133,25 +134,35 @@ function BookingForm({
   const [remember, setRemember] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const selected = page.tables.find((t) => t.id === tableId);
+  // Selected tables in floor order; drop any that were taken since (availability refreshes after a clash)
+  const selected = page.tables.filter((t) => picked.includes(t.id) && t.available);
   const availableCount = page.tables.filter((t) => t.available).length;
   const fieldErrors = submit.error instanceof ApiRequestError ? submit.error.body.fieldErrors : undefined;
+  const labels = selected.map((t) => t.label).join(", ");
+  const total = selected.length * page.event.tablePriceCents;
+
+  function toggle(id: string) {
+    setLocalError(null);
+    if (picked.includes(id)) return setPicked(picked.filter((p) => p !== id));
+    // With a limit of one, picking another table just switches to it
+    if (max === 1) return setPicked([id]);
+    if (selected.length >= max) {
+      return setLocalError(`You can pick up to ${max} tables. Unselect one to choose another.`);
+    }
+    setPicked([...picked.filter((p) => selected.some((t) => t.id === p)), id]);
+  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLocalError(null);
-    if (!tableId) return setLocalError("Pick a table first.");
+    if (!selected.length) return setLocalError("Pick a table first.");
     const { message, ...contact } = details;
     submit.mutate(
-      { tableId, ...details },
+      { tableIds: selected.map((t) => t.id), ...details },
       {
         onSuccess: (result) => {
           saveRemembered(remember ? contact : null);
           onBooked(result, details.name);
-        },
-        // If someone else just took this table, make them pick again
-        onError: (err) => {
-          if (err instanceof ApiRequestError && err.status === 409) setTableId(null);
         },
       },
     );
@@ -166,9 +177,10 @@ function BookingForm({
       ) : (
         <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-[1.3fr_1fr]" noValidate>
           <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-            <h2 className="text-lg font-extrabold">1. Pick your table</h2>
+            <h2 className="text-lg font-extrabold">1. Pick your {max > 1 ? "tables" : "table"}</h2>
             <p className="mt-1 text-sm text-ink-soft">
-              {availableCount} of {page.tables.length} tables available. Use the map to find the spot you want.
+              {availableCount} of {page.tables.length} tables available.{" "}
+              {max > 1 ? `You can pick up to ${max}.` : ""} Use the map to find the spot you want.
             </p>
             {page.event.floorMapUrl && (
               <a
@@ -181,18 +193,17 @@ function BookingForm({
                 <img src={page.event.floorMapUrl} alt="Floor map with table numbers" className="w-full bg-cream-50 object-contain" />
               </a>
             )}
-            <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-2" role="radiogroup" aria-label="Tables">
+            <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-2" role="group" aria-label="Tables">
               {page.tables.map((t) => {
-                const isSelected = t.id === tableId;
+                const isSelected = selected.some((s) => s.id === t.id);
                 return (
                   <button
                     key={t.id}
                     type="button"
-                    role="radio"
-                    aria-checked={isSelected}
+                    aria-pressed={isSelected}
                     aria-label={`Table ${t.label}${t.available ? "" : " (taken)"}`}
                     disabled={!t.available}
-                    onClick={() => setTableId(t.id)}
+                    onClick={() => toggle(t.id)}
                     className={`aspect-square rounded-xl text-sm font-extrabold transition ${
                       isSelected
                         ? "bg-coral text-white shadow-md ring-4 ring-coral/25"
@@ -245,6 +256,17 @@ function BookingForm({
               </label>
             </div>
 
+            {selected.length > 0 && (
+              <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5">
+                <span className="font-bold">
+                  {selected.length > 1 ? `Tables ${labels}` : `Table ${labels}`}
+                </span>
+                {page.event.tablePriceCents > 0 && (
+                  <span className="font-extrabold text-coral-ink">{formatMoney(total)}</span>
+                )}
+              </div>
+            )}
+
             {(localError || (submit.error && !fieldErrors)) && (
               <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
                 {localError ?? submit.error?.message}
@@ -258,8 +280,10 @@ function BookingForm({
             >
               {submit.isPending
                 ? "Sending…"
-                : selected
-                  ? `${page.event.requiresApproval ? "Request" : "Book"} table ${selected.label}`
+                : selected.length
+                  ? `${page.event.requiresApproval ? "Request" : "Book"} ${
+                      selected.length > 1 ? `${selected.length} tables` : `table ${labels}`
+                    }`
                   : "Pick a table to continue"}
             </button>
           </section>
@@ -273,12 +297,15 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
   const due =
     result.paymentDueAt &&
     new Date(result.paymentDueAt).toLocaleString("en-CA", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const count = result.tableLabels.length;
+  // "table 4" or "tables 3, 4"
+  const tables = `${count > 1 ? "tables" : "table"} ${result.tableLabels.join(", ")}`;
   const title =
     result.status === "pending"
       ? "Request sent!"
       : result.status === "paid"
         ? "You're booked!"
-        : `Table ${result.tableLabel} is held for you`;
+        : `${count > 1 ? "Tables" : "Table"} ${result.tableLabels.join(", ")} ${count > 1 ? "are" : "is"} held for you`;
 
   return (
     <section className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-ink/5 sm:p-10" role="status">
@@ -289,16 +316,17 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
       <p className="mt-3 text-ink-soft">
         {result.status === "pending" ? (
           <>
-            Thanks, {name.split(" ")[0]}. The organizer of <strong>{page.event.name}</strong> will review your request for
-            table {result.tableLabel} and be in touch.
+            Thanks, {name.split(" ")[0]}. The organizer of <strong>{page.event.name}</strong> will review your request for{" "}
+            {tables} and be in touch.
           </>
         ) : result.status === "paid" ? (
           <>
-            Table {result.tableLabel} at <strong>{page.event.name}</strong> is yours. See you there!
+            {count > 1 ? "Tables" : "Table"} {result.tableLabels.join(", ")} at <strong>{page.event.name}</strong>{" "}
+            {count > 1 ? "are" : "is"} yours. See you there!
           </>
         ) : (
           <>
-            Please pay {formatMoney(page.event.tablePriceCents)} for table {result.tableLabel} at <strong>{page.event.name}</strong>
+            Please pay {formatMoney(page.event.tablePriceCents * count)} for {tables} at <strong>{page.event.name}</strong>
             {due ? (
               <>
                 {" "}

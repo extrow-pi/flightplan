@@ -57,6 +57,13 @@
       "when": 1790157300218,
       "tag": "0007_create_tables_for_existing_events",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790158518164,
+      "tag": "0008_multi_table_requests",
+      "breakpoints": true
     }
   ]
 }

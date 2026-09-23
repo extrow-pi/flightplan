@@ -49,6 +49,11 @@ export default function TablesPage() {
   }
 
   const all = tables.data?.tables ?? [];
+  // Tables still held by each vendor request, in floor order
+  const requestTables = new Map<string, string[]>();
+  for (const t of all) {
+    if (t.booking) requestTables.set(t.booking.requestId, [...(requestTables.get(t.booking.requestId) ?? []), t.label]);
+  }
   const counts = Object.fromEntries(TABLE_STATES.map((s) => [s, all.filter((t) => tableState(t.booking) === s).length]));
   const shown = filter === "all" ? all : all.filter((t) => tableState(t.booking) === filter);
   const available = all.filter((t) => !t.booking);
@@ -110,7 +115,13 @@ export default function TablesPage() {
             ) : (
               <ul className="divide-y divide-ink/5 overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
                 {shown.map((t) => (
-                  <TableRow key={t.id} table={t} event={event} onAssign={() => setAssigning(t)} />
+                  <TableRow
+                    key={t.id}
+                    table={t}
+                    event={event}
+                    requestTables={t.booking ? (requestTables.get(t.booking.requestId) ?? [t.label]) : []}
+                    onAssign={() => setAssigning(t)}
+                  />
                 ))}
                 {shown.length === 0 && <li className="p-6 text-center text-ink-soft">No tables match this filter.</li>}
               </ul>
@@ -165,7 +176,18 @@ export default function TablesPage() {
   );
 }
 
-function TableRow({ table, event, onAssign }: { table: EventTable; event: EventRecord; onAssign: () => void }) {
+function TableRow({
+  table,
+  event,
+  requestTables,
+  onAssign,
+}: {
+  table: EventTable;
+  event: EventRecord;
+  /** Every table held by this booking's request, including this one */
+  requestTables: string[];
+  onAssign: () => void;
+}) {
   const b = table.booking;
   const state = tableState(b);
   const due = b && paymentDueLabel(b);
@@ -200,6 +222,9 @@ function TableRow({ table, event, onAssign }: { table: EventTable; event: EventR
                 </a>
                 {b.phone && ` · ${b.phone}`} · {sourceLabels[b.source]}
               </p>
+              {requestTables.length > 1 && (
+                <p className="font-semibold text-slate">Requested together: tables {requestTables.join(", ")}</p>
+              )}
               {due && <p className={b.overdue ? "font-bold text-coral-ink" : ""}>{due}</p>}
               {b.message && <p className="italic">“{b.message}”</p>}
             </div>
@@ -208,7 +233,13 @@ function TableRow({ table, event, onAssign }: { table: EventTable; event: EventR
       </div>
       <div className="sm:shrink-0">
         {b ? (
-          <BookingActions booking={b} eventId={event.id} paymentDueDays={event.paymentDueDays} />
+          <BookingActions
+            booking={b}
+            eventId={event.id}
+            paymentDueDays={event.paymentDueDays}
+            requestTables={requestTables}
+            tableLabel={table.label}
+          />
         ) : (
           !isPast(event) && (
             <button

@@ -10,7 +10,7 @@ import {
   type PublicBookingPage,
   type PublicBookingResult,
 } from "@flightplan/shared";
-import { createBooking, findOrCreateVendor, TableTakenError } from "../bookings.js";
+import { createBookings, findOrCreateVendor, TableTakenError } from "../bookings.js";
 import { db, schema } from "../db/index.js";
 import { uploadUrl } from "../uploads.js";
 
@@ -103,6 +103,7 @@ async function loadPage(kind: "event" | "invite", token: string) {
       requiresApproval: event.requiresApproval,
       paymentDueDays: event.paymentDueDays,
       floorMapUrl: uploadUrl(event.floorMapFile),
+      maxTablesPerRequest: event.maxTablesPerRequest,
     },
     tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id) })),
     invite: invite ? { name: invite.name, email: invite.email, used: invite.bookingId !== null } : null,
@@ -133,30 +134,44 @@ function bookingHandlers(kind: "event" | "invite") {
           400,
         );
       }
-      const { tableId, message, ...contact } = parsed.data;
-      const table = tables.find((t) => t.id === tableId);
-      if (!table) return c.json<ApiError>({ error: "Pick a table from the map" }, 400);
+      const { tableIds, message, ...contact } = parsed.data;
+      if (tableIds.length > event.maxTablesPerRequest) {
+        return c.json<ApiError>(
+          { error: `You can request up to ${event.maxTablesPerRequest} table${event.maxTablesPerRequest > 1 ? "s" : ""} at once.` },
+          400,
+        );
+      }
+      const picked = tables.filter((t) => tableIds.includes(t.id));
+      if (picked.length !== tableIds.length) return c.json<ApiError>({ error: "Pick tables from the map" }, 400);
 
       try {
-        const booking = await db.transaction(async (tx) => {
+        const rows = await db.transaction(async (tx) => {
           const vendorId = await findOrCreateVendor(tx, event.organizerId, contact);
-          const row = await createBooking(tx, { event, tableId, vendorId, contact, message, source });
+          // Keep tables in floor order
+          const created = await createBookings(tx, {
+            event,
+            tableIds: picked.map((t) => t.id),
+            vendorId,
+            contact,
+            message,
+            source,
+          });
           if (invite) {
             // Claim the invite; fails if it was used or cancelled in the meantime
             const claimed = await tx
               .update(vendorInvites)
-              .set({ bookingId: row.id })
+              .set({ bookingId: created[0].id })
               .where(and(eq(vendorInvites.id, invite.id), isNull(vendorInvites.bookingId), isNull(vendorInvites.revokedAt)))
               .returning({ id: vendorInvites.id });
             if (!claimed.length) throw new InviteUsedError();
           }
-          return row;
+          return created;
         });
 
         const result: PublicBookingResult = {
-          status: booking.status,
-          tableLabel: table.label,
-          paymentDueAt: booking.paymentDueAt?.toISOString() ?? null,
+          status: rows[0].status,
+          tableLabels: picked.map((t) => t.label),
+          paymentDueAt: rows[0].paymentDueAt?.toISOString() ?? null,
           paymentInstructions: event.paymentInstructions,
         };
         return c.json(result, 201);

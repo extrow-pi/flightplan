@@ -67,18 +67,25 @@ const btn = {
 };
 
 /**
- * The next steps for a booking: approve / reject a request, mark paid, or for overdue payments,
- * release the table or keep it with more time.
+ * The next steps for a vendor's request: approve / reject, mark paid, or for overdue payments,
+ * release the tables or keep them with more time. Approve, reject, mark paid and keep act on the
+ * whole request; on a table row, release can free just that table.
  */
 export function BookingActions({
   booking,
   eventId,
   paymentDueDays,
+  requestTables,
+  tableLabel,
 }: {
   booking: Booking;
   eventId?: string;
   /** Default extension when keeping an overdue booking */
   paymentDueDays: number | null;
+  /** Labels of every table still held by this booking's request */
+  requestTables: string[];
+  /** Set on a table row: the table this booking is for. Unset = acting on the whole request. */
+  tableLabel?: string;
 }) {
   const act = useBookingAction(eventId);
   const [confirmRelease, setConfirmRelease] = useState(false);
@@ -86,13 +93,34 @@ export function BookingActions({
   const run = (a: Parameters<typeof act.mutate>[0]) => act.mutate(a);
   const id = booking.id;
   const extend = paymentDueDays ?? 7;
+  const count = requestTables.length;
+  const all = count > 1 ? ` (${count} tables)` : "";
 
   if (confirmRelease) {
+    // On a table row of a multi-table request, offer this table alone or the whole request
+    const single = tableLabel !== undefined && count > 1;
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-coral-ink">Free this table?</span>
-        <button type="button" className={btn.primary} disabled={busy} onClick={() => run({ bookingId: id, action: "release" })}>
-          {busy ? "Releasing…" : "Release"}
+        <span className="text-sm font-semibold text-coral-ink">
+          {single ? "Release which tables?" : count > 1 ? `Free tables ${requestTables.join(", ")}?` : "Free this table?"}
+        </span>
+        {single && (
+          <button
+            type="button"
+            className={btn.primary}
+            disabled={busy}
+            onClick={() => run({ bookingId: id, action: "release" })}
+          >
+            Just table {tableLabel}
+          </button>
+        )}
+        <button
+          type="button"
+          className={single ? btn.secondary : btn.primary}
+          disabled={busy}
+          onClick={() => run({ bookingId: id, action: "release", wholeRequest: true })}
+        >
+          {busy ? "Releasing…" : count > 1 ? `All ${count} tables` : "Release"}
         </button>
         <button type="button" className={btn.danger} onClick={() => setConfirmRelease(false)}>
           Cancel
@@ -106,10 +134,10 @@ export function BookingActions({
       {booking.status === "pending" && (
         <>
           <button type="button" className={btn.primary} disabled={busy} onClick={() => run({ bookingId: id, action: "approve" })}>
-            Approve
+            Approve{all}
           </button>
           <button type="button" className={btn.danger} disabled={busy} onClick={() => run({ bookingId: id, action: "reject" })}>
-            Reject
+            Reject{all}
           </button>
         </>
       )}
@@ -117,7 +145,7 @@ export function BookingActions({
       {booking.status === "awaiting_payment" && booking.overdue && (
         <>
           <button type="button" className={btn.primary} disabled={busy} onClick={() => setConfirmRelease(true)}>
-            Release table
+            {count > 1 ? "Release tables" : "Release table"}
           </button>
           <button
             type="button"
@@ -141,7 +169,7 @@ export function BookingActions({
 
       {(booking.status === "awaiting_payment" || booking.status === "pending") && (
         <button type="button" className={btn.secondary} disabled={busy} onClick={() => run({ bookingId: id, action: "mark-paid" })}>
-          Mark paid
+          Mark paid{all}
         </button>
       )}
 

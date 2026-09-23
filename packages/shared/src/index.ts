@@ -38,6 +38,7 @@ export type EventStatus = (typeof EVENT_STATUSES)[number];
 
 export const MAX_EVENT_DAYS = 14;
 export const MAX_TABLES = 500;
+export const MAX_TABLES_PER_REQUEST = 20;
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a time");
 const cents = z.number({ error: "Enter an amount" }).int("Whole cents only").min(0, "Can't be negative").max(1_000_000, "That's too high");
@@ -81,6 +82,14 @@ export const eventInputSchema = z
     /** Whether the public booking link accepts bookings (personal invites work either way) */
     bookingOpen: z.boolean().optional().default(false),
     paymentInstructions: z.string().trim().max(1000).optional().default(""),
+    /** How many tables a vendor can pick in one request */
+    maxTablesPerRequest: z
+      .number({ error: "Enter a number" })
+      .int("Whole numbers only")
+      .min(1, "At least 1")
+      .max(MAX_TABLES_PER_REQUEST, `Up to ${MAX_TABLES_PER_REQUEST}`)
+      .optional()
+      .default(4),
   })
   .superRefine((e, ctx) => {
     if (e.status !== "template" && !e.startDate) {
@@ -145,7 +154,11 @@ export type VendorContactInput = z.input<typeof vendorContactSchema>;
 
 /** A vendor booking a table from a public or invite link. */
 export const vendorBookingSchema = vendorContactSchema.extend({
-  tableId: z.uuid("Pick a table"),
+  tableIds: z
+    .array(z.uuid("Pick a table"))
+    .min(1, "Pick at least one table")
+    .max(MAX_TABLES_PER_REQUEST, `Up to ${MAX_TABLES_PER_REQUEST} tables`)
+    .refine((ids) => new Set(ids).size === ids.length, "Each table can only be picked once"),
   message: z.string().trim().max(1000).optional().default(""),
 });
 export type VendorBookingInput = z.input<typeof vendorBookingSchema>;
@@ -173,6 +186,11 @@ export const keepBookingSchema = z.object({
   extendDays: z.number().int().min(1).max(90).nullable().optional().default(null),
 });
 
+/** Release one table, or every table in the vendor's request. */
+export const releaseBookingSchema = z.object({
+  wholeRequest: z.boolean().optional().default(false),
+});
+
 export type Vendor = {
   id: string;
   name: string;
@@ -183,8 +201,13 @@ export type Vendor = {
   createdAt: string;
 };
 
+/**
+ * One table in a vendor's request. A request for several tables is several bookings sharing a
+ * requestId: they're approved, paid and kept together, and can be released one by one.
+ */
 export type Booking = {
   id: string;
+  requestId: string;
   tableId: string;
   vendorId: string;
   status: BookingStatus;
@@ -231,13 +254,14 @@ export type EventTablesResponse = {
   invites: Invite[];
 };
 
-/** An item that needs the organizer's attention on the dashboard. */
+/** A vendor request that needs the organizer's attention on the dashboard. */
 export type BookingAlert = {
   kind: "overdue" | "pending";
+  /** One of the request's bookings (they share status, vendor and deadline) */
   booking: Booking;
   eventId: string;
   eventName: string;
-  tableLabel: string;
+  tableLabels: string[];
 };
 
 /** What a vendor sees on a public booking page. No other vendors' details. */
@@ -254,6 +278,7 @@ export type PublicBookingPage = {
     requiresApproval: boolean;
     paymentDueDays: number | null;
     floorMapUrl: string | null;
+    maxTablesPerRequest: number;
   };
   tables: { id: string; label: string; available: boolean }[];
   /** For invite links: who it was sent to, and whether it's been used */
@@ -264,7 +289,7 @@ export type PublicBookingPage = {
 
 export type PublicBookingResult = {
   status: BookingStatus;
-  tableLabel: string;
+  tableLabels: string[];
   paymentDueAt: string | null;
   paymentInstructions: string;
 };

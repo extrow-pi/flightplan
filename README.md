@@ -75,6 +75,9 @@ Settings (per event, and copied from templates):
 - **Public booking link** `/book/:token`: anyone can request an open table while the event is published and the link is open.
 - **Personal invites** `/invite/:token`: single-use links for specific vendors. They work while the public link is closed, and on drafts.
 - **Payment instructions:** shown to vendors after they book. Payments happen outside the app; the organizer clicks **Mark paid**.
+- **Max tables per vendor request** (default 4, up to 20): vendors can pick several tables at once.
+
+**Multi-table requests:** a vendor's request is one booking per table, all sharing a `request_id`. The request is all-or-nothing: if any picked table is taken, nothing is booked and the vendor is told which tables to change. Approve, reject, mark paid and keep apply to the whole request, with one payment deadline. Release can free a single table or the whole request.
 
 Booking statuses: `pending` → `awaiting_payment` → `paid`, or `rejected` / `released` / `cancelled`. A table can hold only one active booking at a time (enforced by a partial unique index).
 When a payment deadline passes, the booking shows as **Payment overdue** in *Needs your attention* on the dashboard and on the event's **Tables & vendors** tab. From there the organizer can **Release table**, **Keep, +N days** or **Keep, no deadline**.
@@ -171,11 +174,12 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/events/:id/bookings` | Organizer assigns a table: `{ tableId, vendorId }` or `{ tableId, contact }`, optional `paid` |
 | POST | `/api/events/:id/invites` | Create a personal invite link: `{ name?, email? }` |
 | DELETE | `/api/invites/:id` | Cancel an unused invite |
-| POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` · `release` | Booking actions |
-| POST | `/api/bookings/:id/keep` | Keep an overdue booking: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
+| POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` | Apply to the booking's whole request |
+| POST | `/api/bookings/:id/release` | Free this table, or the whole request with `{ "wholeRequest": true }` |
+| POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
 | GET | `/api/vendors` | The organizer's vendor list |
-| GET / POST | `/api/public/book/:token` | Public booking page data / request a table (no sign-in) |
+| GET / POST | `/api/public/book/:token` | Public booking page data / request tables: `{ tableIds: [...], name, email, … }` (no sign-in) |
 | GET / POST | `/api/public/invite/:token` | Same, for a personal invite link |
 | GET | `/api/uploads/:file` | Uploaded images (floor maps) |
 | PATCH | `/api/events/:id/status` | Publish or unpublish a dated event: body `{ "status": "published" }` or `{ "status": "draft" }` |

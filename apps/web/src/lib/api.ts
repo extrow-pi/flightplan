@@ -208,18 +208,26 @@ export function useAssignTable(eventId: string) {
   });
 }
 
+// approve / reject / mark-paid / keep apply to the booking's whole request;
+// release frees one table unless wholeRequest is set
 export type BookingAction =
-  | { action: "approve" | "reject" | "mark-paid" | "release" }
+  | { action: "approve" | "reject" | "mark-paid" }
+  | { action: "release"; wholeRequest?: boolean }
   | { action: "keep"; extendDays: number | null };
 
 export function useBookingAction(eventId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ bookingId, ...a }: BookingAction & { bookingId: string }) =>
-      request<{ booking: Booking }>(`/bookings/${bookingId}/${a.action}`, {
+      request<{ bookings: Booking[] }>(`/bookings/${bookingId}/${a.action}`, {
         method: "POST",
-        body: a.action === "keep" ? { extendDays: a.extendDays } : {},
-      }).then((r) => r.booking),
+        body:
+          a.action === "keep"
+            ? { extendDays: a.extendDays }
+            : a.action === "release"
+              ? { wholeRequest: a.wholeRequest ?? false }
+              : {},
+      }).then((r) => r.bookings),
     onSuccess: () => invalidateBookings(qc, eventId),
   });
 }

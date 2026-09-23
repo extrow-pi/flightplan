@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   ACTIVE_BOOKING_STATUSES,
@@ -16,8 +17,14 @@ type BookingRow = typeof bookings.$inferSelect;
 
 /** Thrown when a table already has an active booking (two vendors picked it at once, etc.). */
 export class TableTakenError extends Error {
-  constructor() {
-    super("Sorry, that table was just taken. Please pick another one.");
+  constructor(labels: string[] = []) {
+    super(
+      labels.length > 1
+        ? `Sorry, tables ${labels.join(", ")} were just taken. Please pick other tables.`
+        : labels.length === 1
+          ? `Sorry, table ${labels[0]} was just taken. Please pick another one.`
+          : "Sorry, one of those tables was just taken. Please pick again.",
+    );
   }
 }
 
@@ -38,6 +45,7 @@ export function toBooking(b: BookingRow): Booking {
   const iso = (d: Date | null) => (d ? d.toISOString() : null);
   return {
     id: b.id,
+    requestId: b.requestId,
     tableId: b.tableId,
     vendorId: b.vendorId,
     status: b.status,
@@ -108,12 +116,15 @@ type BookingEvent = {
   paymentDueDays: number | null;
 };
 
-/** Create a booking for a table. Throws TableTakenError if the table is already held. */
-export async function createBooking(
+/**
+ * Book one or more tables as a single request (all or nothing).
+ * Throws TableTakenError, naming the tables, if any of them is already held.
+ */
+export async function createBookings(
   tx: Tx,
   args: {
     event: BookingEvent;
-    tableId: string;
+    tableIds: string[];
     vendorId: string;
     contact: VendorContactInput;
     message?: string;
@@ -121,10 +132,19 @@ export async function createBooking(
     /** Organizer only: record as already paid */
     paid?: boolean;
   },
-): Promise<BookingRow> {
-  const { event, source } = args;
+): Promise<BookingRow[]> {
+  const { event, source, tableIds } = args;
   const contact = vendorContactSchema.parse(args.contact);
   const now = new Date();
+
+  // Check first so we can say which tables are taken; the unique index still guards races
+  const held = await tx
+    .select({ label: eventTables.label })
+    .from(bookings)
+    .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
+    .where(and(inArray(bookings.tableId, tableIds), inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES])))
+    .orderBy(asc(eventTables.number));
+  if (held.length) throw new TableTakenError(held.map((h) => h.label));
 
   // Organizer-assigned tables skip approval; vendor requests need it if the event says so
   const fields =
@@ -134,23 +154,26 @@ export async function createBooking(
         ? { status: "paid" as const, approvedAt: now, paidAt: now, paymentDueAt: null }
         : approvedFields(event, now);
 
+  const requestId = randomUUID();
   try {
     // A savepoint, so a clash on the unique index doesn't abort the caller's transaction
-    return await tx.transaction(async (sp) => {
-      const [row] = await sp
+    return await tx.transaction((sp) =>
+      sp
         .insert(bookings)
-        .values({
-          eventId: event.id,
-          tableId: args.tableId,
-          vendorId: args.vendorId,
-          source,
-          ...contact,
-          message: args.message ?? "",
-          ...fields,
-        })
-        .returning();
-      return row;
-    });
+        .values(
+          tableIds.map((tableId) => ({
+            requestId,
+            eventId: event.id,
+            tableId,
+            vendorId: args.vendorId,
+            source,
+            ...contact,
+            message: args.message ?? "",
+            ...fields,
+          })),
+        )
+        .returning(),
+    );
   } catch (err) {
     if (isUniqueViolation(err)) throw new TableTakenError();
     throw err;

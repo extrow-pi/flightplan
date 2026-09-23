@@ -8,6 +8,7 @@ import {
   FLOOR_MAP_MAX_BYTES,
   FLOOR_MAP_TYPES,
   MAX_EVENT_DAYS,
+  MAX_TABLES_PER_REQUEST,
   type EventInput,
   type EventRecord,
   type EventStatus,
@@ -46,6 +47,7 @@ type FormState = {
   noDeadline: boolean;
   bookingOpen: boolean;
   paymentInstructions: string;
+  maxTablesPerRequest: string;
 };
 
 type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen">, string>> & {
@@ -71,6 +73,7 @@ const emptyForm = (): FormState => ({
   noDeadline: false,
   bookingOpen: false,
   paymentInstructions: "",
+  maxTablesPerRequest: "4",
 });
 
 function fromEvent(e: EventRecord): FormState {
@@ -96,6 +99,7 @@ function fromEvent(e: EventRecord): FormState {
     noDeadline: e.paymentDueDays === null,
     bookingOpen: e.bookingOpen,
     paymentInstructions: e.paymentInstructions,
+    maxTablesPerRequest: String(e.maxTablesPerRequest),
   };
 }
 
@@ -132,6 +136,7 @@ function toInput(f: FormState, status: EventStatus, rowsAreDated: boolean): Even
     // Templates never take bookings; drafts made from them start closed
     bookingOpen: status === "template" ? false : f.bookingOpen,
     paymentInstructions: f.paymentInstructions,
+    maxTablesPerRequest: toInt(f.maxTablesPerRequest),
   };
 }
 
@@ -489,6 +494,24 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             The clock starts when a table is approved. If it runs out, you'll see it on your dashboard and can release
             the table or give more time.
           </p>
+          <Field
+            label="Max tables per vendor request"
+            id="maxTablesPerRequest"
+            error={errors.maxTablesPerRequest}
+            hint="How many tables a vendor can pick in one request. Use 1 for one table each."
+          >
+            <input
+              id="maxTablesPerRequest"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_TABLES_PER_REQUEST}
+              className={inputClass}
+              value={form.maxTablesPerRequest}
+              aria-invalid={!!errors.maxTablesPerRequest}
+              onChange={(e) => update("maxTablesPerRequest", e.target.value)}
+            />
+          </Field>
           {!isTemplateForm && (
             <Toggle
               id="bookingOpen"

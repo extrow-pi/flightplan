@@ -295,15 +295,20 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
                   <Link to={`/dashboard/events/${a.eventId}/tables`} className="font-semibold text-coral-ink hover:underline">
                     {a.eventName}
                   </Link>{" "}
-                  · table {a.tableLabel} ·{" "}
+                  · {a.tableLabels.length > 1 ? `tables ${a.tableLabels.join(", ")}` : `table ${a.tableLabels[0]}`} ·{" "}
                   {a.kind === "overdue" ? (
                     <span className="font-bold text-coral-ink">{paymentDueLabel(a.booking)}</span>
                   ) : (
-                    "wants a table"
+                    a.tableLabels.length > 1 ? "wants these tables" : "wants a table"
                   )}
                 </p>
               </div>
-              <BookingActions booking={a.booking} eventId={a.eventId} paymentDueDays={event?.paymentDueDays ?? 7} />
+              <BookingActions
+                booking={a.booking}
+                eventId={a.eventId}
+                paymentDueDays={event?.paymentDueDays ?? 7}
+                requestTables={a.tableLabels}
+              />
             </li>
           );
         })}

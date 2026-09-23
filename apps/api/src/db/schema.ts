@@ -45,6 +45,7 @@ export const events = pgTable(
     paymentDueDays: integer("payment_due_days").default(7),
     bookingOpen: boolean("booking_open").notNull().default(false),
     paymentInstructions: text("payment_instructions").notNull().default(""),
+    maxTablesPerRequest: integer("max_tables_per_request").notNull().default(4),
     // Secret for the public booking link /book/:token
     bookingToken: text("booking_token")
       .notNull()
@@ -115,6 +116,8 @@ export const bookings = pgTable(
   "bookings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Bookings made together (one vendor, several tables) share a request id
+    requestId: uuid("request_id").notNull().defaultRandom(),
     eventId: uuid("event_id")
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
@@ -145,6 +148,7 @@ export const bookings = pgTable(
       .on(t.tableId)
       .where(sql`${t.status} in ('pending', 'awaiting_payment', 'paid')`),
     index("bookings_event_idx").on(t.eventId),
+    index("bookings_request_idx").on(t.requestId),
     index("bookings_vendor_idx").on(t.vendorId),
   ],
 );
