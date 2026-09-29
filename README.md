@@ -46,6 +46,24 @@ Migrations run automatically when the API starts. After changing `apps/api/src/d
 pnpm db:generate
 ```
 
+## Running in production
+
+The API serves the built web app too, so the whole site runs as one Node process on one port:
+
+```bash
+pnpm build        # builds apps/web/dist
+pnpm start        # API + web app on PORT (or API_PORT, default 3001)
+```
+
+The `Dockerfile` does the same in a container. Mount a volume at `/data` for uploads (and PGlite, if you're not using `DATABASE_URL`):
+
+```bash
+docker build -t flightplan .
+docker run -p 3001:3001 --env-file apps/api/.env -v flightplan-data:/data flightplan
+```
+
+Run exactly one instance: the email worker and payment reminders run inside the API process, and uploads are on local disk. In production, set `BETTER_AUTH_URL` to the site's public URL and use a new `BETTER_AUTH_SECRET`.
+
 ## Organizer login
 
 Built on [Better Auth](https://better-auth.com). Organizers can sign up or log in with email and password, or with Google.

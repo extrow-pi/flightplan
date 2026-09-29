@@ -24,7 +24,7 @@ async function connect(): Promise<Database> {
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");
   const { migrate } = await import("drizzle-orm/pglite/migrator");
-  const dataDir = fileURLToPath(new URL("../../.data/pglite", import.meta.url));
+  const dataDir = process.env.PGLITE_DIR ?? fileURLToPath(new URL("../../.data/pglite", import.meta.url));
   mkdirSync(dataDir, { recursive: true });
   const db = drizzle(new PGlite(dataDir), { schema });
   await migrate(db, { migrationsFolder });

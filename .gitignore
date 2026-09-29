@@ -7,3 +7,6 @@ dist/
 .DS_Store
 # Local embedded database (PGlite)
 apps/api/.data/
+# Azure deploy settings (secrets) and the generated spec
+deploy/azure/production.env
+deploy/azure/.containerapp.yaml
