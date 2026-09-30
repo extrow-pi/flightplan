@@ -10,6 +10,7 @@ import TablesPage from "./pages/dashboard/TablesPage";
 import BookingPage from "./pages/BookingPage";
 import RequestStatusPage from "./pages/RequestStatusPage";
 import EmailLogPage from "./pages/dashboard/EmailLogPage";
+import { PrivacyPage, TermsPage } from "./pages/LegalPages";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -34,6 +35,8 @@ const router = createBrowserRouter([
   { path: "/book/:token", element: <BookingPage kind="book" key="book" /> },
   { path: "/invite/:token", element: <BookingPage kind="invite" key="invite" /> },
   { path: "/booking/:requestId", element: <RequestStatusPage /> },
+  { path: "/privacy", element: <PrivacyPage /> },
+  { path: "/terms", element: <TermsPage /> },
   { path: "*", element: <LandingPage /> },
 ]);
 

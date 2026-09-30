@@ -95,8 +95,9 @@ if (existsSync(join(webDist, "index.html"))) {
   console.log(`Serving web app from ${webDist}`);
 }
 
-// PORT is set by most hosts (Fly.io, Railway…); API_PORT is the local default
-const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3001);
+// API_PORT wins so tools that set PORT for the web dev server (e.g. to 5173) can't move the API.
+// Hosts that only set PORT (Railway, Render…) still work, and the Dockerfile sets PORT=3001.
+const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
 serve({ fetch: server.fetch, port }, () => {
   console.log(`API listening on http://localhost:${port} (Google sign-in ${googleEnabled ? "enabled" : "not configured"})`);
   console.log(
