@@ -19,10 +19,17 @@ if [[ ! -f production.env ]]; then
   echo "Missing deploy/azure/production.env: copy production.env.example and fill it in." >&2
   exit 1
 fi
-set -a
-# shellcheck source=/dev/null
-source production.env
-set +a
+# Read KEY=value lines literally rather than sourcing the file, so values can contain
+# <, >, $, spaces and quotes. A " #" after the value starts a comment; surrounding quotes are dropped.
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%$'\r'}"
+  [[ "$line" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || continue
+  key="${BASH_REMATCH[1]}"
+  value="${BASH_REMATCH[2]}"
+  value="$(sed -E 's/[[:space:]]+#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//' <<<"$value")"
+  if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then value="${BASH_REMATCH[1]}"; fi
+  export "$key=$value"
+done < production.env
 
 for var in RESOURCE_GROUP LOCATION CONTAINERAPP_ENV CONTAINERAPP_NAME STORAGE_ACCOUNT IMAGE DATABASE_URL BETTER_AUTH_SECRET; do
   if [[ -z "${!var:-}" ]]; then
