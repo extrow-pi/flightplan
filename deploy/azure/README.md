@@ -74,13 +74,15 @@ az ad sp create --id "$APP_ID"
 az ad app federated-credential create --id "$APP_ID" --parameters '{
   "name": "github-main",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:extrow-pi/flightplan:ref:refs/heads/main",
+  "subject": "repo:extrow-pi@48468642/flightplan@1383259849:ref:refs/heads/main",
   "audiences": ["api://AzureADTokenExchange"]
 }'
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "$APP_ID" --role Contributor \
   --scope "/subscriptions/$SUB/resourceGroups/$RG"
 echo "AZURE_CLIENT_ID=$APP_ID  AZURE_TENANT_ID=$TENANT  AZURE_SUBSCRIPTION_ID=$SUB"
 ```
+
+The `subject` must match what GitHub sends exactly. GitHub now includes the owner's and repository's numeric IDs (`owner@<id>/repo@<id>`); the numbers above are this repository's. For a fork or a renamed repo, run the workflow once: the failed **azure/login** step prints the expected subject in its `AADSTS700213` error. Then update it with `az ad app federated-credential update --id "$APP_ID" --federated-credential-id github-main --parameters …`.
 
 Then, on GitHub, go to **Settings → Secrets and variables → Actions → Variables** and add these as **variables**. They're IDs, not secrets:
 
