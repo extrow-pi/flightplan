@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "react-router";
 import {
   EVENTS_PER_YEAR,
   EVENT_TYPES,
@@ -203,7 +204,12 @@ export default function SignupForm() {
       </div>
 
       <div className="flex flex-col items-start gap-3 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-ink-muted">Free during early access. No credit card needed.</p>
+        <p className="text-sm text-ink-muted">
+          Free during early access. No credit card needed.{" "}
+          <Link to="/privacy" className="font-semibold text-coral-ink hover:underline">
+            Privacy
+          </Link>
+        </p>
         <button
           type="submit"
           disabled={mutation.isPending}

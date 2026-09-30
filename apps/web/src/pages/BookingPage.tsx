@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { addDays, type PublicBookingPage, type PublicBookingResult, type VendorContactInput } from "@flightplan/shared";
 import Logo from "../components/Logo";
 import { CheckIcon, ClockIcon, MapPinIcon } from "../components/Icons";
@@ -286,6 +286,13 @@ function BookingForm({
                     }`
                   : "Pick a table to continue"}
             </button>
+            <p className="mt-3 text-center text-xs text-ink-muted">
+              Your details go to the show's organizer to manage your booking. See our{" "}
+              <Link to="/privacy" className="font-semibold text-coral-ink hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </section>
         </form>
       )}

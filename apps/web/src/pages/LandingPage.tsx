@@ -422,6 +422,14 @@ function Footer() {
           </a>{" "}
           project · Vancouver, BC · © {new Date().getFullYear()}
         </p>
+        <nav className="flex gap-5 font-semibold" aria-label="Legal">
+          <Link to="/privacy" className="hover:text-white">
+            Privacy
+          </Link>
+          <Link to="/terms" className="hover:text-white">
+            Terms
+          </Link>
+        </nav>
       </div>
     </footer>
   );
