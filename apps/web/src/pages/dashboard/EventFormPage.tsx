@@ -13,7 +13,7 @@ import {
   type EventRecord,
   type EventStatus,
 } from "@flightplan/shared";
-import { EventTabs, SpawnDialog } from "../../components/events";
+import { canEdit, EventTabs, isOwner, SharedBadge, SpawnDialog } from "../../components/events";
 import { ArrowLeftIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import {
   ApiRequestError,
@@ -209,6 +209,9 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
   const isNew = !event;
   const isTemplateForm = kind === "template";
+  // Viewers see the form read-only; only the owner can delete
+  const readOnly = event ? !canEdit(event) : false;
+  const owner = event ? isOwner(event) : true;
   const listPath = isTemplateForm ? "/dashboard/templates" : "/dashboard/events";
   const dirty = JSON.stringify({ ...form, days: form.days.map(({ key: _k, ...d }) => d) }) !==
     JSON.stringify({ ...initial, days: initial.days.map(({ key: _k, ...d }) => d) });
@@ -322,11 +325,14 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
               : `Edit template`
             : isNew
               ? "Create an event"
-              : `Edit ${event.name}`}
+              : readOnly
+                ? event.name
+                : `Edit ${event.name}`}
         </h1>
         {isTemplateForm && (
           <span className="rounded-full bg-peach px-3 py-1 text-sm font-bold text-coral-ink">Template</span>
         )}
+        {event && <SharedBadge event={event} />}
       </div>
       <p className="mt-2 text-ink-soft">
         {isTemplateForm
@@ -335,10 +341,17 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             ? "Save it as a draft while you plan. Publish when you're ready to open vendor tables."
             : event.status === "published"
               ? "This event is published."
-              : "This event is a draft. Only you can see it."}
+              : "This event is a draft. Only you and your team can see it."}
       </p>
 
-      {!isNew && !isTemplateForm && <EventTabs eventId={event.id} />}
+      {!isNew && <EventTabs event={event} />}
+
+      {readOnly && event && (
+        <p className="mt-6 rounded-2xl bg-sky/15 px-5 py-4 font-semibold text-slate" role="status">
+          You have view-only access to this {isTemplateForm ? "template" : "event"}. Ask {event.access.ownerName} to make you
+          an editor if you need to change it.
+        </p>
+      )}
 
       {fromTemplate && !isTemplateForm && (
         <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#e8f8f5] px-5 py-4 text-[#2d7a6a]" role="status">
@@ -350,6 +363,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
       )}
 
       <form onSubmit={onSubmit} noValidate className="mt-8 space-y-6">
+        <fieldset disabled={readOnly} className="space-y-6">
         <Section title="The basics">
           <Field label={isTemplateForm ? "Template name" : "Event name"} id="name" error={errors.name} className="sm:col-span-2">
             <input
@@ -542,6 +556,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         </Section>
 
         <FloorMapSection event={event} />
+        </fieldset>
 
         {generalError && (
           <p className="rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
@@ -559,9 +574,10 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
           </div>
         )}
 
+        {!readOnly && (
         <div className="flex flex-col-reverse gap-3 border-t border-ink/10 pt-6 lg:flex-row lg:items-center">
           <div className="flex flex-wrap items-center gap-2">
-            {!isNew &&
+            {!isNew && owner &&
               (confirmDelete ? (
                 <>
                   <span className="text-sm font-semibold text-coral-ink">Delete permanently?</span>
@@ -641,6 +657,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             )}
           </div>
         </div>
+        )}
         {isTemplateForm && !isNew && dirty && (
           <p className="text-right text-xs text-ink-muted">Save your changes before using this template.</p>
         )}

@@ -92,7 +92,7 @@ export default function OverviewPage() {
                     {drafts.length} draft{drafts.length > 1 ? "s" : ""} waiting
                   </p>
                   <p className="mt-1 text-sm text-ink-soft">
-                    Drafts are only visible to you. Publish them when you're ready to open vendor tables.
+                    Drafts are only visible to you and your team. Publish them when you're ready to open vendor tables.
                   </p>
                 </div>
               )}
@@ -303,12 +303,14 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
                   )}
                 </p>
               </div>
-              <BookingActions
-                booking={a.booking}
-                eventId={a.eventId}
-                paymentDueDays={event?.paymentDueDays ?? 7}
-                requestTables={a.tableLabels}
-              />
+              {a.role !== "viewer" && (
+                <BookingActions
+                  booking={a.booking}
+                  eventId={a.eventId}
+                  paymentDueDays={event?.paymentDueDays ?? 7}
+                  requestTables={a.tableLabels}
+                />
+              )}
             </li>
           );
         })}

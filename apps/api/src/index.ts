@@ -15,6 +15,7 @@ import { eventRoutes } from "./routes/events.js";
 import { alertRoutes, bookingRoutes, eventBookingRoutes, inviteRoutes, vendorRoutes } from "./routes/bookings.js";
 import { publicRoutes } from "./routes/public.js";
 import { emailRoutes } from "./routes/emails.js";
+import { collaboratorInviteRoutes, teamRoutes } from "./routes/collaborators.js";
 import { emailDeliveryEnabled, startEmailWorker } from "./email/outbox.js";
 import { startNotificationScheduler } from "./email/notifications.js";
 import { uploadRoutes } from "./uploads.js";
@@ -35,6 +36,8 @@ app.get("/me", requireUser, (c) => c.json({ user: c.var.user }));
 
 app.route("/events", eventRoutes);
 app.route("/events", eventBookingRoutes);
+app.route("/events", teamRoutes);
+app.route("/collaborator-invites", collaboratorInviteRoutes);
 app.route("/bookings", bookingRoutes);
 app.route("/invites", inviteRoutes);
 app.route("/alerts", alertRoutes);

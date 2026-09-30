@@ -31,6 +31,7 @@ pnpm seed
 ```
 
 Then log in at http://localhost:5173/login with **organizer@flightplan.test** / **flightplan-test-2026**.
+It also creates a second organizer, **collaborator@flightplan.test** (same password), who is an editor on *Red-eye Night Market*. Use it to try the collaborator features.
 The script is safe to re-run: it only adds sample events and templates (matched by name) that the account doesn't have yet. It goes through the API, so it works with PGlite or Postgres.
 
 ### Database
@@ -101,6 +102,23 @@ Booking statuses: `pending` → `awaiting_payment` → `paid`, or `rejected` / `
 When a payment deadline passes, the booking shows as **Payment overdue** in *Needs your attention* on the dashboard and on the event's **Tables & vendors** tab. From there the organizer can **Release table**, **Keep, +N days** or **Keep, no deadline**.
 
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
+
+### Collaborators
+
+Shows and templates can have more than one organizer. Open the **Team** tab to see who's on it.
+
+| Role | Can |
+|---|---|
+| **Owner** (`events.organizer_id`) | Everything, including deleting the event and managing the team |
+| **Editor** | Edit details, publish, use a template, manage tables, bookings and invite links |
+| **Viewer** | See everything, including tables, bookings and the email log; change nothing |
+
+- **Inviting:** the owner invites people by email and picks a role. The invite link is emailed and expires in 7 days. It can only be accepted by someone signed in with that email address; they're sent to sign in or sign up first, with the email pre-filled. Only a hash of the token is stored. Inviting the same email again cancels the earlier link.
+- **Managing the team:** the owner can change roles or remove people, and a collaborator can leave.
+- **Access checks:** all live in `apps/api/src/access.ts`. Shared events appear in collaborators' event lists and dashboards with a "Shared by …" badge.
+- **Vendors:** they belong to the event owner. Tables assigned by an editor go into the owner's vendor list. When assigning, collaborators only see vendors who've booked shows shared with them.
+- **Notifications:** organizer emails (new requests and bookings, overdue payments) go to everyone on the team. Vendor replies still go to the owner.
+- **Templates:** a show created from a shared template is owned by whoever creates it and keeps the template's team. The template's owner joins as an editor.
 
 ### Vendor emails
 
@@ -222,7 +240,14 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/bookings/:id/release` | Free this table, or the whole request with `{ "wholeRequest": true }` |
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
-| GET | `/api/vendors` | The organizer's vendor list |
+| GET | `/api/vendors` | The organizer's own vendor list |
+| GET | `/api/events/:id/vendors` | Vendors to pick from when assigning a table (the owner's list, or the part a collaborator can see) |
+| GET | `/api/events/:id/team` | The owner, collaborators and (for the owner) pending invites |
+| POST | `/api/events/:id/team/invites` | Owner invites a collaborator: `{ email, role: "editor" \| "viewer" }` |
+| PATCH / DELETE | `/api/events/:id/team/:userId` | Owner changes a role (`{ role }`) or removes someone; a collaborator can remove themselves |
+| DELETE | `/api/collaborator-invites/:id` | Owner cancels a pending invite |
+| GET | `/api/collaborator-invites/by-token/:token` | What an invite is for (no sign-in) |
+| POST | `/api/collaborator-invites/by-token/:token/accept` | Accept; the signed-in email must match the invite |
 | GET | `/api/emails` | The organizer's email log, and whether delivery is enabled |
 | GET | `/api/emails/:id/html` | An email's HTML |
 | POST | `/api/emails/:id/retry` | Retry a failed email |

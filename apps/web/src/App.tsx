@@ -11,6 +11,8 @@ import BookingPage from "./pages/BookingPage";
 import RequestStatusPage from "./pages/RequestStatusPage";
 import EmailLogPage from "./pages/dashboard/EmailLogPage";
 import { PrivacyPage, TermsPage } from "./pages/LegalPages";
+import TeamPage from "./pages/dashboard/TeamPage";
+import AcceptInvitePage from "./pages/AcceptInvitePage";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -25,16 +27,20 @@ const router = createBrowserRouter([
       { path: "events/new", element: <EventFormPage /> },
       { path: "events/:id", element: <EventFormPage /> },
       { path: "events/:id/tables", element: <TablesPage /> },
+      { path: "events/:id/team", element: <TeamPage /> },
       { path: "templates", element: <TemplatesPage /> },
       { path: "emails", element: <EmailLogPage /> },
       { path: "templates/new", element: <EventFormPage kind="template" /> },
       { path: "templates/:id", element: <EventFormPage kind="template" /> },
+      { path: "templates/:id/team", element: <TeamPage /> },
     ],
   },
   // Public vendor booking pages (no sign-in)
   { path: "/book/:token", element: <BookingPage kind="book" key="book" /> },
   { path: "/invite/:token", element: <BookingPage kind="invite" key="invite" /> },
   { path: "/booking/:requestId", element: <RequestStatusPage /> },
+  // Accept an invitation to collaborate on an event (asks to sign in first)
+  { path: "/collaborate/:token", element: <AcceptInvitePage /> },
   { path: "/privacy", element: <PrivacyPage /> },
   { path: "/terms", element: <TermsPage /> },
   { path: "*", element: <LandingPage /> },
