@@ -32,8 +32,18 @@ import {
   notifyRequestCreated,
 } from "../email/notifications.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
+import {
+  accessibleEvents,
+  canEdit,
+  collaboratorJoin,
+  editableEvents,
+  eventAccess,
+  forbidden,
+  roleOf,
+  type Access,
+} from "../access.js";
 
-const { bookings, events, eventTables, vendorInvites, vendors } = schema;
+const { bookings, eventCollaborators, events, eventTables, vendorInvites, vendors } = schema;
 
 const idSchema = z.uuid();
 const notFound = (what = "Event") => ({ error: `${what} not found` }) satisfies ApiError;
@@ -42,8 +52,10 @@ function invalid(error: z.ZodError) {
   return { error: "Please fix the highlighted fields", fieldErrors: z.flattenError(error).fieldErrors } satisfies ApiError;
 }
 
-async function findOwnedEvent(id: string, organizerId: string) {
-  if (!idSchema.safeParse(id).success) return null;
+/** An event the user can at least view, with its booking settings and the user's access. */
+async function findEvent(id: string, userId: string) {
+  const access = await eventAccess(id, userId);
+  if (!access) return null;
   const [event] = await db
     .select({
       id: events.id,
@@ -53,8 +65,40 @@ async function findOwnedEvent(id: string, organizerId: string) {
       paymentDueDays: events.paymentDueDays,
     })
     .from(events)
-    .where(and(eq(events.id, id), eq(events.organizerId, organizerId)));
-  return event ?? null;
+    .where(eq(events.id, id));
+  return { ...event, access };
+}
+
+/**
+ * Vendors from the event owner's list that the user may see. Owners see their whole list;
+ * collaborators only see vendors who have booked one of that owner's events shared with them.
+ */
+function visibleVendors(access: Access, userId: string) {
+  const ofOwner = eq(vendors.organizerId, access.ownerId);
+  if (access.role === "owner") return ofOwner;
+  return and(
+    ofOwner,
+    inArray(
+      vendors.id,
+      db
+        .select({ id: bookings.vendorId })
+        .from(bookings)
+        .innerJoin(events, eq(events.id, bookings.eventId))
+        .where(and(eq(events.organizerId, access.ownerId), accessibleEvents(userId))),
+    ),
+  );
+}
+
+function toVendor(v: typeof vendors.$inferSelect): Vendor {
+  return {
+    id: v.id,
+    name: v.name,
+    businessName: v.businessName,
+    email: v.email,
+    phone: v.phone,
+    notes: v.notes,
+    createdAt: v.createdAt.toISOString(),
+  };
 }
 
 function toInvite(i: typeof vendorInvites.$inferSelect): Invite {
@@ -76,9 +120,9 @@ const active = [...ACTIVE_BOOKING_STATUSES];
 export const eventBookingRoutes = new Hono<AuthEnv>()
   .use(requireUser)
 
-  // Everything the Tables page needs
+  // Everything the Tables page needs (any role)
   .get("/:id/tables", async (c) => {
-    const event = await findOwnedEvent(c.req.param("id"), c.var.user.id);
+    const event = await findEvent(c.req.param("id"), c.var.user.id);
     if (!event) return c.json(notFound(), 404);
 
     const [tableRows, bookingRows, inviteRows] = await Promise.all([
@@ -98,10 +142,25 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
     return c.json(body);
   })
 
+  // Vendors to pick from when assigning a table on this event: the owner's vendor list
+  // (or, for collaborators, the part of it they can see)
+  .get("/:id/vendors", async (c) => {
+    const event = await findEvent(c.req.param("id"), c.var.user.id);
+    if (!event) return c.json(notFound(), 404);
+    if (!canEdit(event.access)) return c.json(forbidden("assign tables"), 403);
+    const rows = await db
+      .select()
+      .from(vendors)
+      .where(visibleVendors(event.access, c.var.user.id))
+      .orderBy(asc(sql`lower(${vendors.name})`));
+    return c.json({ vendors: rows.map(toVendor) });
+  })
+
   // Organizer assigns a table to a vendor (no approval needed)
   .post("/:id/bookings", async (c) => {
-    const event = await findOwnedEvent(c.req.param("id"), c.var.user.id);
+    const event = await findEvent(c.req.param("id"), c.var.user.id);
     if (!event || event.status === "template") return c.json(notFound(), 404);
+    if (!canEdit(event.access)) return c.json(forbidden("assign tables"), 403);
     const parsed = assignTableSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
     const input = parsed.data;
@@ -120,13 +179,14 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           const [vendor] = await tx
             .select()
             .from(vendors)
-            .where(and(eq(vendors.id, input.vendorId), eq(vendors.organizerId, c.var.user.id)));
+            .where(and(eq(vendors.id, input.vendorId), visibleVendors(event.access, c.var.user.id)));
           if (!vendor) throw new VendorNotFoundError();
           vendorId = vendor.id;
           contact = { name: vendor.name, businessName: vendor.businessName, email: vendor.email, phone: vendor.phone };
         } else {
           contact = input.contact!;
-          vendorId = await findOrCreateVendor(tx, c.var.user.id, contact);
+          // Vendors always go in the event owner's list, whoever assigns the table
+          vendorId = await findOrCreateVendor(tx, event.access.ownerId, contact);
         }
         const [row] = await createBookings(tx, {
           event,
@@ -149,8 +209,9 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
 
   // Personal invite link for one vendor
   .post("/:id/invites", async (c) => {
-    const event = await findOwnedEvent(c.req.param("id"), c.var.user.id);
+    const event = await findEvent(c.req.param("id"), c.var.user.id);
     if (!event || event.status === "template") return c.json(notFound(), 404);
+    if (!canEdit(event.access)) return c.json(forbidden("create invite links"), 403);
     const parsed = createInviteSchema.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
 
@@ -165,8 +226,8 @@ class VendorNotFoundError extends Error {}
 
 // ── Bookings: /api/bookings/:id/… ────────────────────────────────────────
 
-/** Load a booking (with its event's pricing settings) if it belongs to one of the organizer's events. */
-async function findOwnedBooking(id: string, organizerId: string) {
+/** Load a booking (with its event's pricing settings and the user's access) if the user can see its event. */
+async function findBooking(id: string, userId: string) {
   if (!idSchema.safeParse(id).success) return null;
   const [row] = await db
     .select({
@@ -175,8 +236,10 @@ async function findOwnedBooking(id: string, organizerId: string) {
     })
     .from(bookings)
     .innerJoin(events, eq(events.id, bookings.eventId))
-    .where(and(eq(bookings.id, id), eq(events.organizerId, organizerId)));
-  return row ?? null;
+    .where(and(eq(bookings.id, id), accessibleEvents(userId)));
+  if (!row) return null;
+  const access = await eventAccess(row.booking.eventId, userId);
+  return access ? { ...row, access } : null;
 }
 
 /**
@@ -200,8 +263,9 @@ export const bookingRoutes = new Hono<AuthEnv>()
   .use(requireUser)
 
   .post("/:id/approve", async (c) => {
-    const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
+    const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
+    if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
     const rows = await transitionRequest(found.booking.requestId, ["pending"], approvedFields(found.event));
     if (!rows.length) return c.json(cantDo("approve", found.booking.status), 409);
     void notifyApproved(found.booking.requestId);
@@ -209,8 +273,9 @@ export const bookingRoutes = new Hono<AuthEnv>()
   })
 
   .post("/:id/reject", async (c) => {
-    const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
+    const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
+    if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
     const rows = await transitionRequest(found.booking.requestId, ["pending"], { status: "rejected", closedAt: new Date() });
     if (!rows.length) return c.json(cantDo("reject", found.booking.status), 409);
     void notifyRejected(found.booking.requestId);
@@ -218,8 +283,9 @@ export const bookingRoutes = new Hono<AuthEnv>()
   })
 
   .post("/:id/mark-paid", async (c) => {
-    const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
+    const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
+    if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
     const now = new Date();
     const rows = await transitionRequest(found.booking.requestId, ["pending", "awaiting_payment"], {
       status: "paid",
@@ -234,8 +300,9 @@ export const bookingRoutes = new Hono<AuthEnv>()
 
   // Free a table (or with { wholeRequest: true }, every table in the request)
   .post("/:id/release", async (c) => {
-    const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
+    const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
+    if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
     const parsed = releaseBookingSchema.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
 
@@ -268,8 +335,9 @@ export const bookingRoutes = new Hono<AuthEnv>()
 
   // Keep an unpaid request: extend its deadline by some days, or remove the deadline
   .post("/:id/keep", async (c) => {
-    const found = await findOwnedBooking(c.req.param("id"), c.var.user.id);
+    const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
+    if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
     const parsed = keepBookingSchema.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
     const { extendDays } = parsed.data;
@@ -297,10 +365,7 @@ export const inviteRoutes = new Hono<AuthEnv>().use(requireUser).delete("/:id", 
       and(
         eq(vendorInvites.id, id),
         sql`${vendorInvites.bookingId} is null`,
-        inArray(
-          vendorInvites.eventId,
-          db.select({ id: events.id }).from(events).where(eq(events.organizerId, c.var.user.id)),
-        ),
+        inArray(vendorInvites.eventId, db.select({ id: events.id }).from(events).where(editableEvents(c.var.user.id))),
       ),
     )
     .returning();
@@ -310,12 +375,21 @@ export const inviteRoutes = new Hono<AuthEnv>().use(requireUser).delete("/:id", 
 // ── Dashboard alerts: /api/alerts ────────────────────────────────────────
 
 export const alertRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async (c) => {
+  const me = c.var.user.id;
   const rows = await db
-    .select({ booking: bookings, eventId: events.id, eventName: events.name, tableLabel: eventTables.label })
+    .select({
+      booking: bookings,
+      eventId: events.id,
+      eventName: events.name,
+      tableLabel: eventTables.label,
+      ownerId: events.organizerId,
+      collaboratorRole: eventCollaborators.role,
+    })
     .from(bookings)
     .innerJoin(events, eq(events.id, bookings.eventId))
     .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
-    .where(and(eq(events.organizerId, c.var.user.id), or(eq(bookings.status, "pending"), overdueCondition)))
+    .leftJoin(eventCollaborators, collaboratorJoin(me))
+    .where(and(accessibleEvents(me), or(eq(bookings.status, "pending"), overdueCondition)))
     .orderBy(asc(bookings.paymentDueAt), asc(bookings.createdAt), asc(eventTables.number));
 
   // One alert per vendor request, listing all of its tables
@@ -332,6 +406,7 @@ export const alertRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async (
       eventId: r.eventId,
       eventName: r.eventName,
       tableLabels: [r.tableLabel],
+      role: roleOf(r.ownerId, r.collaboratorRole, me),
     });
   }
   const alerts = [...byRequest.values()];
@@ -348,15 +423,6 @@ export const vendorRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async 
     .from(vendors)
     .where(eq(vendors.organizerId, c.var.user.id))
     .orderBy(asc(sql`lower(${vendors.name})`));
-  const list: Vendor[] = rows.map((v) => ({
-    id: v.id,
-    name: v.name,
-    businessName: v.businessName,
-    email: v.email,
-    phone: v.phone,
-    notes: v.notes,
-    createdAt: v.createdAt.toISOString(),
-  }));
-  return c.json({ vendors: list });
+  return c.json({ vendors: rows.map(toVendor) });
 });
 

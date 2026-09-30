@@ -84,6 +84,10 @@ export function PrivacyPage() {
             <strong>Sign-in records:</strong> when you sign in we record your IP address and browser type with your
             session, to keep your account secure.
           </li>
+          <li>
+            <strong>Invitations:</strong> when an organizer invites someone to help run a show, we store the invited
+            email address and send them an invitation.
+          </li>
         </ul>
 
         <h3>Vendors</h3>
@@ -132,6 +136,10 @@ export function PrivacyPage() {
             show, who uses them to manage the booking and contact you. Organizers are responsible for how they use vendor
             information outside Flightplan, including taking payments, which happen directly between you and the
             organizer.
+          </li>
+          <li>
+            <strong>Other organizers on a shared show.</strong> When organizers run a show together, each of them can see
+            the others' names, email addresses and profile pictures, and the show's booking details.
           </li>
           <li>
             <strong>Service providers</strong> that run parts of Flightplan for us, and may use your information only for

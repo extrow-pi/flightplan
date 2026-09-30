@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { and, asc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import {
   eventInputSchema,
@@ -9,13 +9,15 @@ import {
   type ApiError,
   type EventDay,
   type EventInput,
+  type EventRecord,
 } from "@flightplan/shared";
+import { accessColumns, accessibleEvents, canEdit, collaboratorJoin, editableEvents, eventAccess, forbidden, roleOf } from "../access.js";
 import { syncTables, TablesInUseError, type Tx } from "../bookings.js";
 import { db, schema } from "../db/index.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
 
-const { events, eventDays } = schema;
+const { events, eventDays, eventCollaborators, user } = schema;
 
 // Everything except organizer_id is returned to the client
 const { organizerId: _organizerId, ...publicColumns } = getTableColumns(events);
@@ -63,13 +65,26 @@ async function withDays<T extends { id: string; floorMapFile: string | null }>(
   }));
 }
 
-async function findOwned(id: string, organizerId: string) {
-  const [row] = await db
-    .select(publicColumns)
+/** Events matching `where`, with days, floor map URL and the user's access to each. */
+async function loadEvents(userId: string, where: SQL | undefined): Promise<EventRecord[]> {
+  const rows = await db
+    .select({ ...publicColumns, ...accessColumns })
     .from(events)
-    .where(and(eq(events.id, id), eq(events.organizerId, organizerId)));
-  if (!row) return null;
-  return (await withDays([row]))[0];
+    .innerJoin(user, eq(user.id, events.organizerId))
+    .leftJoin(eventCollaborators, collaboratorJoin(userId))
+    .where(where)
+    .orderBy(sql`${events.startDate} asc nulls last`, asc(events.name));
+  const withAccess = rows.map(({ ownerId, ownerName, collaboratorRole, ...r }) => ({
+    ...r,
+    access: { role: roleOf(ownerId, collaboratorRole, userId), ownerName },
+  }));
+  return (await withDays(withAccess)) as unknown as EventRecord[];
+}
+
+/** One event or template the user can at least view, or null. */
+async function findAccessible(id: string, userId: string) {
+  const [event] = await loadEvents(userId, and(eq(events.id, id), accessibleEvents(userId)));
+  return event ?? null;
 }
 
 async function insertEvent(
@@ -99,21 +114,17 @@ async function deleteFloorMapIfUnused(file: string | null) {
 
 const tablesInUse = (err: unknown) => (err instanceof TablesInUseError ? ({ error: err.message } satisfies ApiError) : null);
 
-// All routes are scoped to the signed-in organizer's own events and templates
+// Routes cover the signed-in organizer's own events and templates, plus ones shared with them
+// (see access.ts for what each role can do)
 export const eventRoutes = new Hono<AuthEnv>()
   .use(requireUser)
 
-  // Dated events by start date; templates (no date) last, by name
+  // Dated events by start date; templates (no date) last, by name. Includes shared events.
   .get("/", async (c) => {
-    const rows = await db
-      .select(publicColumns)
-      .from(events)
-      .where(eq(events.organizerId, c.var.user.id))
-      .orderBy(sql`${events.startDate} asc nulls last`, asc(events.name));
-    return c.json({ events: await withDays(rows) });
+    return c.json({ events: await loadEvents(c.var.user.id, accessibleEvents(c.var.user.id)) });
   })
 
-  // ?floorMapFrom=<event id> reuses another of the organizer's floor maps (used by "Save as template")
+  // ?floorMapFrom=<event id> reuses the floor map of an event they can edit (used by "Save as template")
   .post("/", async (c) => {
     const parsed = eventInputSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
@@ -124,18 +135,18 @@ export const eventRoutes = new Hono<AuthEnv>()
       const [source] = await db
         .select({ floorMapFile: events.floorMapFile })
         .from(events)
-        .where(and(eq(events.id, from), eq(events.organizerId, c.var.user.id)));
+        .where(and(eq(events.id, from), editableEvents(c.var.user.id)));
       floorMapFile = source?.floorMapFile ?? null;
     }
 
     const id = await db.transaction((tx) => insertEvent(tx, c.var.user.id, parsed.data, floorMapFile));
-    return c.json({ event: await findOwned(id, c.var.user.id) }, 201);
+    return c.json({ event: await findAccessible(id, c.var.user.id) }, 201);
   })
 
   .get("/:id", async (c) => {
     const id = c.req.param("id");
     if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
-    const event = await findOwned(id, c.var.user.id);
+    const event = await findAccessible(id, c.var.user.id);
     return event ? c.json({ event }) : c.json(notFound, 404);
   })
 
@@ -146,8 +157,10 @@ export const eventRoutes = new Hono<AuthEnv>()
     const parsed = eventInputSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
 
-    const existing = await findOwned(id, c.var.user.id);
-    if (!existing) return c.json(notFound, 404);
+    const access = await eventAccess(id, c.var.user.id);
+    if (!access) return c.json(notFound, 404);
+    if (!canEdit(access)) return c.json(forbidden("edit this event"), 403);
+    const existing = (await findAccessible(id, c.var.user.id))!;
     // A template stays a template, and a dated event stays dated. Use spawn / save-as-template to convert.
     if ((existing.status === "template") !== (parsed.data.status === "template")) {
       return c.json<ApiError>({ error: "Templates and events can't be converted into each other" }, 400);
@@ -166,7 +179,7 @@ export const eventRoutes = new Hono<AuthEnv>()
       if (conflict) return c.json(conflict, 409);
       throw err;
     }
-    return c.json({ event: await findOwned(id, c.var.user.id) });
+    return c.json({ event: await findAccessible(id, c.var.user.id) });
   })
 
   // Publish / unpublish a dated event
@@ -175,27 +188,33 @@ export const eventRoutes = new Hono<AuthEnv>()
     if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
     const parsed = statusSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
+    const access = await eventAccess(id, c.var.user.id);
+    if (!access) return c.json(notFound, 404);
+    if (!canEdit(access)) return c.json(forbidden("publish this event"), 403);
 
     const [updated] = await db
       .update(events)
       .set({ status: parsed.data.status })
-      .where(
-        and(eq(events.id, id), eq(events.organizerId, c.var.user.id), sql`${events.status} <> 'template'`),
-      )
+      .where(and(eq(events.id, id), sql`${events.status} <> 'template'`))
       .returning({ id: events.id });
     if (!updated) return c.json(notFound, 404);
-    return c.json({ event: await findOwned(id, c.var.user.id) });
+    return c.json({ event: await findAccessible(id, c.var.user.id) });
   })
 
-  // Create a draft from a template, with its first day on startDate
+  // Create a draft from a template, with its first day on startDate. The new draft belongs to whoever
+  // creates it and keeps the template's team: its collaborators keep their roles, and the template's
+  // owner (if someone else) becomes an editor.
   .post("/:id/spawn", async (c) => {
     const id = c.req.param("id");
     if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
     const parsed = spawnFromTemplateSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
 
-    const template = await findOwned(id, c.var.user.id);
-    if (!template || template.status !== "template") return c.json(notFound, 404);
+    const access = await eventAccess(id, c.var.user.id);
+    if (!access) return c.json(notFound, 404);
+    if (!canEdit(access)) return c.json(forbidden("use this template"), 403);
+    const template = (await findAccessible(id, c.var.user.id))!;
+    if (template.status !== "template") return c.json(notFound, 404);
 
     const {
       id: _id,
@@ -203,25 +222,39 @@ export const eventRoutes = new Hono<AuthEnv>()
       updatedAt: _u,
       bookingToken: _t,
       floorMapUrl: _f,
+      access: _a,
       ...copy
     } = template;
     const [{ floorMapFile }] = await db.select({ floorMapFile: events.floorMapFile }).from(events).where(eq(events.id, id));
     // The draft gets its own booking link, closed until the organizer opens it
     const draft: EventInput = { ...copy, status: "draft", startDate: parsed.data.startDate, bookingOpen: false };
-    const newId = await db.transaction((tx) =>
-      insertEvent(tx, c.var.user.id, eventInputSchema.parse(draft), floorMapFile),
-    );
-    return c.json({ event: await findOwned(newId, c.var.user.id) }, 201);
+    const me = c.var.user.id;
+    const newId = await db.transaction(async (tx) => {
+      const newId = await insertEvent(tx, me, eventInputSchema.parse(draft), floorMapFile);
+      const team = await tx
+        .select({ userId: eventCollaborators.userId, role: eventCollaborators.role })
+        .from(eventCollaborators)
+        .where(eq(eventCollaborators.eventId, id));
+      const members = team.filter((m) => m.userId !== me).map((m) => ({ ...m, eventId: newId, invitedBy: me }));
+      if (access.ownerId !== me) members.push({ userId: access.ownerId, role: "editor", eventId: newId, invitedBy: me });
+      if (members.length) await tx.insert(eventCollaborators).values(members);
+      return newId;
+    });
+    return c.json({ event: await findAccessible(newId, me) }, 201);
   })
 
   .delete("/:id", async (c) => {
     const id = c.req.param("id");
     if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
 
-    // Days, tables, bookings and invites are removed by ON DELETE CASCADE
+    const access = await eventAccess(id, c.var.user.id);
+    if (!access) return c.json(notFound, 404);
+    if (access.role !== "owner") return c.json(forbidden("delete this event. Only its owner can"), 403);
+
+    // Days, tables, bookings, invites and collaborators are removed by ON DELETE CASCADE
     const deleted = await db
       .delete(events)
-      .where(and(eq(events.id, id), eq(events.organizerId, c.var.user.id)))
+      .where(eq(events.id, id))
       .returning({ id: events.id, floorMapFile: events.floorMapFile });
     if (!deleted.length) return c.json(notFound, 404);
     await deleteFloorMapIfUnused(deleted[0].floorMapFile);
@@ -232,11 +265,10 @@ export const eventRoutes = new Hono<AuthEnv>()
   .post("/:id/floor-map", bodyLimit({ maxSize: FLOOR_MAP_MAX_BYTES + 64 * 1024 }), async (c) => {
     const id = c.req.param("id");
     if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
-    const [existing] = await db
-      .select({ floorMapFile: events.floorMapFile })
-      .from(events)
-      .where(and(eq(events.id, id), eq(events.organizerId, c.var.user.id)));
-    if (!existing) return c.json(notFound, 404);
+    const access = await eventAccess(id, c.var.user.id);
+    if (!access) return c.json(notFound, 404);
+    if (!canEdit(access)) return c.json(forbidden("change the floor map"), 403);
+    const [existing] = await db.select({ floorMapFile: events.floorMapFile }).from(events).where(eq(events.id, id));
 
     const body = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
     const file = body["file"];
@@ -251,19 +283,18 @@ export const eventRoutes = new Hono<AuthEnv>()
     }
     await db.update(events).set({ floorMapFile: name }).where(eq(events.id, id));
     await deleteFloorMapIfUnused(existing.floorMapFile);
-    return c.json({ event: await findOwned(id, c.var.user.id) });
+    return c.json({ event: await findAccessible(id, c.var.user.id) });
   })
 
   .delete("/:id/floor-map", async (c) => {
     const id = c.req.param("id");
     if (!idSchema.safeParse(id).success) return c.json(notFound, 404);
-    const [existing] = await db
-      .select({ floorMapFile: events.floorMapFile })
-      .from(events)
-      .where(and(eq(events.id, id), eq(events.organizerId, c.var.user.id)));
-    if (!existing) return c.json(notFound, 404);
+    const access = await eventAccess(id, c.var.user.id);
+    if (!access) return c.json(notFound, 404);
+    if (!canEdit(access)) return c.json(forbidden("change the floor map"), 403);
+    const [existing] = await db.select({ floorMapFile: events.floorMapFile }).from(events).where(eq(events.id, id));
 
     await db.update(events).set({ floorMapFile: null }).where(eq(events.id, id));
     await deleteFloorMapIfUnused(existing.floorMapFile);
-    return c.json({ event: await findOwned(id, c.var.user.id) });
+    return c.json({ event: await findAccessible(id, c.var.user.id) });
   });

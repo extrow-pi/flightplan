@@ -49,7 +49,8 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const { data: session, isPending: sessionPending } = useSession();
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  // ?email= pre-fills the address, e.g. from a collaborator invite
+  const [email, setEmail] = useState(() => params.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
@@ -79,7 +80,11 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     navigate(redirectTo, { replace: true });
   }
 
-  const switchTo = `${mode === "login" ? "/signup" : "/login"}${params.get("redirect") ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`;
+  const switchParams = new URLSearchParams();
+  if (params.get("redirect")) switchParams.set("redirect", redirectTo);
+  if (params.get("email")) switchParams.set("email", params.get("email")!);
+  const switchQuery = switchParams.toString();
+  const switchTo = `${mode === "login" ? "/signup" : "/login"}${switchQuery ? `?${switchQuery}` : ""}`;
 
   return (
     <div className="grid min-h-dvh bg-cream-50 lg:grid-cols-2">

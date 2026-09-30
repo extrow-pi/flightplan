@@ -120,6 +120,71 @@ export type EventRecord = z.output<typeof eventInputSchema> & {
   bookingToken: string;
   createdAt: string;
   updatedAt: string;
+  /** What the signed-in organizer can do with this event, and whose it is */
+  access: EventAccess;
+};
+
+// ── Collaborators ───────────────────────────────────────────────────────────
+
+// editor: everything except deleting the event and managing the team · viewer: read-only
+export const COLLABORATOR_ROLES = ["editor", "viewer"] as const;
+export type CollaboratorRole = (typeof COLLABORATOR_ROLES)[number];
+export type EventRole = "owner" | CollaboratorRole;
+
+export type EventAccess = {
+  role: EventRole;
+  ownerName: string;
+};
+
+export const canEditEvent = (role: EventRole) => role !== "viewer";
+
+/** Invites expire after this many days */
+export const COLLABORATOR_INVITE_DAYS = 7;
+/** Collaborators plus pending invites allowed on one event */
+export const MAX_COLLABORATORS = 25;
+
+export const inviteCollaboratorSchema = z.object({
+  email: z.email("Enter a valid email").trim().toLowerCase(),
+  role: z.enum(COLLABORATOR_ROLES),
+});
+export type InviteCollaboratorInput = z.input<typeof inviteCollaboratorSchema>;
+
+export const updateCollaboratorSchema = z.object({ role: z.enum(COLLABORATOR_ROLES) });
+
+export type TeamMember = {
+  userId: string;
+  name: string;
+  email: string;
+  image: string | null;
+  role: EventRole;
+  /** When they joined; the owner's is the event's creation time */
+  addedAt: string;
+};
+
+export type CollaboratorInvite = {
+  id: string;
+  email: string;
+  role: CollaboratorRole;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type EventTeamResponse = {
+  /** Owner first, then collaborators in the order they joined */
+  members: TeamMember[];
+  /** Pending invites (only returned to the owner) */
+  invites: CollaboratorInvite[];
+  myRole: EventRole;
+};
+
+/** What someone opening an invite link sees before accepting. */
+export type CollaboratorInvitePreview = {
+  eventName: string;
+  isTemplate: boolean;
+  inviterName: string;
+  role: CollaboratorRole;
+  email: string;
+  status: "pending" | "accepted" | "expired" | "revoked";
 };
 
 export type EventFieldErrors = Partial<Record<keyof EventInput, string[]>>;
@@ -262,6 +327,8 @@ export type BookingAlert = {
   eventId: string;
   eventName: string;
   tableLabels: string[];
+  /** The signed-in organizer's role on the event (viewers can't act on alerts) */
+  role: EventRole;
 };
 
 /** What a vendor sees on a public booking page. No other vendors' details. */

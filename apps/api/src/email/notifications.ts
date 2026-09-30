@@ -4,7 +4,7 @@ import { db, schema } from "../db/index.js";
 import { enqueueEmails, type OutgoingEmail } from "./outbox.js";
 import { button, details, esc, layout, note, p, type EmailContent } from "./templates.js";
 
-const { bookings, eventDays, events, eventTables, user } = schema;
+const { bookings, eventCollaborators, eventDays, events, eventTables, user } = schema;
 
 // Links in emails point at the web app
 const APP_URL = (process.env.APP_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:5173").replace(/\/$/, "");
@@ -59,6 +59,13 @@ async function loadRequest(requestId: string) {
   const first = rows[0].booking;
   const [event] = await db.select().from(events).where(eq(events.id, first.eventId));
   const [organizer] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, event.organizerId));
+  // Everyone on the event gets organizer notifications: the owner and all collaborators
+  const collaborators = await db
+    .select({ email: user.email })
+    .from(eventCollaborators)
+    .innerJoin(user, eq(user.id, eventCollaborators.userId))
+    .where(eq(eventCollaborators.eventId, event.id))
+    .orderBy(asc(eventCollaborators.createdAt));
   const days = await db
     .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
     .from(eventDays)
@@ -70,6 +77,8 @@ async function loadRequest(requestId: string) {
     requestId,
     event,
     organizer,
+    /** Email addresses for organizer notifications: the owner first, then collaborators */
+    team: [organizer.email, ...collaborators.map((c) => c.email)],
     days,
     vendor: { name: first.name, businessName: first.businessName, email: first.email, phone: first.phone, message: first.message },
     source: first.source,
@@ -118,16 +127,17 @@ function toVendor(r: RequestInfo, kind: string, content: EmailContent): Outgoing
   };
 }
 
-function toOrganizer(r: RequestInfo, kind: string, content: EmailContent): OutgoingEmail {
-  return {
+/** One copy of an organizer notification for each person on the event's team. */
+function toOrganizers(r: RequestInfo, kind: string, content: EmailContent): OutgoingEmail[] {
+  return r.team.map((to) => ({
     kind,
-    to: r.organizer.email,
+    to,
     replyTo: r.vendor.email,
     organizerId: r.event.organizerId,
     eventId: r.event.id,
     requestId: r.requestId,
     ...content,
-  };
+  }));
 }
 
 const firstName = (name: string) => esc(name.split(" ")[0]);
@@ -245,7 +255,7 @@ export function notifyRequestCreated(requestId: string) {
     if (!assigned) {
       const pending = r.status === "pending";
       out.push(
-        toOrganizer(
+        ...toOrganizers(
           r,
           pending ? "organizer.request_pending" : "organizer.new_booking",
           layout(
@@ -410,8 +420,8 @@ export async function sendOverdueNotices() {
       .update(bookings)
       .set({ overdueNotifiedAt: now })
       .where(and(eq(bookings.requestId, requestId), eq(bookings.status, "awaiting_payment")));
-    await send(requestId, (r) => [
-      toOrganizer(
+    await send(requestId, (r) =>
+      toOrganizers(
         r,
         "organizer.payment_overdue",
         layout(
@@ -426,9 +436,55 @@ export async function sendOverdueNotices() {
           organizerFooter(r),
         ),
       ),
-    ]);
+    );
   }
   return overdue.length;
+}
+
+// ── Collaborator invites ─────────────────────────────────────────────────
+
+/** Email someone an invitation to collaborate on an event or template. */
+export async function sendCollaboratorInvite(invite: {
+  to: string;
+  token: string;
+  role: "editor" | "viewer";
+  expiresAt: Date;
+  event: { id: string; name: string; status: string; organizerId: string };
+  inviter: { name: string; email: string };
+}) {
+  const { event, inviter } = invite;
+  const what = event.status === "template" ? "template" : "show";
+  const canDo =
+    invite.role === "editor"
+      ? `You'll be able to edit the ${what} and manage its vendor tables.`
+      : `You'll be able to see the ${what} and its vendor tables, but not change anything.`;
+  try {
+    await enqueueEmails([
+      {
+        kind: "organizer.collaborator_invite",
+        to: invite.to,
+        replyTo: inviter.email,
+        organizerId: event.organizerId,
+        eventId: event.id,
+        ...layout(
+          `${inviter.name} invited you to ${event.name} on Flightplan`,
+          `Join ${event.name}`,
+          [
+            p(
+              `${esc(inviter.name)} invited you to help organize the ${what} <strong>${esc(event.name)}</strong> as ${invite.role === "editor" ? "an editor" : "a viewer"}. ${canDo}`,
+            ),
+            button("Accept invitation", `${APP_URL}/collaborate/${invite.token}`),
+            p(
+              `Sign in or create a Flightplan account with this email address (${esc(invite.to)}) to accept. The invitation expires ${esc(formatDeadline(invite.expiresAt))}.`,
+            ),
+          ],
+          `You're receiving this because ${inviter.name} (${inviter.email}) invited you on Flightplan. If you weren't expecting it, you can ignore this email.`,
+        ),
+      },
+    ]);
+  } catch (err) {
+    console.error(`Couldn't queue collaborator invite for event ${event.id}:`, err);
+  }
 }
 
 /** Run reminders and overdue notices every few minutes. */

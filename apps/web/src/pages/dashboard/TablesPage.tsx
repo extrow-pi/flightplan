@@ -12,8 +12,9 @@ import {
   TableStateBadge,
   tableStateLabel,
 } from "../../components/bookings";
-import { EventTabs, isPast } from "../../components/events";
-import { ArrowLeftIcon, CloseIcon, CopyIcon } from "../../components/Icons";
+import { canEdit, EventTabs, isPast, SharedBadge } from "../../components/events";
+import CopyButton from "../../components/CopyButton";
+import { ArrowLeftIcon, CloseIcon } from "../../components/Icons";
 import {
   ApiRequestError,
   eventToInput,
@@ -22,8 +23,8 @@ import {
   useEvent,
   useEventTables,
   useRevokeInvite,
+  useEventVendors,
   useSaveEvent,
-  useVendors,
 } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 
@@ -53,6 +54,8 @@ export default function TablesPage() {
     );
   }
 
+  // Viewers see everything but can't change bookings
+  const editable = canEdit(event);
   const all = tables.data?.tables ?? [];
   const requests = groupRequests(all);
   const available = all.filter((t) => !t.booking);
@@ -83,8 +86,11 @@ export default function TablesPage() {
       >
         <ArrowLeftIcon className="size-4" /> All events
       </Link>
-      <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">{event.name}</h1>
-      <EventTabs eventId={event.id} />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{event.name}</h1>
+        <SharedBadge event={event} />
+      </div>
+      <EventTabs event={event} />
 
       {tables.error ? (
         <p className="mt-6 rounded-2xl bg-peach px-5 py-4 font-semibold text-coral-ink" role="alert">
@@ -154,7 +160,13 @@ export default function TablesPage() {
             ) : view === "vendors" ? (
               <div className="space-y-3">
                 {requests.filter(matches).map((r) => (
-                  <RequestCard key={r.requestId} request={r} event={event} highlighted={r.requestId === highlight} />
+                  <RequestCard
+                    key={r.requestId}
+                    request={r}
+                    event={event}
+                    highlighted={r.requestId === highlight}
+                    editable={editable}
+                  />
                 ))}
                 {requests.length === 0 ? (
                   <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
@@ -178,6 +190,7 @@ export default function TablesPage() {
                     requestSize={
                       t.booking ? (requests.find((r) => r.requestId === t.booking!.requestId)?.tables.length ?? 1) : 0
                     }
+                    editable={editable}
                     onAssign={() => setAssigning(t)}
                     onReview={() => t.booking && reviewRequest(t.booking.requestId)}
                   />
@@ -209,16 +222,22 @@ export default function TablesPage() {
           </div>
 
           <aside className="space-y-6">
-            <button
-              type="button"
-              onClick={() => setAssigning("pick")}
-              disabled={!available.length || isPast(event)}
-              className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
-            >
-              Assign a table
-            </button>
-            <BookingLinkCard event={event} />
-            <InvitesCard event={event} invites={tables.data.invites} />
+            {editable ? (
+              <button
+                type="button"
+                onClick={() => setAssigning("pick")}
+                disabled={!available.length || isPast(event)}
+                className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
+              >
+                Assign a table
+              </button>
+            ) : (
+              <p className="rounded-2xl bg-sky/15 px-4 py-3 text-sm font-semibold text-slate" role="status">
+                You have view-only access. Ask {event.access.ownerName} to make you an editor to manage bookings.
+              </p>
+            )}
+            <BookingLinkCard event={event} editable={editable} />
+            <InvitesCard event={event} invites={tables.data.invites} editable={editable} />
             <FloorMapCard event={event} />
           </aside>
         </div>
@@ -277,10 +296,12 @@ function RequestCard({
   request,
   event,
   highlighted,
+  editable,
 }: {
   request: VendorRequest;
   event: EventRecord;
   highlighted: boolean;
+  editable: boolean;
 }) {
   const { booking: b, tables } = request;
   const due = paymentDueLabel(b);
@@ -319,7 +340,7 @@ function RequestCard({
           >
             {table.label}
             {/* Release one table of a multi-table request; releasing them all is in the actions below */}
-            {multiple && (
+            {multiple && editable && (
               <ReleaseTableButton bookingId={booking.id} eventId={event.id} tableLabel={table.label} compact />
             )}
           </span>
@@ -336,9 +357,11 @@ function RequestCard({
         </div>
       )}
 
-      <div className="mt-4 border-t border-ink/5 pt-3">
-        <BookingActions booking={b} eventId={event.id} paymentDueDays={event.paymentDueDays} requestTables={labels} />
-      </div>
+      {editable && (
+        <div className="mt-4 border-t border-ink/5 pt-3">
+          <BookingActions booking={b} eventId={event.id} paymentDueDays={event.paymentDueDays} requestTables={labels} />
+        </div>
+      )}
     </article>
   );
 }
@@ -349,6 +372,7 @@ function TableRow({
   table,
   event,
   requestSize,
+  editable,
   onAssign,
   onReview,
 }: {
@@ -356,6 +380,7 @@ function TableRow({
   event: EventRecord;
   /** How many tables this table's request holds */
   requestSize: number;
+  editable: boolean;
   onAssign: () => void;
   onReview: () => void;
 }) {
@@ -382,7 +407,7 @@ function TableRow({
       </div>
       <TableStateBadge state={tableState(b)} />
       <div className="flex min-w-24 justify-end">
-        {!b ? (
+        {!editable ? null : !b ? (
           !isPast(event) && (
             <button
               type="button"
@@ -420,29 +445,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function CopyButton({ text, label = "Copy link" }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        } catch {
-          window.prompt("Copy this link:", text);
-        }
-      }}
-      className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3 py-1 text-sm font-bold text-slate transition hover:border-slate"
-    >
-      <CopyIcon className="size-3.5" />
-      {copied ? "Copied!" : label}
-    </button>
-  );
-}
-
-function BookingLinkCard({ event }: { event: EventRecord }) {
+function BookingLinkCard({ event, editable }: { event: EventRecord; editable: boolean }) {
   const save = useSaveEvent(event.id);
   const url = `${window.location.origin}/book/${event.bookingToken}`;
   const works = event.bookingOpen && event.status === "published" && !isPast(event);
@@ -469,7 +472,7 @@ function BookingLinkCard({ event }: { event: EventRecord }) {
                 ? "This show is over"
                 : "Link is closed"}
         </span>
-        {event.status === "published" && !isPast(event) && (
+        {editable && event.status === "published" && !isPast(event) && (
           <button
             type="button"
             disabled={save.isPending}
@@ -489,7 +492,7 @@ function BookingLinkCard({ event }: { event: EventRecord }) {
   );
 }
 
-function InvitesCard({ event, invites }: { event: EventRecord; invites: Invite[] }) {
+function InvitesCard({ event, invites, editable }: { event: EventRecord; invites: Invite[]; editable: boolean }) {
   const create = useCreateInvite(event.id);
   const revoke = useRevokeInvite(event.id);
   const [name, setName] = useState("");
@@ -516,6 +519,7 @@ function InvitesCard({ event, invites }: { event: EventRecord; invites: Invite[]
       <p className="text-sm text-ink-soft">
         A single-use link for one vendor. It works even while the public link is closed.
       </p>
+      {editable && (
       <form onSubmit={onSubmit} className="mt-3 space-y-2">
         <input
           className={smallInput}
@@ -545,6 +549,7 @@ function InvitesCard({ event, invites }: { event: EventRecord; invites: Invite[]
           </p>
         )}
       </form>
+      )}
 
       {invites.length > 0 && (
         <ul className="mt-4 space-y-2">
@@ -563,6 +568,7 @@ function InvitesCard({ event, invites }: { event: EventRecord; invites: Invite[]
                 {!inv.revokedAt && !inv.bookingId && (
                   <div className="mt-2 flex items-center gap-2">
                     <CopyButton text={inviteUrl(inv.token)} />
+                    {editable && (
                     <button
                       type="button"
                       onClick={() => revoke.mutate(inv.id)}
@@ -571,6 +577,7 @@ function InvitesCard({ event, invites }: { event: EventRecord; invites: Invite[]
                     >
                       Cancel invite
                     </button>
+                    )}
                   </div>
                 )}
               </li>
@@ -616,7 +623,7 @@ function AssignDialog({
   onClose: () => void;
 }) {
   const assign = useAssignTable(event.id);
-  const vendors = useVendors();
+  const vendors = useEventVendors(event.id);
   const [tableId, setTableId] = useState(initialTableId ?? "");
   const [chosenMode, setMode] = useState<"existing" | "new" | null>(null);
   // Until the organizer picks, default to their vendor list if they have one

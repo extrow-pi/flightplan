@@ -4,7 +4,12 @@ import type {
   AssignTableInput,
   Booking,
   BookingAlert,
+  CollaboratorInvite,
+  CollaboratorInvitePreview,
+  CollaboratorRole,
   CreateInviteInput,
+  EventTeamResponse,
+  InviteCollaboratorInput,
   EmailLogEntry,
   EventInput,
   EventRecord,
@@ -130,6 +135,7 @@ export function eventToInput(e: EventRecord): EventInput {
     updatedAt: _u,
     bookingToken: _t,
     floorMapUrl: _f,
+    access: _a,
     ...input
   } = e;
   return input;
@@ -183,10 +189,11 @@ export function useAlerts() {
   });
 }
 
-export function useVendors() {
+/** Vendors that can be picked when assigning a table on this event (the event owner's list). */
+export function useEventVendors(eventId: string) {
   return useQuery({
-    queryKey: bookingKeys.vendors,
-    queryFn: () => request<{ vendors: Vendor[] }>("/vendors").then((r) => r.vendors),
+    queryKey: [...bookingKeys.vendors, eventId],
+    queryFn: () => request<{ vendors: Vendor[] }>(`/events/${eventId}/vendors`).then((r) => r.vendors),
   });
 }
 
@@ -248,6 +255,72 @@ export function useRevokeInvite(eventId: string) {
   return useMutation({
     mutationFn: (inviteId: string) => request<{ invite: Invite }>(`/invites/${inviteId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) }),
+  });
+}
+
+// ── Team (collaborators) ─────────────────────────────────────────────────
+
+const teamKey = (eventId: string) => ["events", eventId, "team"] as const;
+
+export function useEventTeam(eventId: string | undefined) {
+  return useQuery({
+    queryKey: teamKey(eventId ?? ""),
+    queryFn: () => request<EventTeamResponse>(`/events/${eventId}/team`),
+    enabled: Boolean(eventId),
+  });
+}
+
+export function useInviteCollaborator(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: InviteCollaboratorInput) =>
+      request<{ invite: CollaboratorInvite; link: string }>(`/events/${eventId}/team/invites`, { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: teamKey(eventId) }),
+  });
+}
+
+export function useRevokeCollaboratorInvite(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) => request<void>(`/collaborator-invites/${inviteId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: teamKey(eventId) }),
+  });
+}
+
+export function useSetCollaboratorRole(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: CollaboratorRole }) =>
+      request<{ ok: true }>(`/events/${eventId}/team/${userId}`, { method: "PATCH", body: { role } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: teamKey(eventId) }),
+  });
+}
+
+/** Remove a collaborator, or leave the event when userId is your own. */
+export function useRemoveCollaborator(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => request<void>(`/events/${eventId}/team/${userId}`, { method: "DELETE" }),
+    onSuccess: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: teamKey(eventId) }), qc.invalidateQueries({ queryKey: eventKeys.all })]),
+  });
+}
+
+export function useCollaboratorInvite(token: string | undefined) {
+  return useQuery({
+    queryKey: ["collaborator-invite", token],
+    queryFn: () => request<CollaboratorInvitePreview>(`/collaborator-invites/by-token/${token}`),
+    enabled: Boolean(token),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+  });
+}
+
+export function useAcceptCollaboratorInvite(token: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      request<{ eventId: string; isTemplate: boolean }>(`/collaborator-invites/by-token/${token}/accept`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: eventKeys.all }),
   });
 }
 

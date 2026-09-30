@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
-import { addDays, eventDayDates, eventEndDate, type EventRecord } from "@flightplan/shared";
+import { addDays, canEditEvent, eventDayDates, eventEndDate, type EventRecord } from "@flightplan/shared";
 import { useDeleteEvent, useSetEventStatus, useSpawnFromTemplate } from "../lib/api";
 import { daysUntil, formatDate, formatDateRange, timeRange, todayISO } from "../lib/format";
 import { ClockIcon, CloseIcon, CopyIcon, MapPinIcon, PencilIcon, TableIcon, TrashIcon } from "./Icons";
@@ -16,6 +16,9 @@ export function isPast(event: EventRecord) {
 export function isTemplate(event: EventRecord) {
   return event.status === "template";
 }
+
+export const canEdit = (event: EventRecord) => canEditEvent(event.access.role);
+export const isOwner = (event: EventRecord) => event.access.role === "owner";
 
 function dayCount(event: EventRecord) {
   return event.days.length === 1 ? "1 day" : `${event.days.length} days`;
@@ -94,6 +97,19 @@ export function StatusBadge({ event }: { event: EventRecord }) {
   );
 }
 
+/** For events shared with you: whose it is and your role. Nothing for your own events. */
+export function SharedBadge({ event }: { event: EventRecord }) {
+  if (isOwner(event)) return null;
+  return (
+    <span
+      className="rounded-full bg-sky/20 px-2.5 py-1 text-xs font-bold text-slate"
+      title={`Shared with you by ${event.access.ownerName}`}
+    >
+      Shared by {event.access.ownerName} · {event.access.role === "editor" ? "Editor" : "Viewer"}
+    </span>
+  );
+}
+
 /** Each show day with its hours, e.g. "Fri Oct 10 · 2pm–8pm" (or "Day 1 · 2pm–8pm" for templates). */
 export function Schedule({ event, tone = "light" }: { event: EventRecord; tone?: "light" | "dark" }) {
   const dates = eventDayDates(event);
@@ -148,11 +164,13 @@ export function EventMeta({ event, tone = "light" }: { event: EventRecord; tone?
   );
 }
 
-/** Switch between an event's settings and its table bookings. */
-export function EventTabs({ eventId }: { eventId: string }) {
+/** Switch between an event's settings, its table bookings and its team. Templates have no tables. */
+export function EventTabs({ event }: { event: EventRecord }) {
+  const base = isTemplate(event) ? `/dashboard/templates/${event.id}` : `/dashboard/events/${event.id}`;
   const tabs = [
-    { to: `/dashboard/events/${eventId}`, label: "Details", end: true },
-    { to: `/dashboard/events/${eventId}/tables`, label: "Tables & vendors", end: false },
+    { to: base, label: "Details", end: true },
+    ...(isTemplate(event) ? [] : [{ to: `${base}/tables`, label: "Tables & vendors", end: false }]),
+    { to: `${base}/team`, label: "Team", end: false },
   ];
   return (
     <nav className="mt-6 flex gap-1 border-b border-ink/10" aria-label="Event sections">
@@ -199,26 +217,30 @@ function DeleteConfirm({ onConfirm, onCancel, pending }: { onConfirm: () => void
   );
 }
 
+/** Edit (or view, for viewers) and, for the owner only, delete. */
 function IconActions({ event, editTo, onDelete }: { event: EventRecord; editTo: string; onDelete: () => void }) {
+  const verb = canEdit(event) ? "Edit" : "View";
   return (
     <>
       <Link
         to={editTo}
         className="rounded-full p-2.5 text-ink-soft transition hover:bg-cream hover:text-ink"
-        aria-label={`Edit ${event.name}`}
-        title="Edit"
+        aria-label={`${verb} ${event.name}`}
+        title={verb}
       >
         <PencilIcon className="size-4" />
       </Link>
-      <button
-        type="button"
-        onClick={onDelete}
-        className="rounded-full p-2.5 text-ink-soft transition hover:bg-peach hover:text-coral-ink"
-        aria-label={`Delete ${event.name}`}
-        title="Delete"
-      >
-        <TrashIcon className="size-4" />
-      </button>
+      {isOwner(event) && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="rounded-full p-2.5 text-ink-soft transition hover:bg-peach hover:text-coral-ink"
+          aria-label={`Delete ${event.name}`}
+          title="Delete"
+        >
+          <TrashIcon className="size-4" />
+        </button>
+      )}
     </>
   );
 }
@@ -243,6 +265,7 @@ export function EventRow({ event }: { event: EventRecord }) {
               {event.name}
             </Link>
             <StatusBadge event={event} />
+            <SharedBadge event={event} />
           </div>
           <div className="mt-1.5">
             <EventMeta event={event} />
@@ -255,7 +278,7 @@ export function EventRow({ event }: { event: EventRecord }) {
           <DeleteConfirm pending={del.isPending} onConfirm={() => del.mutate(event.id)} onCancel={() => setConfirming(false)} />
         ) : (
           <>
-            {!isPast(event) && (
+            {!isPast(event) && canEdit(event) && (
               <button
                 type="button"
                 onClick={() =>
@@ -302,9 +325,12 @@ export function TemplateRow({ event }: { event: EventRecord }) {
       <div className="flex min-w-0 flex-1 items-center gap-4">
         <DateTile event={event} />
         <div className="min-w-0">
-          <Link to={editTo} className="truncate text-lg font-extrabold text-ink hover:text-coral-ink">
-            {event.name}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to={editTo} className="truncate text-lg font-extrabold text-ink hover:text-coral-ink">
+              {event.name}
+            </Link>
+            <SharedBadge event={event} />
+          </div>
           <div className="mt-1.5">
             <EventMeta event={event} />
           </div>
@@ -316,13 +342,15 @@ export function TemplateRow({ event }: { event: EventRecord }) {
           <DeleteConfirm pending={del.isPending} onConfirm={() => del.mutate(event.id)} onCancel={() => setConfirming(false)} />
         ) : (
           <>
-            <button
-              type="button"
-              onClick={() => setSpawning(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-coral px-4 py-2 text-sm font-bold text-white transition hover:bg-coral-deep"
-            >
-              <CopyIcon className="size-4" /> Use template
-            </button>
+            {canEdit(event) && (
+              <button
+                type="button"
+                onClick={() => setSpawning(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-coral px-4 py-2 text-sm font-bold text-white transition hover:bg-coral-deep"
+              >
+                <CopyIcon className="size-4" /> Use template
+              </button>
+            )}
             <IconActions event={event} editTo={editTo} onDelete={() => setConfirming(true)} />
           </>
         )}

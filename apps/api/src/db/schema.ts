@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, date, index, integer, pgTable, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { BOOKING_SOURCES, BOOKING_STATUSES, EVENT_STATUSES } from "@flightplan/shared";
+import { BOOKING_SOURCES, BOOKING_STATUSES, COLLABORATOR_ROLES, EVENT_STATUSES } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
 
 export const organizerSignups = pgTable(
@@ -175,6 +175,49 @@ export const vendorInvites = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("vendor_invites_event_idx").on(t.eventId)],
+);
+
+// Other organizers who can see (viewer) or manage (editor) an event or template.
+// The owner is events.organizer_id and is never a row here.
+export const eventCollaborators = pgTable(
+  "event_collaborators",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role", { enum: COLLABORATOR_ROLES }).notNull(),
+    invitedBy: text("invited_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("event_collaborators_event_user_idx").on(t.eventId, t.userId), index("event_collaborators_user_idx").on(t.userId)],
+);
+
+// Emailed invitations to collaborate. Only a hash of the token is stored; the link goes out by
+// email and can be accepted only by a signed-in organizer whose email matches.
+export const collaboratorInvites = pgTable(
+  "collaborator_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role", { enum: COLLABORATOR_ROLES }).notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    invitedBy: text("invited_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedBy: text("accepted_by").references(() => user.id, { onDelete: "set null" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("collaborator_invites_event_idx").on(t.eventId)],
 );
 
 // Every email the app sends: a queue for the background sender and a log organizers can read.
