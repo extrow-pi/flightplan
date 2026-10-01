@@ -156,7 +156,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
     return c.json({ vendors: rows.map(toVendor) });
   })
 
-  // Organizer assigns a table to a vendor (no approval needed)
+  // Organizer assigns one or more tables to a vendor as one request (no approval needed)
   .post("/:id/bookings", async (c) => {
     const event = await findEvent(c.req.param("id"), c.var.user.id);
     if (!event || event.status === "template") return c.json(notFound(), 404);
@@ -165,14 +165,14 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
     const input = parsed.data;
 
-    const [table] = await db
+    const found = await db
       .select({ id: eventTables.id })
       .from(eventTables)
-      .where(and(eq(eventTables.id, input.tableId), eq(eventTables.eventId, event.id)));
-    if (!table) return c.json(notFound("Table"), 404);
+      .where(and(inArray(eventTables.id, input.tableIds), eq(eventTables.eventId, event.id)));
+    if (found.length !== input.tableIds.length) return c.json(notFound("Table"), 404);
 
     try {
-      const booking = await db.transaction(async (tx) => {
+      const rows = await db.transaction(async (tx) => {
         let vendorId: string;
         let contact;
         if (input.vendorId) {
@@ -188,20 +188,20 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           // Vendors always go in the event owner's list, whoever assigns the table
           vendorId = await findOrCreateVendor(tx, event.access.ownerId, contact);
         }
-        const [row] = await createBookings(tx, {
+        return createBookings(tx, {
           event,
-          tableIds: [table.id],
+          tableIds: input.tableIds,
           vendorId,
           contact,
           source: "organizer",
           paid: input.paid,
         });
-        return row;
       });
-      void notifyRequestCreated(booking.requestId);
-      return c.json({ booking: toBooking(booking) }, 201);
+      void notifyRequestCreated(rows[0].requestId);
+      return c.json({ bookings: rows.map(toBooking) }, 201);
     } catch (err) {
-      if (err instanceof TableTakenError) return c.json<ApiError>({ error: "That table is already booked" }, 409);
+      // Names the taken tables, e.g. "Sorry, tables 4, 5 were just taken"
+      if (err instanceof TableTakenError) return c.json<ApiError>({ error: err.message }, 409);
       if (err instanceof VendorNotFoundError) return c.json(notFound("Vendor"), 404);
       throw err;
     }

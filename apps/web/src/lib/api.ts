@@ -212,7 +212,7 @@ export function useAssignTable(eventId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: AssignTableInput) =>
-      request<{ booking: Booking }>(`/events/${eventId}/bookings`, { method: "POST", body: input }).then((r) => r.booking),
+      request<{ bookings: Booking[] }>(`/events/${eventId}/bookings`, { method: "POST", body: input }).then((r) => r.bookings),
     onSuccess: () => invalidateBookings(qc, eventId),
   });
 }

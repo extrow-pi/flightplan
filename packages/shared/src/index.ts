@@ -228,10 +228,17 @@ export const vendorBookingSchema = vendorContactSchema.extend({
 });
 export type VendorBookingInput = z.input<typeof vendorBookingSchema>;
 
-/** The organizer assigning a table: an existing vendor from their list, or new contact details. */
+/**
+ * The organizer assigning one or more tables (as one request) to an existing vendor from their list,
+ * or to new contact details. The event's per-vendor limit doesn't apply to the organizer.
+ */
 export const assignTableSchema = z
   .object({
-    tableId: z.uuid("Pick a table"),
+    tableIds: z
+      .array(z.uuid())
+      .min(1, "Pick at least one table")
+      .max(MAX_TABLES_PER_REQUEST, `Up to ${MAX_TABLES_PER_REQUEST} tables at a time`)
+      .refine((ids) => new Set(ids).size === ids.length, "Each table can only be picked once"),
     vendorId: z.uuid().optional(),
     contact: vendorContactSchema.optional(),
     /** Mark as paid straight away (e.g. paid at the door or in advance) */

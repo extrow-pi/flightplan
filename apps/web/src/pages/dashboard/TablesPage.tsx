@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import type { Booking, EventRecord, EventTable, Invite } from "@flightplan/shared";
+import { MAX_TABLES_PER_REQUEST, type Booking, type EventRecord, type EventTable, type Invite } from "@flightplan/shared";
 import {
   BookingActions,
   closedLabel,
@@ -229,7 +229,7 @@ export default function TablesPage() {
                 disabled={!available.length || isPast(event)}
                 className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
               >
-                Assign a table
+                Assign tables
               </button>
             ) : (
               <p className="rounded-2xl bg-sky/15 px-4 py-3 text-sm font-semibold text-slate" role="status">
@@ -247,7 +247,7 @@ export default function TablesPage() {
         <AssignDialog
           event={event}
           tables={available}
-          initialTableId={assigning === "pick" ? available[0]?.id : assigning.id}
+          initialTableId={assigning === "pick" ? undefined : assigning.id}
           onClose={() => setAssigning(null)}
         />
       )}
@@ -624,14 +624,14 @@ function AssignDialog({
 }) {
   const assign = useAssignTable(event.id);
   const vendors = useEventVendors(event.id);
-  const [tableId, setTableId] = useState(initialTableId ?? "");
+  const [tableIds, setTableIds] = useState<string[]>(initialTableId ? [initialTableId] : []);
   const [chosenMode, setMode] = useState<"existing" | "new" | null>(null);
   // Until the organizer picks, default to their vendor list if they have one
   const mode = chosenMode ?? (vendors.data?.length ? "existing" : "new");
   const [vendorId, setVendorId] = useState("");
   const [contact, setContact] = useState({ name: "", businessName: "", email: "", phone: "" });
   const [paid, setPaid] = useState(event.tablePriceCents === 0);
-  const firstRef = useRef<HTMLSelectElement>(null);
+  const firstRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     firstRef.current?.focus();
@@ -643,12 +643,16 @@ function AssignDialog({
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     assign.mutate(
-      mode === "existing" ? { tableId, vendorId, paid } : { tableId, contact, paid },
+      // Keep floor order, whatever order they were clicked in
+      { tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id), paid, ...(mode === "existing" ? { vendorId } : { contact }) },
       { onSuccess: onClose },
     );
   }
 
   const fieldErrors = assign.error instanceof ApiRequestError ? assign.error.body.fieldErrors : undefined;
+  const toggle = (id: string) =>
+    setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
+  const count = tableIds.length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="assign-title">
@@ -658,20 +662,49 @@ function AssignDialog({
           <CloseIcon className="size-5" />
         </button>
         <h2 id="assign-title" className="pr-8 text-2xl font-extrabold">
-          Assign a table
+          Assign tables
         </h2>
-        <p className="mt-1 text-sm text-ink-soft">Tables you assign are approved straight away.</p>
+        <p className="mt-1 text-sm text-ink-soft">
+          Pick one or more open tables. They're booked together as one request and approved straight away.
+        </p>
 
-        <label htmlFor="assign-table" className="mt-5 block text-sm font-bold">
-          Table
-        </label>
-        <select id="assign-table" ref={firstRef} className={smallInput} value={tableId} onChange={(e) => setTableId(e.target.value)} required>
-          {tables.map((t) => (
-            <option key={t.id} value={t.id}>
-              Table {t.label}
-            </option>
-          ))}
-        </select>
+        <div className="mt-5 flex items-baseline justify-between gap-2">
+          <span id="assign-tables-label" className="text-sm font-bold">
+            Tables
+          </span>
+          <span className="text-sm text-ink-soft" aria-live="polite">
+            {count ? `${count} selected` : "None selected"}
+            {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(event.tablePriceCents * count)}`}
+          </span>
+        </div>
+        <div
+          ref={firstRef}
+          tabIndex={-1}
+          role="group"
+          aria-labelledby="assign-tables-label"
+          className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-2xl bg-cream-50 p-2 ring-1 ring-ink/5 focus:outline-none"
+        >
+          {tables.map((t) => {
+            const on = tableIds.includes(t.id);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(t.id)}
+                disabled={!on && count >= MAX_TABLES_PER_REQUEST}
+                className={`min-w-11 rounded-lg px-2.5 py-1.5 text-sm font-extrabold transition disabled:opacity-40 ${
+                  on ? "bg-slate text-white" : "bg-white text-slate ring-1 ring-slate/20 hover:ring-slate"
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+        {count >= MAX_TABLES_PER_REQUEST && (
+          <p className="mt-1 text-xs text-ink-muted">Up to {MAX_TABLES_PER_REQUEST} tables at a time.</p>
+        )}
 
         <div className="mt-5 flex gap-1 rounded-full bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Vendor">
           {(["existing", "new"] as const).map((m) => (
@@ -755,10 +788,10 @@ function AssignDialog({
           </button>
           <button
             type="submit"
-            disabled={assign.isPending || !tableId || (mode === "existing" && !vendorId)}
+            disabled={assign.isPending || !count || (mode === "existing" && !vendorId)}
             className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
           >
-            {assign.isPending ? "Assigning…" : "Assign table"}
+            {assign.isPending ? "Assigning…" : count > 1 ? `Assign ${count} tables` : "Assign table"}
           </button>
         </div>
       </form>
