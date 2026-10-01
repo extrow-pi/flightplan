@@ -208,6 +208,31 @@ export const vendorInvites = pgTable(
   (t) => [index("vendor_invites_event_idx").on(t.eventId)],
 );
 
+// An organizer's public page at /o/:handle, listing their published shows. One per organizer.
+export const organizerProfiles = pgTable(
+  "organizer_profiles",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Lowercase; validated with HANDLE_PATTERN
+    handle: text("handle").notNull(),
+    displayName: text("display_name").notNull(),
+    bio: text("bio").notNull().default(""),
+    logoFile: text("logo_file"),
+    websiteUrl: text("website_url").notNull().default(""),
+    instagram: text("instagram").notNull().default(""),
+    contactEmail: text("contact_email").notNull().default(""),
+    published: boolean("published").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("organizer_profiles_handle_idx").on(t.handle)],
+);
+
 // Other organizers who can see (viewer) or manage (editor) an event or template.
 // The owner is events.organizer_id and is never a row here.
 export const eventCollaborators = pgTable(

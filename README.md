@@ -31,7 +31,7 @@ pnpm seed
 ```
 
 Then log in at http://localhost:5173/login with **organizer@flightplan.test** / **flightplan-test-2026**.
-It also creates a second organizer, **collaborator@flightplan.test** (same password), who is an editor on *Red-eye Night Market*. Use it to try the collaborator features.
+It also creates a second organizer, **collaborator@flightplan.test** (same password), who is an editor on *Red-eye Night Market* (use it to try the collaborator features), and a public page at http://localhost:5173/o/test-organizer.
 The script is safe to re-run: it only adds sample events and templates (matched by name) that the account doesn't have yet. It goes through the API, so it works with PGlite or Postgres.
 
 ### Database
@@ -102,6 +102,15 @@ Booking statuses: `pending` → `awaiting_payment` → `paid`, or `rejected` / `
 When a payment deadline passes, the booking shows as **Payment overdue** in *Needs your attention* on the dashboard and on the event's **Tables & vendors** tab. From there the organizer can **Release table**, **Keep, +N days** or **Keep, no deadline**.
 
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
+
+### Public organizer page
+
+Each organizer can have a public page at `/o/<handle>`, set up in **Settings** and hidden until switched on.
+
+- **Profile:** display name, bio, logo, website, Instagram and a public email.
+- **Shows:** upcoming published shows with dates, hours, venue, description and admission price, and past shows (the 12 most recent). Drafts and templates never appear.
+- **Booking:** while a show's public booking link is open, its card shows tables left and a **Book a vendor table** button. Shows are listed as "upcoming" through their last day, in `APP_TIMEZONE`.
+- **Handles:** 3–30 lowercase letters, numbers and single hyphens, and unique across organizers. Settings suggests a free one based on the organizer's name.
 
 ### Vendors page
 
@@ -251,6 +260,10 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/bookings/:id/release` | Free this table, or the whole request with `{ "wholeRequest": true }` |
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
+| GET / PUT | `/api/profile` | The organizer's public page settings (with a suggested handle) / save them |
+| GET | `/api/profile/handle-available?handle=` | Whether a handle is valid and free |
+| POST / DELETE | `/api/profile/logo` | Upload (multipart `file`) or remove the page logo |
+| GET | `/api/public/organizers/:handle` | A published organizer page: profile, upcoming and past shows (no sign-in) |
 | GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
 | PATCH | `/api/vendors/:id` | Edit details, `favourite`, `banned` + `banReason`, `groupIds` |
 | GET | `/api/vendors/:id/requests` | A vendor's request history across the organizer's shows |

@@ -502,3 +502,77 @@ export function eventEndDate(event: { startDate: string | null; days: EventDay[]
   if (!event.startDate) return null;
   return addDays(event.startDate, Math.max(...event.days.map((d) => d.dayOffset)));
 }
+
+// ── Organizer public page (/o/:handle) ──────────────────────────────────────
+
+/** Lowercase letters, digits and single hyphens, 3–30 characters, e.g. "jetlagged-cards" */
+export const HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,29}$/;
+
+/** Turn a name into a handle suggestion, e.g. "Jetlagged Cards!" → "jetlagged-cards" */
+export function suggestHandle(name: string) {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)
+    .replace(/-+$/, "");
+}
+
+const optionalUrl = z
+  .string()
+  .trim()
+  .max(200)
+  .transform((s) => (s && !/^https?:\/\//i.test(s) ? `https://${s}` : s))
+  .pipe(z.union([z.literal(""), z.url({ protocol: /^https?$/, error: "Enter a web address like jetlaggedcards.ca" })]));
+
+export const organizerProfileSchema = z.object({
+  handle: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(HANDLE_PATTERN, "3–30 lowercase letters, numbers and hyphens (e.g. jetlagged-cards)"),
+  displayName: z.string().trim().min(2, "Enter the name to show").max(80),
+  bio: z.string().trim().max(1000, "Up to 1000 characters").optional().default(""),
+  websiteUrl: optionalUrl.optional().default(""),
+  /** Instagram username, with or without @ */
+  instagram: z
+    .string()
+    .trim()
+    .max(31)
+    .transform((s) => s.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, ""))
+    .pipe(z.union([z.literal(""), z.string().regex(/^[A-Za-z0-9._]{1,30}$/, "Enter an Instagram username")]))
+    .optional()
+    .default(""),
+  contactEmail: z.union([z.literal(""), z.email("Enter a valid email").trim().toLowerCase()]).optional().default(""),
+  /** The public page is only visible when this is on */
+  published: z.boolean().optional().default(false),
+});
+export type OrganizerProfileInput = z.input<typeof organizerProfileSchema>;
+
+export type OrganizerProfile = z.output<typeof organizerProfileSchema> & {
+  logoUrl: string | null;
+};
+
+/** A published show on an organizer's public page. */
+export type PublicShow = {
+  name: string;
+  description: string;
+  venueName: string;
+  address: string;
+  city: string;
+  startDate: string;
+  days: EventDay[];
+  ticketPriceCents: number;
+  tablePriceCents: number;
+  /** Set while the show's public booking link is open: the booking page path and open tables */
+  booking: { url: string; tablesLeft: number } | null;
+};
+
+export type PublicOrganizerPage = {
+  profile: Omit<OrganizerProfile, "handle" | "published">;
+  upcoming: PublicShow[];
+  /** Most recent first */
+  past: PublicShow[];
+};

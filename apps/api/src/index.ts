@@ -14,6 +14,7 @@ import { requireUser } from "./middleware.js";
 import { eventRoutes } from "./routes/events.js";
 import { alertRoutes, bookingRoutes, eventBookingRoutes, inviteRoutes } from "./routes/bookings.js";
 import { vendorGroupRoutes, vendorRoutes } from "./routes/vendors.js";
+import { profileRoutes, publicOrganizerRoutes } from "./routes/profile.js";
 import { publicRoutes } from "./routes/public.js";
 import { emailRoutes } from "./routes/emails.js";
 import { collaboratorInviteRoutes, teamRoutes } from "./routes/collaborators.js";
@@ -44,10 +45,12 @@ app.route("/invites", inviteRoutes);
 app.route("/alerts", alertRoutes);
 app.route("/vendors", vendorRoutes);
 app.route("/vendor-groups", vendorGroupRoutes);
+app.route("/profile", profileRoutes);
 app.route("/emails", emailRoutes);
 
 // No sign-in needed: vendor booking pages and floor map images
 app.route("/public", publicRoutes);
+app.route("/public/organizers", publicOrganizerRoutes);
 app.route("/uploads", uploadRoutes);
 
 app.post("/organizers/signup", async (c) => {

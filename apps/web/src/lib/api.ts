@@ -16,6 +16,9 @@ import type {
   CreateInviteInput,
   EventTeamResponse,
   InviteCollaboratorInput,
+  OrganizerProfile,
+  OrganizerProfileInput,
+  PublicOrganizerPage,
   EmailLogEntry,
   EventInput,
   EventRecord,
@@ -261,6 +264,65 @@ export function useRevokeInvite(eventId: string) {
   return useMutation({
     mutationFn: (inviteId: string) => request<{ invite: Invite }>(`/invites/${inviteId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) }),
+  });
+}
+
+// ── Public organizer page ────────────────────────────────────────────────
+
+const profileKey = ["profile"] as const;
+
+/** The signed-in organizer's public page settings (null until first saved) */
+export function useProfile() {
+  return useQuery({
+    queryKey: profileKey,
+    queryFn: () => request<{ profile: OrganizerProfile | null; suggestedHandle: string }>("/profile"),
+  });
+}
+
+export function useSaveProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: OrganizerProfileInput) =>
+      request<{ profile: OrganizerProfile }>("/profile", { method: "PUT", body: input }).then((r) => r.profile),
+    onSuccess: (profile) => qc.setQueryData(profileKey, { profile, suggestedHandle: profile.handle }),
+  });
+}
+
+export function useHandleAvailable(handle: string) {
+  return useQuery({
+    queryKey: ["profile", "handle", handle],
+    queryFn: () =>
+      request<{ valid: boolean; available: boolean }>(`/profile/handle-available?handle=${encodeURIComponent(handle)}`),
+    enabled: handle.length >= 3,
+    staleTime: 10_000,
+  });
+}
+
+export function useProfileLogo() {
+  const qc = useQueryClient();
+  const onSuccess = (profile: OrganizerProfile) => qc.setQueryData(profileKey, { profile, suggestedHandle: profile.handle });
+  return {
+    upload: useMutation({
+      mutationFn: (file: File) => {
+        const form = new FormData();
+        form.append("file", file);
+        return request<{ profile: OrganizerProfile }>("/profile/logo", { method: "POST", body: form }).then((r) => r.profile);
+      },
+      onSuccess,
+    }),
+    remove: useMutation({
+      mutationFn: () => request<{ profile: OrganizerProfile }>("/profile/logo", { method: "DELETE" }).then((r) => r.profile),
+      onSuccess,
+    }),
+  };
+}
+
+export function usePublicOrganizer(handle: string | undefined) {
+  return useQuery({
+    queryKey: ["public", "organizer", handle],
+    queryFn: () => request<PublicOrganizerPage>(`/public/organizers/${handle}`),
+    enabled: Boolean(handle),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
   });
 }
 

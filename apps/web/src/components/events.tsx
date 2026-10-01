@@ -8,7 +8,10 @@ import { ClockIcon, CloseIcon, CopyIcon, MapPinIcon, PencilIcon, TableIcon, Tras
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /** A show is past once its last day has gone by. Templates are never past. */
-export function isPast(event: EventRecord) {
+/** Just the dates of an event: enough for date tiles and schedules (e.g. public show listings) */
+export type Dated = Pick<EventRecord, "startDate" | "days">;
+
+export function isPast(event: Dated) {
   const end = eventEndDate(event);
   return end !== null && daysUntil(end) < 0;
 }
@@ -20,14 +23,14 @@ export function isTemplate(event: EventRecord) {
 export const canEdit = (event: EventRecord) => canEditEvent(event.access.role);
 export const isOwner = (event: EventRecord) => event.access.role === "owner";
 
-function dayCount(event: EventRecord) {
+function dayCount(event: Dated) {
   return event.days.length === 1 ? "1 day" : `${event.days.length} days`;
 }
 
 // ── Display pieces ───────────────────────────────────────────────────────
 
 /** Calendar tile like the event cards on jetlaggedcards.ca. Shows a range for multi-day shows. */
-export function DateTile({ event, size = "md" }: { event: EventRecord; size?: "md" | "lg" }) {
+export function DateTile({ event, size = "md" }: { event: Dated; size?: "md" | "lg" }) {
   const start = event.startDate;
   const end = eventEndDate(event);
   const big = size === "lg";
@@ -111,7 +114,7 @@ export function SharedBadge({ event }: { event: EventRecord }) {
 }
 
 /** Each show day with its hours, e.g. "Fri Oct 10 · 2pm–8pm" (or "Day 1 · 2pm–8pm" for templates). */
-export function Schedule({ event, tone = "light" }: { event: EventRecord; tone?: "light" | "dark" }) {
+export function Schedule({ event, tone = "light" }: { event: Dated; tone?: "light" | "dark" }) {
   const dates = eventDayDates(event);
   return (
     <ul className="flex flex-wrap gap-1.5">

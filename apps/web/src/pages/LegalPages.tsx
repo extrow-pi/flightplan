@@ -81,6 +81,10 @@ export function PrivacyPage() {
             templates you create, and your vendor list.
           </li>
           <li>
+            <strong>Your public page:</strong> if you switch on a public page, the name, bio, logo, links and contact
+            email you add, and your published shows, can be seen by anyone. You can hide it at any time in Settings.
+          </li>
+          <li>
             <strong>Sign-in records:</strong> when you sign in we record your IP address and browser type with your
             session, to keep your account secure.
           </li>
