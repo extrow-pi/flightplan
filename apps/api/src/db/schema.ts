@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, pgTable, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { BOOKING_SOURCES, BOOKING_STATUSES, COLLABORATOR_ROLES, EVENT_STATUSES } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
 
@@ -103,6 +103,10 @@ export const vendors = pgTable(
     email: text("email").notNull(),
     phone: text("phone").notNull().default(""),
     notes: text("notes").notNull().default(""),
+    favourite: boolean("favourite").notNull().default(false),
+    // Banned vendors can still request tables, but their requests always need approval and are flagged
+    bannedAt: timestamp("banned_at", { withTimezone: true }),
+    banReason: text("ban_reason").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -110,6 +114,33 @@ export const vendors = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [uniqueIndex("vendors_organizer_email_idx").on(t.organizerId, t.email)],
+);
+
+// Organizer-defined vendor groups (e.g. "Pokémon", "Food trucks"). A vendor can be in several.
+export const vendorGroups = pgTable(
+  "vendor_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizerId: text("organizer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("vendor_groups_organizer_name_idx").on(t.organizerId, sql`lower(${t.name})`)],
+);
+
+export const vendorGroupMembers = pgTable(
+  "vendor_group_members",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => vendorGroups.id, { onDelete: "cascade" }),
+    vendorId: uuid("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.vendorId] }), index("vendor_group_members_vendor_idx").on(t.vendorId)],
 );
 
 export const bookings = pgTable(
@@ -175,6 +206,31 @@ export const vendorInvites = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("vendor_invites_event_idx").on(t.eventId)],
+);
+
+// An organizer's public page at /o/:handle, listing their published shows. One per organizer.
+export const organizerProfiles = pgTable(
+  "organizer_profiles",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Lowercase; validated with HANDLE_PATTERN
+    handle: text("handle").notNull(),
+    displayName: text("display_name").notNull(),
+    bio: text("bio").notNull().default(""),
+    logoFile: text("logo_file"),
+    websiteUrl: text("website_url").notNull().default(""),
+    instagram: text("instagram").notNull().default(""),
+    contactEmail: text("contact_email").notNull().default(""),
+    published: boolean("published").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("organizer_profiles_handle_idx").on(t.handle)],
 );
 
 // Other organizers who can see (viewer) or manage (editor) an event or template.

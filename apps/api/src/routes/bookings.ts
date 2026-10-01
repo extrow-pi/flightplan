@@ -4,15 +4,16 @@ import { z } from "zod";
 import {
   ACTIVE_BOOKING_STATUSES,
   assignTableSchema,
+  bulkInviteSchema,
   createInviteSchema,
   keepBookingSchema,
   releaseBookingSchema,
   type ApiError,
   type BookingAlert,
   type BookingStatus,
+  type BulkInviteResult,
   type EventTablesResponse,
   type Invite,
-  type Vendor,
 } from "@flightplan/shared";
 import {
   approvedFields,
@@ -21,6 +22,7 @@ import {
   overdueCondition,
   TableTakenError,
   toBooking,
+  toVendor,
 } from "../bookings.js";
 import { db, schema } from "../db/index.js";
 import {
@@ -30,6 +32,7 @@ import {
   notifyRejected,
   notifyReleased,
   notifyRequestCreated,
+  sendVendorInvites,
 } from "../email/notifications.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import {
@@ -43,7 +46,7 @@ import {
   type Access,
 } from "../access.js";
 
-const { bookings, eventCollaborators, events, eventTables, vendorInvites, vendors } = schema;
+const { bookings, eventCollaborators, eventDays, events, eventTables, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
 
 const idSchema = z.uuid();
 const notFound = (what = "Event") => ({ error: `${what} not found` }) satisfies ApiError;
@@ -89,18 +92,6 @@ function visibleVendors(access: Access, userId: string) {
   );
 }
 
-function toVendor(v: typeof vendors.$inferSelect): Vendor {
-  return {
-    id: v.id,
-    name: v.name,
-    businessName: v.businessName,
-    email: v.email,
-    phone: v.phone,
-    notes: v.notes,
-    createdAt: v.createdAt.toISOString(),
-  };
-}
-
 function toInvite(i: typeof vendorInvites.$inferSelect): Invite {
   return {
     id: i.id,
@@ -134,10 +125,18 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
     const activeByTable = new Map(
       bookingRows.filter((b) => active.includes(b.status as (typeof active)[number])).map((b) => [b.tableId, toBooking(b)]),
     );
+    const vendorIds = [...new Set(bookingRows.map((b) => b.vendorId))];
+    const flagRows = vendorIds.length
+      ? await db
+          .select({ id: vendors.id, favourite: vendors.favourite, bannedAt: vendors.bannedAt })
+          .from(vendors)
+          .where(inArray(vendors.id, vendorIds))
+      : [];
     const body: EventTablesResponse = {
       tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, booking: activeByTable.get(t.id) ?? null })),
       history: bookingRows.filter((b) => !active.includes(b.status as (typeof active)[number])).map(toBooking),
       invites: inviteRows.map(toInvite),
+      vendorFlags: Object.fromEntries(flagRows.map((v) => [v.id, { favourite: v.favourite, banned: v.bannedAt !== null }])),
     };
     return c.json(body);
   })
@@ -152,11 +151,11 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
       .select()
       .from(vendors)
       .where(visibleVendors(event.access, c.var.user.id))
-      .orderBy(asc(sql`lower(${vendors.name})`));
+      .orderBy(desc(vendors.favourite), asc(sql`lower(${vendors.name})`));
     return c.json({ vendors: rows.map(toVendor) });
   })
 
-  // Organizer assigns a table to a vendor (no approval needed)
+  // Organizer assigns one or more tables to a vendor as one request (no approval needed)
   .post("/:id/bookings", async (c) => {
     const event = await findEvent(c.req.param("id"), c.var.user.id);
     if (!event || event.status === "template") return c.json(notFound(), 404);
@@ -165,14 +164,14 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
     const input = parsed.data;
 
-    const [table] = await db
+    const found = await db
       .select({ id: eventTables.id })
       .from(eventTables)
-      .where(and(eq(eventTables.id, input.tableId), eq(eventTables.eventId, event.id)));
-    if (!table) return c.json(notFound("Table"), 404);
+      .where(and(inArray(eventTables.id, input.tableIds), eq(eventTables.eventId, event.id)));
+    if (found.length !== input.tableIds.length) return c.json(notFound("Table"), 404);
 
     try {
-      const booking = await db.transaction(async (tx) => {
+      const rows = await db.transaction(async (tx) => {
         let vendorId: string;
         let contact;
         if (input.vendorId) {
@@ -186,22 +185,22 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
         } else {
           contact = input.contact!;
           // Vendors always go in the event owner's list, whoever assigns the table
-          vendorId = await findOrCreateVendor(tx, event.access.ownerId, contact);
+          vendorId = (await findOrCreateVendor(tx, event.access.ownerId, contact)).id;
         }
-        const [row] = await createBookings(tx, {
+        return createBookings(tx, {
           event,
-          tableIds: [table.id],
+          tableIds: input.tableIds,
           vendorId,
           contact,
           source: "organizer",
           paid: input.paid,
         });
-        return row;
       });
-      void notifyRequestCreated(booking.requestId);
-      return c.json({ booking: toBooking(booking) }, 201);
+      void notifyRequestCreated(rows[0].requestId);
+      return c.json({ bookings: rows.map(toBooking) }, 201);
     } catch (err) {
-      if (err instanceof TableTakenError) return c.json<ApiError>({ error: "That table is already booked" }, 409);
+      // Names the taken tables, e.g. "Sorry, tables 4, 5 were just taken"
+      if (err instanceof TableTakenError) return c.json<ApiError>({ error: err.message }, 409);
       if (err instanceof VendorNotFoundError) return c.json(notFound("Vendor"), 404);
       throw err;
     }
@@ -221,6 +220,88 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
       .returning();
     return c.json({ invite: toInvite(invite) }, 201);
   });
+
+// Personal invite links for every vendor in one of the owner's groups (or all favourites), emailed
+// to them. Skips banned vendors, vendors already holding tables, and vendors with an unused invite.
+// Owner only: groups and favourites are part of the owner's own vendor list.
+eventBookingRoutes.post("/:id/invites/bulk", async (c) => {
+  const event = await findEvent(c.req.param("id"), c.var.user.id);
+  if (!event || event.status === "template") return c.json(notFound(), 404);
+  if (event.access.role !== "owner") return c.json(forbidden("invite a vendor group. Only the owner can"), 403);
+  const parsed = bulkInviteSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json(invalid(parsed.error), 400);
+  const { target } = parsed.data;
+  const ownerId = event.access.ownerId;
+
+  const inTarget =
+    target === "favourites"
+      ? and(eq(vendors.organizerId, ownerId), eq(vendors.favourite, true))
+      : and(
+          eq(vendors.organizerId, ownerId),
+          inArray(
+            vendors.id,
+            db
+              .select({ id: vendorGroupMembers.vendorId })
+              .from(vendorGroupMembers)
+              .innerJoin(vendorGroups, eq(vendorGroups.id, vendorGroupMembers.groupId))
+              .where(and(eq(vendorGroups.id, target), eq(vendorGroups.organizerId, ownerId))),
+          ),
+        );
+  const [targets, heldBy, invited] = await Promise.all([
+    db.select().from(vendors).where(inTarget).orderBy(asc(sql`lower(${vendors.name})`)),
+    db
+      .selectDistinct({ vendorId: bookings.vendorId })
+      .from(bookings)
+      .where(and(eq(bookings.eventId, event.id), inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES]))),
+    db
+      .select({ email: vendorInvites.email })
+      .from(vendorInvites)
+      .where(and(eq(vendorInvites.eventId, event.id), sql`${vendorInvites.bookingId} is null`, sql`${vendorInvites.revokedAt} is null`)),
+  ]);
+  const booked = new Set(heldBy.map((b) => b.vendorId));
+  const alreadyInvited = new Set(invited.map((i) => i.email.toLowerCase()));
+
+  const result: BulkInviteResult = { invited: 0, skipped: [] };
+  const toInvite: (typeof targets)[number][] = [];
+  for (const v of targets) {
+    const reason = v.bannedAt ? "banned" : booked.has(v.id) ? "booked" : alreadyInvited.has(v.email) ? "invited" : null;
+    if (reason) result.skipped.push({ name: v.name, email: v.email, reason });
+    else toInvite.push(v);
+  }
+
+  if (toInvite.length) {
+    const created = await db
+      .insert(vendorInvites)
+      .values(toInvite.map((v) => ({ eventId: event.id, name: v.name, email: v.email })))
+      .returning({ name: vendorInvites.name, email: vendorInvites.email, token: vendorInvites.token });
+    result.invited = created.length;
+
+    const [details] = await db
+      .select({
+        id: events.id,
+        name: events.name,
+        organizerId: events.organizerId,
+        startDate: events.startDate,
+        venueName: events.venueName,
+        address: events.address,
+        city: events.city,
+      })
+      .from(events)
+      .where(eq(events.id, event.id));
+    const days = await db
+      .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .from(eventDays)
+      .where(eq(eventDays.eventId, event.id))
+      .orderBy(asc(eventDays.dayOffset));
+    await sendVendorInvites({
+      event: details,
+      days,
+      organizer: { name: c.var.user.name, email: c.var.user.email },
+      invites: created,
+    });
+  }
+  return c.json(result, 201);
+});
 
 class VendorNotFoundError extends Error {}
 
@@ -384,10 +465,12 @@ export const alertRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async (
       tableLabel: eventTables.label,
       ownerId: events.organizerId,
       collaboratorRole: eventCollaborators.role,
+      vendorBannedAt: vendors.bannedAt,
     })
     .from(bookings)
     .innerJoin(events, eq(events.id, bookings.eventId))
     .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
+    .innerJoin(vendors, eq(vendors.id, bookings.vendorId))
     .leftJoin(eventCollaborators, collaboratorJoin(me))
     .where(and(accessibleEvents(me), or(eq(bookings.status, "pending"), overdueCondition)))
     .orderBy(asc(bookings.paymentDueAt), asc(bookings.createdAt), asc(eventTables.number));
@@ -407,6 +490,7 @@ export const alertRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async (
       eventName: r.eventName,
       tableLabels: [r.tableLabel],
       role: roleOf(r.ownerId, r.collaboratorRole, me),
+      vendorBanned: r.vendorBannedAt !== null,
     });
   }
   const alerts = [...byRequest.values()];
@@ -414,15 +498,3 @@ export const alertRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async (
   alerts.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "overdue" ? -1 : 1));
   return c.json({ alerts });
 });
-
-// ── Vendor list: /api/vendors ────────────────────────────────────────────
-
-export const vendorRoutes = new Hono<AuthEnv>().use(requireUser).get("/", async (c) => {
-  const rows = await db
-    .select()
-    .from(vendors)
-    .where(eq(vendors.organizerId, c.var.user.id))
-    .orderBy(asc(sql`lower(${vendors.name})`));
-  return c.json({ vendors: rows.map(toVendor) });
-});
-

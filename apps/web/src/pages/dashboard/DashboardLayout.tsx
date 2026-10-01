@@ -28,9 +28,9 @@ const nav: NavItem[] = [
   { to: "/dashboard/events", label: "Events", icon: CalendarIcon },
   { to: "/dashboard/templates", label: "Templates", icon: CopyIcon },
   { to: "/dashboard/emails", label: "Email log", icon: MailIcon },
-  { to: "/dashboard/vendors", label: "Vendors", icon: UsersIcon, soon: true },
+  { to: "/dashboard/vendors", label: "Vendors", icon: UsersIcon },
   { to: "/dashboard/tickets", label: "Tickets", icon: TicketIcon, soon: true },
-  { to: "/dashboard/settings", label: "Settings", icon: SettingsIcon, soon: true },
+  { to: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
 ];
 
 /** Signed-in shell for all /dashboard pages: auth guard, sidebar, and page outlet. */

@@ -155,6 +155,16 @@ async function main() {
 
   await shareSampleEvent();
 
+  // A public page listing the published sample shows (keeps any page the organizer already set up)
+  const page = await api<{ profile: unknown }>("/profile");
+  if (!page.data.profile) {
+    const res = await api("/profile", {
+      method: "PUT",
+      body: { handle: "test-organizer", displayName: "Test Organizer Shows", bio: "Sample card shows in Richmond, BC.", published: true },
+    });
+    console.log(res.status === 200 ? `Public page: ${WEB_URL}/o/test-organizer` : `Couldn't create the public page: ${JSON.stringify(res.data)}`);
+  }
+
   console.log(`\nLog in at ${WEB_URL}/login`);
   for (const a of [TEST_ORGANIZER, TEST_COLLABORATOR]) {
     console.log(`  ${a.name.padEnd(18)} ${a.email} / ${a.password}`);

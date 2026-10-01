@@ -81,6 +81,10 @@ export function PrivacyPage() {
             templates you create, and your vendor list.
           </li>
           <li>
+            <strong>Your public page:</strong> if you switch on a public page, the name, bio, logo, links and contact
+            email you add, and your published shows, can be seen by anyone. You can hide it at any time in Settings.
+          </li>
+          <li>
             <strong>Sign-in records:</strong> when you sign in we record your IP address and browser type with your
             session, to keep your account secure.
           </li>
@@ -100,6 +104,11 @@ export function PrivacyPage() {
           <li>
             <strong>Details an organizer adds:</strong> an organizer may add your contact details themselves, for
             example when assigning you a table or sending you a personal invite link.
+          </li>
+          <li>
+            <strong>Organizer notes:</strong> an organizer can keep private notes about vendors, sort them into groups,
+            and mark them as a favourite or on a ban list. Only that organizer can see these, and they're included if
+            you ask us for a copy of your information.
           </li>
           <li>
             <strong>Emails about your booking:</strong> we keep a copy of the booking emails we send you, so the

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import type { Booking, EventRecord, EventTable, Invite } from "@flightplan/shared";
+import { MAX_TABLES_PER_REQUEST, type Booking, type EventRecord, type EventTable, type Invite } from "@flightplan/shared";
 import {
   BookingActions,
   closedLabel,
@@ -13,8 +13,9 @@ import {
   tableStateLabel,
 } from "../../components/bookings";
 import { canEdit, EventTabs, isPast, SharedBadge } from "../../components/events";
+import BannedBadge from "../../components/BannedBadge";
 import CopyButton from "../../components/CopyButton";
-import { ArrowLeftIcon, CloseIcon } from "../../components/Icons";
+import { ArrowLeftIcon, CloseIcon, StarIcon } from "../../components/Icons";
 import {
   ApiRequestError,
   eventToInput,
@@ -23,8 +24,10 @@ import {
   useEvent,
   useEventTables,
   useRevokeInvite,
+  useBulkInvite,
   useEventVendors,
   useSaveEvent,
+  useVendorGroups,
 } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 
@@ -166,6 +169,7 @@ export default function TablesPage() {
                     event={event}
                     highlighted={r.requestId === highlight}
                     editable={editable}
+                    flags={tables.data.vendorFlags[r.booking.vendorId]}
                   />
                 ))}
                 {requests.length === 0 ? (
@@ -229,7 +233,7 @@ export default function TablesPage() {
                 disabled={!available.length || isPast(event)}
                 className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
               >
-                Assign a table
+                Assign tables
               </button>
             ) : (
               <p className="rounded-2xl bg-sky/15 px-4 py-3 text-sm font-semibold text-slate" role="status">
@@ -247,7 +251,7 @@ export default function TablesPage() {
         <AssignDialog
           event={event}
           tables={available}
-          initialTableId={assigning === "pick" ? available[0]?.id : assigning.id}
+          initialTableId={assigning === "pick" ? undefined : assigning.id}
           onClose={() => setAssigning(null)}
         />
       )}
@@ -297,11 +301,14 @@ function RequestCard({
   event,
   highlighted,
   editable,
+  flags,
 }: {
   request: VendorRequest;
   event: EventRecord;
   highlighted: boolean;
   editable: boolean;
+  /** The vendor's favourite / banned flags from the owner's vendor list */
+  flags?: { favourite: boolean; banned: boolean };
 }) {
   const { booking: b, tables } = request;
   const due = paymentDueLabel(b);
@@ -312,14 +319,24 @@ function RequestCard({
     <article
       id={`request-${request.requestId}`}
       className={`rounded-3xl bg-white p-5 shadow-sm transition ${
-        highlighted ? "ring-2 ring-coral" : request.state === "overdue" ? "ring-2 ring-coral-ink/40" : "ring-1 ring-ink/5"
+        highlighted
+          ? "ring-2 ring-coral"
+          : request.state === "overdue" || flags?.banned
+            ? "ring-2 ring-coral-ink/40"
+            : "ring-1 ring-ink/5"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="font-extrabold">
-            {b.name}
-            {b.businessName && <span className="font-semibold text-ink-soft"> · {b.businessName}</span>}
+          <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-extrabold">
+            {flags?.favourite && (
+              <StarIcon className="size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
+            )}
+            <span>
+              {b.name}
+              {b.businessName && <span className="font-semibold text-ink-soft"> · {b.businessName}</span>}
+            </span>
+            {flags?.banned && <BannedBadge />}
           </h3>
           <p className="mt-0.5 text-sm break-words text-ink-soft">
             <a href={`mailto:${b.email}`} className="hover:underline">
@@ -551,6 +568,8 @@ function InvitesCard({ event, invites, editable }: { event: EventRecord; invites
       </form>
       )}
 
+      {event.access.role === "owner" && !isPast(event) && <GroupInvite event={event} />}
+
       {invites.length > 0 && (
         <ul className="mt-4 space-y-2">
           {invites.map((inv) => {
@@ -589,6 +608,73 @@ function InvitesCard({ event, invites, editable }: { event: EventRecord; invites
   );
 }
 
+/** Send everyone in a vendor group (or all favourites) their own invite link by email. Owner only. */
+function GroupInvite({ event }: { event: EventRecord }) {
+  const groups = useVendorGroups();
+  const bulk = useBulkInvite(event.id);
+  const [target, setTarget] = useState("favourites");
+  const r = bulk.data;
+  const skippedBy = (reason: string) => r?.skipped.filter((x) => x.reason === reason).length ?? 0;
+
+  return (
+    <div className="mt-4 border-t border-ink/5 pt-4">
+      <p className="text-sm font-bold">Invite a group</p>
+      <p className="text-xs text-ink-soft">Everyone gets their own link by email. Banned and already-booked vendors are skipped.</p>
+      <div className="mt-2 flex gap-2">
+        <select
+          aria-label="Vendor group"
+          value={target}
+          onChange={(e) => {
+            setTarget(e.target.value);
+            bulk.reset();
+          }}
+          className="min-w-0 flex-1 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-sm focus:border-coral focus:outline-none"
+        >
+          <option value="favourites">★ Favourites</option>
+          {groups.data?.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name} ({g.vendorCount})
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => bulk.mutate(target)}
+          disabled={bulk.isPending}
+          className="rounded-full bg-slate px-3.5 text-sm font-bold text-white disabled:opacity-60"
+        >
+          {bulk.isPending ? "Sending…" : "Send"}
+        </button>
+      </div>
+      {r && (
+        <p className="mt-2 rounded-xl bg-[#e8f8f5] px-3 py-2 text-xs font-semibold text-[#2d7a6a]" role="status">
+          {r.invited ? `Invited ${r.invited} vendor${r.invited > 1 ? "s" : ""}.` : "No new invites sent."}
+          {r.skipped.length > 0 &&
+            ` Skipped ${[
+              skippedBy("invited") && `${skippedBy("invited")} already invited`,
+              skippedBy("booked") && `${skippedBy("booked")} already booked`,
+              skippedBy("banned") && `${skippedBy("banned")} banned`,
+            ]
+              .filter(Boolean)
+              .join(", ")}.`}
+        </p>
+      )}
+      {bulk.error && (
+        <p className="mt-2 text-xs font-semibold text-coral-ink" role="alert">
+          {bulk.error.message}
+        </p>
+      )}
+      <p className="mt-2 text-xs text-ink-muted">
+        Manage groups on the{" "}
+        <Link to="/dashboard/vendors" className="font-bold text-coral-ink hover:underline">
+          Vendors
+        </Link>{" "}
+        page.
+      </p>
+    </div>
+  );
+}
+
 function FloorMapCard({ event }: { event: EventRecord }) {
   return (
     <Card title="Floor map">
@@ -624,14 +710,14 @@ function AssignDialog({
 }) {
   const assign = useAssignTable(event.id);
   const vendors = useEventVendors(event.id);
-  const [tableId, setTableId] = useState(initialTableId ?? "");
+  const [tableIds, setTableIds] = useState<string[]>(initialTableId ? [initialTableId] : []);
   const [chosenMode, setMode] = useState<"existing" | "new" | null>(null);
   // Until the organizer picks, default to their vendor list if they have one
   const mode = chosenMode ?? (vendors.data?.length ? "existing" : "new");
   const [vendorId, setVendorId] = useState("");
   const [contact, setContact] = useState({ name: "", businessName: "", email: "", phone: "" });
   const [paid, setPaid] = useState(event.tablePriceCents === 0);
-  const firstRef = useRef<HTMLSelectElement>(null);
+  const firstRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     firstRef.current?.focus();
@@ -643,12 +729,16 @@ function AssignDialog({
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     assign.mutate(
-      mode === "existing" ? { tableId, vendorId, paid } : { tableId, contact, paid },
+      // Keep floor order, whatever order they were clicked in
+      { tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id), paid, ...(mode === "existing" ? { vendorId } : { contact }) },
       { onSuccess: onClose },
     );
   }
 
   const fieldErrors = assign.error instanceof ApiRequestError ? assign.error.body.fieldErrors : undefined;
+  const toggle = (id: string) =>
+    setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
+  const count = tableIds.length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="assign-title">
@@ -658,20 +748,49 @@ function AssignDialog({
           <CloseIcon className="size-5" />
         </button>
         <h2 id="assign-title" className="pr-8 text-2xl font-extrabold">
-          Assign a table
+          Assign tables
         </h2>
-        <p className="mt-1 text-sm text-ink-soft">Tables you assign are approved straight away.</p>
+        <p className="mt-1 text-sm text-ink-soft">
+          Pick one or more open tables. They're booked together as one request and approved straight away.
+        </p>
 
-        <label htmlFor="assign-table" className="mt-5 block text-sm font-bold">
-          Table
-        </label>
-        <select id="assign-table" ref={firstRef} className={smallInput} value={tableId} onChange={(e) => setTableId(e.target.value)} required>
-          {tables.map((t) => (
-            <option key={t.id} value={t.id}>
-              Table {t.label}
-            </option>
-          ))}
-        </select>
+        <div className="mt-5 flex items-baseline justify-between gap-2">
+          <span id="assign-tables-label" className="text-sm font-bold">
+            Tables
+          </span>
+          <span className="text-sm text-ink-soft" aria-live="polite">
+            {count ? `${count} selected` : "None selected"}
+            {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(event.tablePriceCents * count)}`}
+          </span>
+        </div>
+        <div
+          ref={firstRef}
+          tabIndex={-1}
+          role="group"
+          aria-labelledby="assign-tables-label"
+          className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-2xl bg-cream-50 p-2 ring-1 ring-ink/5 focus:outline-none"
+        >
+          {tables.map((t) => {
+            const on = tableIds.includes(t.id);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(t.id)}
+                disabled={!on && count >= MAX_TABLES_PER_REQUEST}
+                className={`min-w-11 rounded-lg px-2.5 py-1.5 text-sm font-extrabold transition disabled:opacity-40 ${
+                  on ? "bg-slate text-white" : "bg-white text-slate ring-1 ring-slate/20 hover:ring-slate"
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+        {count >= MAX_TABLES_PER_REQUEST && (
+          <p className="mt-1 text-xs text-ink-muted">Up to {MAX_TABLES_PER_REQUEST} tables at a time.</p>
+        )}
 
         <div className="mt-5 flex gap-1 rounded-full bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Vendor">
           {(["existing", "new"] as const).map((m) => (
@@ -702,8 +821,9 @@ function AssignDialog({
               </option>
               {vendors.data.map((v) => (
                 <option key={v.id} value={v.id}>
+                  {v.favourite ? "★ " : ""}
                   {v.name}
-                  {v.businessName ? ` · ${v.businessName}` : ""} ({v.email})
+                  {v.businessName ? ` · ${v.businessName}` : ""} ({v.email}){v.banned ? " · BANNED" : ""}
                 </option>
               ))}
             </select>
@@ -755,10 +875,10 @@ function AssignDialog({
           </button>
           <button
             type="submit"
-            disabled={assign.isPending || !tableId || (mode === "existing" && !vendorId)}
+            disabled={assign.isPending || !count || (mode === "existing" && !vendorId)}
             className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
           >
-            {assign.isPending ? "Assigning…" : "Assign table"}
+            {assign.isPending ? "Assigning…" : count > 1 ? `Assign ${count} tables` : "Assign table"}
           </button>
         </div>
       </form>

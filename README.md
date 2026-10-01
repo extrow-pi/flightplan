@@ -31,7 +31,7 @@ pnpm seed
 ```
 
 Then log in at http://localhost:5173/login with **organizer@flightplan.test** / **flightplan-test-2026**.
-It also creates a second organizer, **collaborator@flightplan.test** (same password), who is an editor on *Red-eye Night Market*. Use it to try the collaborator features.
+It also creates a second organizer, **collaborator@flightplan.test** (same password), who is an editor on *Red-eye Night Market* (use it to try the collaborator features), and a public page at http://localhost:5173/o/test-organizer.
 The script is safe to re-run: it only adds sample events and templates (matched by name) that the account doesn't have yet. It goes through the API, so it works with PGlite or Postgres.
 
 ### Database
@@ -102,6 +102,26 @@ Booking statuses: `pending` → `awaiting_payment` → `paid`, or `rejected` / `
 When a payment deadline passes, the booking shows as **Payment overdue** in *Needs your attention* on the dashboard and on the event's **Tables & vendors** tab. From there the organizer can **Release table**, **Keep, +N days** or **Keep, no deadline**.
 
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
+
+### Public organizer page
+
+Each organizer can have a public page at `/o/<handle>`, set up in **Settings** and hidden until switched on.
+
+- **Profile:** display name, bio, logo, website, Instagram and a public email.
+- **Shows:** upcoming published shows with dates, hours, venue, description and admission price, and past shows (the 12 most recent). Drafts and templates never appear.
+- **Booking:** while a show's public booking link is open, its card shows tables left and a **Book a vendor table** button. Shows are listed as "upcoming" through their last day, in `APP_TIMEZONE`.
+- **Handles:** 3–30 lowercase letters, numbers and single hyphens, and unique across organizers. Settings suggests a free one based on the organizer's name.
+
+### Vendors page
+
+`/dashboard/vendors` lists the organizer's own vendors: everyone who has booked one of their shows, plus vendors added by hand. Each vendor has notes, booking history and request/show counts.
+
+- **Favourites:** shown first, and starred in the Assign dialog.
+- **Groups:** the organizer names them (e.g. "Pokémon", "Food trucks"), and a vendor can be in several. Use them to filter the list, or to send everyone in a group a personal booking link from a show's **Tables & vendors** tab (*Invite a group*, owner only). Bulk invites skip banned vendors, vendors already holding tables, and vendors with an unused invite.
+- **Ban list:** banned vendors can still send requests, but these always wait for approval and are flagged with a **Banned** badge on the Tables page and dashboard. Organizer emails about them include the ban reason. The vendor isn't told.
+- **Export CSV:** downloads whatever is currently filtered.
+
+Vendors belong to the event owner. Collaborators see owner vendors' favourite and banned flags on shared shows, but not the owner's groups or Vendors page.
 
 ### Collaborators
 
@@ -233,14 +253,23 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/events/:id/spawn` | Create a draft from a template: body `{ "startDate": "2026-11-13" }` |
 | POST / DELETE | `/api/events/:id/floor-map` | Upload (multipart `file`) or remove the floor map |
 | GET | `/api/events/:id/tables` | Tables with their active bookings, past bookings and invites |
-| POST | `/api/events/:id/bookings` | Organizer assigns a table: `{ tableId, vendorId }` or `{ tableId, contact }`, optional `paid` |
+| POST | `/api/events/:id/bookings` | Organizer assigns one or more tables as one request: `{ tableIds: [...], vendorId }` or `{ tableIds: [...], contact }`, optional `paid` |
 | POST | `/api/events/:id/invites` | Create a personal invite link: `{ name?, email? }` |
 | DELETE | `/api/invites/:id` | Cancel an unused invite |
 | POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` | Apply to the booking's whole request |
 | POST | `/api/bookings/:id/release` | Free this table, or the whole request with `{ "wholeRequest": true }` |
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
-| GET | `/api/vendors` | The organizer's own vendor list |
+| GET / PUT | `/api/profile` | The organizer's public page settings (with a suggested handle) / save them |
+| GET | `/api/profile/handle-available?handle=` | Whether a handle is valid and free |
+| POST / DELETE | `/api/profile/logo` | Upload (multipart `file`) or remove the page logo |
+| GET | `/api/public/organizers/:handle` | A published organizer page: profile, upcoming and past shows (no sign-in) |
+| GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
+| PATCH | `/api/vendors/:id` | Edit details, `favourite`, `banned` + `banReason`, `groupIds` |
+| GET | `/api/vendors/:id/requests` | A vendor's request history across the organizer's shows |
+| GET / POST | `/api/vendor-groups` | The organizer's vendor groups / create one: `{ name }` |
+| PATCH / DELETE | `/api/vendor-groups/:id` | Rename or delete a group (its vendors stay) |
+| POST | `/api/events/:id/invites/bulk` | Owner emails personal invite links to a group: `{ target: "<group id>" \| "favourites" }` |
 | GET | `/api/events/:id/vendors` | Vendors to pick from when assigning a table (the owner's list, or the part a collaborator can see) |
 | GET | `/api/events/:id/team` | The owner, collaborators and (for the owner) pending invites |
 | POST | `/api/events/:id/team/invites` | Owner invites a collaborator: `{ email, role: "editor" \| "viewer" }` |

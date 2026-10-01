@@ -5,6 +5,7 @@ import {
   type Booking,
   type BookingSource,
   type BookingStatus,
+  type Vendor,
   type VendorContactInput,
   vendorContactSchema,
 } from "@flightplan/shared";
@@ -89,9 +90,24 @@ export function approvedFields(event: { tablePriceCents: number; paymentDueDays:
   };
 }
 
+export function toVendor(v: typeof vendors.$inferSelect): Vendor {
+  return {
+    id: v.id,
+    name: v.name,
+    businessName: v.businessName,
+    email: v.email,
+    phone: v.phone,
+    notes: v.notes,
+    createdAt: v.createdAt.toISOString(),
+    favourite: v.favourite,
+    banned: v.bannedAt !== null,
+  };
+}
+
 /**
  * Find the organizer's vendor with this email, or add them to the vendor list.
  * Existing vendors' saved details are never overwritten from a booking form.
+ * `banned` says whether they're on the organizer's ban list.
  */
 export async function findOrCreateVendor(tx: Tx, organizerId: string, input: VendorContactInput) {
   const contact = vendorContactSchema.parse(input);
@@ -100,13 +116,13 @@ export async function findOrCreateVendor(tx: Tx, organizerId: string, input: Ven
     .values({ organizerId, ...contact })
     .onConflictDoNothing()
     .returning({ id: vendors.id });
-  if (created) return created.id;
+  if (created) return { id: created.id, banned: false };
 
   const [existing] = await tx
-    .select({ id: vendors.id })
+    .select({ id: vendors.id, bannedAt: vendors.bannedAt })
     .from(vendors)
     .where(and(eq(vendors.organizerId, organizerId), eq(vendors.email, contact.email)));
-  return existing.id;
+  return { id: existing.id, banned: existing.bannedAt !== null };
 }
 
 type BookingEvent = {

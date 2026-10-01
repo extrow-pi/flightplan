@@ -148,12 +148,13 @@ function bookingHandlers(kind: "event" | "invite") {
 
       try {
         const rows = await db.transaction(async (tx) => {
-          const vendorId = await findOrCreateVendor(tx, event.organizerId, contact);
-          // Keep tables in floor order
+          const vendor = await findOrCreateVendor(tx, event.organizerId, contact);
+          // Keep tables in floor order. Banned vendors' requests always wait for approval (the
+          // organizer sees them flagged); to the vendor it looks like any request under review.
           const created = await createBookings(tx, {
-            event,
+            event: vendor.banned ? { ...event, requiresApproval: true } : event,
             tableIds: picked.map((t) => t.id),
-            vendorId,
+            vendorId: vendor.id,
             contact,
             message,
             source,

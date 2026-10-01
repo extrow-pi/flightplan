@@ -228,10 +228,17 @@ export const vendorBookingSchema = vendorContactSchema.extend({
 });
 export type VendorBookingInput = z.input<typeof vendorBookingSchema>;
 
-/** The organizer assigning a table: an existing vendor from their list, or new contact details. */
+/**
+ * The organizer assigning one or more tables (as one request) to an existing vendor from their list,
+ * or to new contact details. The event's per-vendor limit doesn't apply to the organizer.
+ */
 export const assignTableSchema = z
   .object({
-    tableId: z.uuid("Pick a table"),
+    tableIds: z
+      .array(z.uuid())
+      .min(1, "Pick at least one table")
+      .max(MAX_TABLES_PER_REQUEST, `Up to ${MAX_TABLES_PER_REQUEST} tables at a time`)
+      .refine((ids) => new Set(ids).size === ids.length, "Each table can only be picked once"),
     vendorId: z.uuid().optional(),
     contact: vendorContactSchema.optional(),
     /** Mark as paid straight away (e.g. paid at the door or in advance) */
@@ -264,6 +271,69 @@ export type Vendor = {
   phone: string;
   notes: string;
   createdAt: string;
+  favourite: boolean;
+  /** On the organizer's ban list: their requests always need approval and are flagged */
+  banned: boolean;
+};
+
+// ── Vendor list (the Vendors page) ──────────────────────────────────────────
+
+/** A vendor on the organizer's Vendors page, with groups and booking stats. */
+export type VendorListItem = Vendor & {
+  banReason: string;
+  bannedAt: string | null;
+  groupIds: string[];
+  /** Requests across all of the organizer's shows, and how many shows */
+  requestCount: number;
+  showCount: number;
+  lastRequestAt: string | null;
+};
+
+export type VendorGroup = { id: string; name: string; vendorCount: number };
+
+export const MAX_VENDOR_GROUPS = 50;
+
+export const vendorGroupSchema = z.object({
+  name: z.string().trim().min(1, "Enter a group name").max(40, "Up to 40 characters"),
+});
+
+/** Add a vendor by hand */
+export const createVendorSchema = vendorContactSchema.extend({
+  name: z.string().trim().min(2, "Enter their name").max(100),
+  notes: z.string().trim().max(2000).optional().default(""),
+});
+export type CreateVendorInput = z.input<typeof createVendorSchema>;
+
+/** Edit a vendor. Every field is optional; groupIds replaces the vendor's groups. */
+export const updateVendorSchema = z.object({
+  name: z.string().trim().min(2, "Enter their name").max(100).optional(),
+  businessName: z.string().trim().max(120).optional(),
+  email: z.email("Enter a valid email").trim().toLowerCase().max(254).optional(),
+  phone: z.string().trim().max(40).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  favourite: z.boolean().optional(),
+  banned: z.boolean().optional(),
+  banReason: z.string().trim().max(500).optional(),
+  groupIds: z.array(z.uuid()).max(MAX_VENDOR_GROUPS).optional(),
+});
+export type UpdateVendorInput = z.input<typeof updateVendorSchema>;
+
+/** One of a vendor's requests, for their history on the Vendors page. */
+export type VendorRequestHistory = {
+  requestId: string;
+  eventId: string;
+  eventName: string;
+  eventStartDate: string | null;
+  tableLabels: string[];
+  status: BookingStatus;
+  createdAt: string;
+};
+
+/** Send personal booking invites to everyone in a group, or to all favourites. */
+export const bulkInviteSchema = z.object({ target: z.union([z.literal("favourites"), z.uuid()]) });
+export type BulkInviteResult = {
+  invited: number;
+  skipped: { name: string; email: string; reason: "banned" | "booked" | "invited" }[];
 };
 
 /**
@@ -317,6 +387,8 @@ export type EventTablesResponse = {
   /** Past bookings (rejected / released / cancelled), newest first */
   history: Booking[];
   invites: Invite[];
+  /** Favourite / banned flags for the vendors in this event's bookings, by vendor id */
+  vendorFlags: Record<string, { favourite: boolean; banned: boolean }>;
 };
 
 /** A vendor request that needs the organizer's attention on the dashboard. */
@@ -329,6 +401,8 @@ export type BookingAlert = {
   tableLabels: string[];
   /** The signed-in organizer's role on the event (viewers can't act on alerts) */
   role: EventRole;
+  /** The vendor is on the event owner's ban list */
+  vendorBanned: boolean;
 };
 
 /** What a vendor sees on a public booking page. No other vendors' details. */
@@ -428,3 +502,77 @@ export function eventEndDate(event: { startDate: string | null; days: EventDay[]
   if (!event.startDate) return null;
   return addDays(event.startDate, Math.max(...event.days.map((d) => d.dayOffset)));
 }
+
+// ── Organizer public page (/o/:handle) ──────────────────────────────────────
+
+/** Lowercase letters, digits and single hyphens, 3–30 characters, e.g. "jetlagged-cards" */
+export const HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,29}$/;
+
+/** Turn a name into a handle suggestion, e.g. "Jetlagged Cards!" → "jetlagged-cards" */
+export function suggestHandle(name: string) {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)
+    .replace(/-+$/, "");
+}
+
+const optionalUrl = z
+  .string()
+  .trim()
+  .max(200)
+  .transform((s) => (s && !/^https?:\/\//i.test(s) ? `https://${s}` : s))
+  .pipe(z.union([z.literal(""), z.url({ protocol: /^https?$/, error: "Enter a web address like jetlaggedcards.ca" })]));
+
+export const organizerProfileSchema = z.object({
+  handle: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(HANDLE_PATTERN, "3–30 lowercase letters, numbers and hyphens (e.g. jetlagged-cards)"),
+  displayName: z.string().trim().min(2, "Enter the name to show").max(80),
+  bio: z.string().trim().max(1000, "Up to 1000 characters").optional().default(""),
+  websiteUrl: optionalUrl.optional().default(""),
+  /** Instagram username, with or without @ */
+  instagram: z
+    .string()
+    .trim()
+    .max(31)
+    .transform((s) => s.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, ""))
+    .pipe(z.union([z.literal(""), z.string().regex(/^[A-Za-z0-9._]{1,30}$/, "Enter an Instagram username")]))
+    .optional()
+    .default(""),
+  contactEmail: z.union([z.literal(""), z.email("Enter a valid email").trim().toLowerCase()]).optional().default(""),
+  /** The public page is only visible when this is on */
+  published: z.boolean().optional().default(false),
+});
+export type OrganizerProfileInput = z.input<typeof organizerProfileSchema>;
+
+export type OrganizerProfile = z.output<typeof organizerProfileSchema> & {
+  logoUrl: string | null;
+};
+
+/** A published show on an organizer's public page. */
+export type PublicShow = {
+  name: string;
+  description: string;
+  venueName: string;
+  address: string;
+  city: string;
+  startDate: string;
+  days: EventDay[];
+  ticketPriceCents: number;
+  tablePriceCents: number;
+  /** Set while the show's public booking link is open: the booking page path and open tables */
+  booking: { url: string; tablesLeft: number } | null;
+};
+
+export type PublicOrganizerPage = {
+  profile: Omit<OrganizerProfile, "handle" | "published">;
+  upcoming: PublicShow[];
+  /** Most recent first */
+  past: PublicShow[];
+};
