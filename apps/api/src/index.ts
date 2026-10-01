@@ -12,7 +12,8 @@ import { db, schema } from "./db/index.js";
 import { auth, googleEnabled } from "./auth.js";
 import { requireUser } from "./middleware.js";
 import { eventRoutes } from "./routes/events.js";
-import { alertRoutes, bookingRoutes, eventBookingRoutes, inviteRoutes, vendorRoutes } from "./routes/bookings.js";
+import { alertRoutes, bookingRoutes, eventBookingRoutes, inviteRoutes } from "./routes/bookings.js";
+import { vendorGroupRoutes, vendorRoutes } from "./routes/vendors.js";
 import { publicRoutes } from "./routes/public.js";
 import { emailRoutes } from "./routes/emails.js";
 import { collaboratorInviteRoutes, teamRoutes } from "./routes/collaborators.js";
@@ -42,6 +43,7 @@ app.route("/bookings", bookingRoutes);
 app.route("/invites", inviteRoutes);
 app.route("/alerts", alertRoutes);
 app.route("/vendors", vendorRoutes);
+app.route("/vendor-groups", vendorGroupRoutes);
 app.route("/emails", emailRoutes);
 
 // No sign-in needed: vendor booking pages and floor map images

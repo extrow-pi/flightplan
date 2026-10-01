@@ -102,6 +102,11 @@ export function PrivacyPage() {
             example when assigning you a table or sending you a personal invite link.
           </li>
           <li>
+            <strong>Organizer notes:</strong> an organizer can keep private notes about vendors, sort them into groups,
+            and mark them as a favourite or on a ban list. Only that organizer can see these, and they're included if
+            you ask us for a copy of your information.
+          </li>
+          <li>
             <strong>Emails about your booking:</strong> we keep a copy of the booking emails we send you, so the
             organizer can see what was sent and resend it if needed.
           </li>

@@ -103,6 +103,17 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
 
+### Vendors page
+
+`/dashboard/vendors` lists the organizer's own vendors: everyone who has booked one of their shows, plus vendors added by hand. Each vendor has notes, booking history and request/show counts.
+
+- **Favourites:** shown first, and starred in the Assign dialog.
+- **Groups:** the organizer names them (e.g. "Pokémon", "Food trucks"), and a vendor can be in several. Use them to filter the list, or to send everyone in a group a personal booking link from a show's **Tables & vendors** tab (*Invite a group*, owner only). Bulk invites skip banned vendors, vendors already holding tables, and vendors with an unused invite.
+- **Ban list:** banned vendors can still send requests, but these always wait for approval and are flagged with a **Banned** badge on the Tables page and dashboard. Organizer emails about them include the ban reason. The vendor isn't told.
+- **Export CSV:** downloads whatever is currently filtered.
+
+Vendors belong to the event owner. Collaborators see owner vendors' favourite and banned flags on shared shows, but not the owner's groups or Vendors page.
+
 ### Collaborators
 
 Shows and templates can have more than one organizer. Open the **Team** tab to see who's on it.
@@ -240,7 +251,12 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/bookings/:id/release` | Free this table, or the whole request with `{ "wholeRequest": true }` |
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
-| GET | `/api/vendors` | The organizer's own vendor list |
+| GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
+| PATCH | `/api/vendors/:id` | Edit details, `favourite`, `banned` + `banReason`, `groupIds` |
+| GET | `/api/vendors/:id/requests` | A vendor's request history across the organizer's shows |
+| GET / POST | `/api/vendor-groups` | The organizer's vendor groups / create one: `{ name }` |
+| PATCH / DELETE | `/api/vendor-groups/:id` | Rename or delete a group (its vendors stay) |
+| POST | `/api/events/:id/invites/bulk` | Owner emails personal invite links to a group: `{ target: "<group id>" \| "favourites" }` |
 | GET | `/api/events/:id/vendors` | Vendors to pick from when assigning a table (the owner's list, or the part a collaborator can see) |
 | GET | `/api/events/:id/team` | The owner, collaborators and (for the owner) pending invites |
 | POST | `/api/events/:id/team/invites` | Owner invites a collaborator: `{ email, role: "editor" \| "viewer" }` |

@@ -4,7 +4,7 @@ import { db, schema } from "../db/index.js";
 import { enqueueEmails, type OutgoingEmail } from "./outbox.js";
 import { button, details, esc, layout, note, p, type EmailContent } from "./templates.js";
 
-const { bookings, eventCollaborators, eventDays, events, eventTables, user } = schema;
+const { bookings, eventCollaborators, eventDays, events, eventTables, user, vendors } = schema;
 
 // Links in emails point at the web app
 const APP_URL = (process.env.APP_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:5173").replace(/\/$/, "");
@@ -71,6 +71,10 @@ async function loadRequest(requestId: string) {
     .from(eventDays)
     .where(eq(eventDays.eventId, event.id))
     .orderBy(asc(eventDays.dayOffset));
+  const [vendorRow] = await db
+    .select({ bannedAt: vendors.bannedAt, banReason: vendors.banReason })
+    .from(vendors)
+    .where(eq(vendors.id, first.vendorId));
 
   const active = rows.filter((r) => ["pending", "awaiting_payment", "paid"].includes(r.booking.status));
   return {
@@ -81,6 +85,8 @@ async function loadRequest(requestId: string) {
     team: [organizer.email, ...collaborators.map((c) => c.email)],
     days,
     vendor: { name: first.name, businessName: first.businessName, email: first.email, phone: first.phone, message: first.message },
+    /** On the owner's ban list (only ever shown to organizers) */
+    ban: vendorRow?.bannedAt ? { reason: vendorRow.banReason } : null,
     source: first.source,
     /** Tables the request still holds, with the request's shared status and deadline */
     activeLabels: active.map((r) => r.tableLabel),
@@ -179,6 +185,17 @@ function confirmedEmail(r: RequestInfo, intro: string): EmailContent {
 
 // ── Organizer emails ─────────────────────────────────────────────────────
 
+/** A warning for organizer emails when the vendor is on the ban list. */
+const banWarning = (r: RequestInfo) =>
+  r.ban
+    ? [
+        note(
+          "This vendor is on your ban list",
+          `${r.ban.reason ? `Reason: ${r.ban.reason}\n` : ""}Their request was held for your approval. The vendor wasn't told.`,
+        ),
+      ]
+    : [];
+
 function vendorSummary(r: RequestInfo) {
   const v = r.vendor;
   const rows: [string, string][] = [
@@ -269,6 +286,7 @@ export function notifyRequestCreated(requestId: string) {
                   ? `${esc(r.vendor.name)} requested ${esc(tablesLabel(labels))} at <strong>${esc(r.event.name)}</strong>. Approve or reject it from your dashboard.`
                   : `${esc(r.vendor.name)} booked ${esc(tablesLabel(labels))} at <strong>${esc(r.event.name)}</strong>.`,
               ),
+              ...banWarning(r),
               vendorSummary(r),
               tablesPageLink(r),
             ],
@@ -430,6 +448,7 @@ export async function sendOverdueNotices() {
           [
             p(`${esc(r.vendor.name)} hasn't paid for ${esc(tablesLabel(r.activeLabels))} at <strong>${esc(r.event.name)}</strong>. The deadline was ${esc(r.paymentDueAt ? formatDeadline(r.paymentDueAt) : "")}`),
             p("You can release the tables for other vendors, or keep them and give more time."),
+            ...banWarning(r),
             vendorSummary(r),
             tablesPageLink(r),
           ],
@@ -484,6 +503,51 @@ export async function sendCollaboratorInvite(invite: {
     ]);
   } catch (err) {
     console.error(`Couldn't queue collaborator invite for event ${event.id}:`, err);
+  }
+}
+
+// ── Vendor invites (sent in bulk to a group or favourites) ───────────────
+
+/** Email vendors their personal booking links for a show. */
+export async function sendVendorInvites(args: {
+  event: { id: string; name: string; organizerId: string; startDate: string | null; venueName: string; address: string; city: string };
+  days: { dayOffset: number; startTime: string; endTime: string }[];
+  organizer: { name: string; email: string };
+  invites: { name: string; email: string; token: string }[];
+}) {
+  const { event, days, organizer } = args;
+  const schedule = event.startDate
+    ? days
+        .map((d) => `${formatDay(addDays(event.startDate!, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}: ${timeLabel(d.startTime)}–${timeLabel(d.endTime)}`)
+        .join("\n")
+    : "";
+  try {
+    await enqueueEmails(
+      args.invites.map((inv) => ({
+        kind: "vendor.invite",
+        to: inv.email,
+        replyTo: organizer.email,
+        organizerId: event.organizerId,
+        eventId: event.id,
+        ...layout(
+          `You're invited to book a table at ${event.name}`,
+          "You're invited to book a table",
+          [
+            p(`Hi ${firstName(inv.name)}, ${esc(organizer.name)} invited you to book a vendor table at <strong>${esc(event.name)}</strong>.`),
+            details([
+              ["Show", event.name],
+              ["When", schedule],
+              ["Where", [event.venueName, event.address, event.city].filter(Boolean).join(", ")],
+            ]),
+            button("Pick your table", `${APP_URL}/invite/${inv.token}`),
+            p("This link is just for you and can be used once."),
+          ],
+          `You're receiving this because ${organizer.name} invited you to their show on Flightplan. Reply to this email to contact them.`,
+        ),
+      })),
+    );
+  } catch (err) {
+    console.error(`Couldn't queue vendor invites for event ${event.id}:`, err);
   }
 }
 

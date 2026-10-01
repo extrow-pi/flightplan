@@ -4,7 +4,13 @@ import type {
   AssignTableInput,
   Booking,
   BookingAlert,
+  BulkInviteResult,
   CollaboratorInvite,
+  CreateVendorInput,
+  UpdateVendorInput,
+  VendorGroup,
+  VendorListItem,
+  VendorRequestHistory,
   CollaboratorInvitePreview,
   CollaboratorRole,
   CreateInviteInput,
@@ -254,6 +260,105 @@ export function useRevokeInvite(eventId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (inviteId: string) => request<{ invite: Invite }>(`/invites/${inviteId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) }),
+  });
+}
+
+// ── Vendors page ─────────────────────────────────────────────────────────
+
+const vendorPageKeys = {
+  list: ["vendor-list"] as const,
+  groups: ["vendor-groups"] as const,
+  requests: (id: string) => ["vendor-list", id, "requests"] as const,
+};
+
+/** The organizer's own vendor list, with groups and stats */
+export function useVendorList() {
+  return useQuery({
+    queryKey: vendorPageKeys.list,
+    queryFn: () => request<{ vendors: VendorListItem[] }>("/vendors").then((r) => r.vendors),
+  });
+}
+
+export function useVendorRequests(vendorId: string) {
+  return useQuery({
+    queryKey: vendorPageKeys.requests(vendorId),
+    queryFn: () => request<{ requests: VendorRequestHistory[] }>(`/vendors/${vendorId}/requests`).then((r) => r.requests),
+  });
+}
+
+function invalidateVendorPage(qc: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: vendorPageKeys.list }),
+    qc.invalidateQueries({ queryKey: vendorPageKeys.groups }),
+    // Favourite / banned flags also show on Tables pages and in the assign picker
+    qc.invalidateQueries({ queryKey: bookingKeys.vendors }),
+    qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "events" && q.queryKey[2] === "tables" }),
+    qc.invalidateQueries({ queryKey: bookingKeys.alerts }),
+  ]);
+}
+
+export function useCreateVendor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateVendorInput) =>
+      request<{ vendor: VendorListItem }>("/vendors", { method: "POST", body: input }).then((r) => r.vendor),
+    onSuccess: () => invalidateVendorPage(qc),
+  });
+}
+
+export function useUpdateVendor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: UpdateVendorInput & { id: string }) =>
+      request<{ vendor: VendorListItem }>(`/vendors/${id}`, { method: "PATCH", body: input }).then((r) => r.vendor),
+    onSuccess: (vendor) => {
+      // Update the row right away (e.g. the favourite star), then refresh everything it affects
+      qc.setQueryData<VendorListItem[]>(vendorPageKeys.list, (list) => list?.map((v) => (v.id === vendor.id ? vendor : v)));
+      return invalidateVendorPage(qc);
+    },
+  });
+}
+
+export function useVendorGroups() {
+  return useQuery({
+    queryKey: vendorPageKeys.groups,
+    queryFn: () => request<{ groups: VendorGroup[] }>("/vendor-groups").then((r) => r.groups),
+  });
+}
+
+export function useCreateVendorGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      request<{ group: VendorGroup }>("/vendor-groups", { method: "POST", body: { name } }).then((r) => r.group),
+    onSuccess: () => invalidateVendorPage(qc),
+  });
+}
+
+export function useRenameVendorGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      request<{ ok: true }>(`/vendor-groups/${id}`, { method: "PATCH", body: { name } }),
+    onSuccess: () => invalidateVendorPage(qc),
+  });
+}
+
+export function useDeleteVendorGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<void>(`/vendor-groups/${id}`, { method: "DELETE" }),
+    onSuccess: () => invalidateVendorPage(qc),
+  });
+}
+
+/** Personal invites for everyone in a group (or all favourites), emailed to them */
+export function useBulkInvite(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (target: string) =>
+      request<BulkInviteResult>(`/events/${eventId}/invites/bulk`, { method: "POST", body: { target } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) }),
   });
 }

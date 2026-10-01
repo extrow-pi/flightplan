@@ -78,6 +78,13 @@
       "when": 1790764589877,
       "tag": "0010_event_collaborators",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790838518654,
+      "tag": "0011_vendor_lists",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import type { EventRecord } from "@flightplan/shared";
+import BannedBadge from "../../components/BannedBadge";
 import { BookingActions, paymentDueLabel } from "../../components/bookings";
 import { DateTile, EventMeta, EventRow, isPast, isTemplate, StatusBadge } from "../../components/events";
 import { BellIcon, CalendarIcon, CheckIcon, PlusIcon, TableIcon, TicketIcon } from "../../components/Icons";
@@ -287,9 +288,12 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
           return (
             <li key={a.booking.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <p className="font-bold">
-                  {a.booking.name}
-                  {a.booking.businessName && <span className="font-semibold text-ink-soft"> · {a.booking.businessName}</span>}
+                <p className="flex flex-wrap items-center gap-x-1.5 font-bold">
+                  <span>
+                    {a.booking.name}
+                    {a.booking.businessName && <span className="font-semibold text-ink-soft"> · {a.booking.businessName}</span>}
+                  </span>
+                  {a.vendorBanned && <BannedBadge />}
                 </p>
                 <p className="text-sm text-ink-soft">
                   <Link to={`/dashboard/events/${a.eventId}/tables`} className="font-semibold text-coral-ink hover:underline">

@@ -271,6 +271,69 @@ export type Vendor = {
   phone: string;
   notes: string;
   createdAt: string;
+  favourite: boolean;
+  /** On the organizer's ban list: their requests always need approval and are flagged */
+  banned: boolean;
+};
+
+// ── Vendor list (the Vendors page) ──────────────────────────────────────────
+
+/** A vendor on the organizer's Vendors page, with groups and booking stats. */
+export type VendorListItem = Vendor & {
+  banReason: string;
+  bannedAt: string | null;
+  groupIds: string[];
+  /** Requests across all of the organizer's shows, and how many shows */
+  requestCount: number;
+  showCount: number;
+  lastRequestAt: string | null;
+};
+
+export type VendorGroup = { id: string; name: string; vendorCount: number };
+
+export const MAX_VENDOR_GROUPS = 50;
+
+export const vendorGroupSchema = z.object({
+  name: z.string().trim().min(1, "Enter a group name").max(40, "Up to 40 characters"),
+});
+
+/** Add a vendor by hand */
+export const createVendorSchema = vendorContactSchema.extend({
+  name: z.string().trim().min(2, "Enter their name").max(100),
+  notes: z.string().trim().max(2000).optional().default(""),
+});
+export type CreateVendorInput = z.input<typeof createVendorSchema>;
+
+/** Edit a vendor. Every field is optional; groupIds replaces the vendor's groups. */
+export const updateVendorSchema = z.object({
+  name: z.string().trim().min(2, "Enter their name").max(100).optional(),
+  businessName: z.string().trim().max(120).optional(),
+  email: z.email("Enter a valid email").trim().toLowerCase().max(254).optional(),
+  phone: z.string().trim().max(40).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  favourite: z.boolean().optional(),
+  banned: z.boolean().optional(),
+  banReason: z.string().trim().max(500).optional(),
+  groupIds: z.array(z.uuid()).max(MAX_VENDOR_GROUPS).optional(),
+});
+export type UpdateVendorInput = z.input<typeof updateVendorSchema>;
+
+/** One of a vendor's requests, for their history on the Vendors page. */
+export type VendorRequestHistory = {
+  requestId: string;
+  eventId: string;
+  eventName: string;
+  eventStartDate: string | null;
+  tableLabels: string[];
+  status: BookingStatus;
+  createdAt: string;
+};
+
+/** Send personal booking invites to everyone in a group, or to all favourites. */
+export const bulkInviteSchema = z.object({ target: z.union([z.literal("favourites"), z.uuid()]) });
+export type BulkInviteResult = {
+  invited: number;
+  skipped: { name: string; email: string; reason: "banned" | "booked" | "invited" }[];
 };
 
 /**
@@ -324,6 +387,8 @@ export type EventTablesResponse = {
   /** Past bookings (rejected / released / cancelled), newest first */
   history: Booking[];
   invites: Invite[];
+  /** Favourite / banned flags for the vendors in this event's bookings, by vendor id */
+  vendorFlags: Record<string, { favourite: boolean; banned: boolean }>;
 };
 
 /** A vendor request that needs the organizer's attention on the dashboard. */
@@ -336,6 +401,8 @@ export type BookingAlert = {
   tableLabels: string[];
   /** The signed-in organizer's role on the event (viewers can't act on alerts) */
   role: EventRole;
+  /** The vendor is on the event owner's ban list */
+  vendorBanned: boolean;
 };
 
 /** What a vendor sees on a public booking page. No other vendors' details. */
