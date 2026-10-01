@@ -233,7 +233,7 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/events/:id/spawn` | Create a draft from a template: body `{ "startDate": "2026-11-13" }` |
 | POST / DELETE | `/api/events/:id/floor-map` | Upload (multipart `file`) or remove the floor map |
 | GET | `/api/events/:id/tables` | Tables with their active bookings, past bookings and invites |
-| POST | `/api/events/:id/bookings` | Organizer assigns a table: `{ tableId, vendorId }` or `{ tableId, contact }`, optional `paid` |
+| POST | `/api/events/:id/bookings` | Organizer assigns one or more tables as one request: `{ tableIds: [...], vendorId }` or `{ tableIds: [...], contact }`, optional `paid` |
 | POST | `/api/events/:id/invites` | Create a personal invite link: `{ name?, email? }` |
 | DELETE | `/api/invites/:id` | Cancel an unused invite |
 | POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` | Apply to the booking's whole request |
