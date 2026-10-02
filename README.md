@@ -93,7 +93,7 @@ Settings (per event, and copied from templates):
 - **Vendors pay within N days** (or no deadline): the clock starts at approval, or at booking if no approval is needed. Free tables are confirmed immediately.
 - **Public booking link** `/book/:token`: anyone can request an open table while the event is published and the link is open.
 - **Personal invites** `/invite/:token`: single-use links for specific vendors. They work while the public link is closed, and on drafts.
-- **Payment instructions:** shown to vendors after they book. Payments happen outside the app; the organizer clicks **Mark paid**.
+- **Payment instructions:** shown to vendors after they book. Payments happen outside the app; the organizer clicks **Mark paid** and picks how the vendor paid (e-transfer, cash, Square, card, PayPal, other, or not recorded). The method can be changed later, and it shows in the vendor's history.
 - **Max tables per vendor request** (default 4, up to 20): vendors can pick several tables at once.
 
 **Multi-table requests:** a vendor's request is one booking per table, all sharing a `request_id`. The request is all-or-nothing: if any picked table is taken, nothing is booked and the vendor is told which tables to change. Approve, reject, mark paid and keep apply to the whole request, with one payment deadline. Release can free a single table or the whole request.
@@ -256,7 +256,8 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/events/:id/bookings` | Organizer assigns one or more tables as one request: `{ tableIds: [...], vendorId }` or `{ tableIds: [...], contact }`, optional `paid` |
 | POST | `/api/events/:id/invites` | Create a personal invite link: `{ name?, email? }` |
 | DELETE | `/api/invites/:id` | Cancel an unused invite |
-| POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` | Apply to the booking's whole request |
+| POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` | Apply to the booking's whole request (`mark-paid` takes an optional `{ paymentMethod }`) |
+| POST | `/api/bookings/:id/payment-method` | Change or clear how a paid request was paid: `{ paymentMethod: "etransfer" | "cash" | "square" | "card" | "paypal" | "other" | null }` |
 | POST | `/api/bookings/:id/release` | Free this table, or the whole request with `{ "wholeRequest": true }` |
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |

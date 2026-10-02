@@ -5,6 +5,7 @@ import {
   type Booking,
   type BookingSource,
   type BookingStatus,
+  type PaymentMethod,
   type Vendor,
   type VendorContactInput,
   vendorContactSchema,
@@ -60,6 +61,7 @@ export function toBooking(b: BookingRow): Booking {
     approvedAt: iso(b.approvedAt),
     paymentDueAt: iso(b.paymentDueAt),
     paidAt: iso(b.paidAt),
+    paymentMethod: b.paymentMethod,
     closedAt: iso(b.closedAt),
     overdue: b.status === "awaiting_payment" && b.paymentDueAt !== null && b.paymentDueAt.getTime() < Date.now(),
   };
@@ -147,6 +149,8 @@ export async function createBookings(
     source: BookingSource;
     /** Organizer only: record as already paid */
     paid?: boolean;
+    /** With `paid`: how they paid */
+    paymentMethod?: PaymentMethod | null;
   },
 ): Promise<BookingRow[]> {
   const { event, source, tableIds } = args;
@@ -167,7 +171,7 @@ export async function createBookings(
     source !== "organizer" && event.requiresApproval
       ? { status: "pending" as const, approvedAt: null, paidAt: null, paymentDueAt: null }
       : args.paid
-        ? { status: "paid" as const, approvedAt: now, paidAt: now, paymentDueAt: null }
+        ? { status: "paid" as const, approvedAt: now, paidAt: now, paymentDueAt: null, paymentMethod: args.paymentMethod ?? null }
         : approvedFields(event, now);
 
   const requestId = randomUUID();

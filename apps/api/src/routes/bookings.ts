@@ -7,6 +7,8 @@ import {
   bulkInviteSchema,
   createInviteSchema,
   keepBookingSchema,
+  markPaidSchema,
+  setPaymentMethodSchema,
   releaseBookingSchema,
   type ApiError,
   type BookingAlert,
@@ -194,6 +196,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           contact,
           source: "organizer",
           paid: input.paid,
+          paymentMethod: input.paid ? input.paymentMethod : null,
         });
       });
       void notifyRequestCreated(rows[0].requestId);
@@ -363,19 +366,35 @@ export const bookingRoutes = new Hono<AuthEnv>()
     return c.json({ bookings: rows.map(toBooking) });
   })
 
+  // Optional body: { paymentMethod } to record how they paid
   .post("/:id/mark-paid", async (c) => {
     const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
     if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
+    const parsed = markPaidSchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!parsed.success) return c.json(invalid(parsed.error), 400);
     const now = new Date();
     const rows = await transitionRequest(found.booking.requestId, ["pending", "awaiting_payment"], {
       status: "paid",
       approvedAt: found.booking.approvedAt ?? now,
       paidAt: now,
       paymentDueAt: null,
+      paymentMethod: parsed.data.paymentMethod,
     });
     if (!rows.length) return c.json(cantDo("mark as paid", found.booking.status), 409);
     void notifyPaid(found.booking.requestId);
+    return c.json({ bookings: rows.map(toBooking) });
+  })
+
+  // Change (or clear) how a paid request was paid
+  .post("/:id/payment-method", async (c) => {
+    const found = await findBooking(c.req.param("id"), c.var.user.id);
+    if (!found) return c.json(notFound("Booking"), 404);
+    if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
+    const parsed = setPaymentMethodSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json(invalid(parsed.error), 400);
+    const rows = await transitionRequest(found.booking.requestId, ["paid"], { paymentMethod: parsed.data.paymentMethod });
+    if (!rows.length) return c.json(cantDo("set the payment method of", found.booking.status), 409);
     return c.json({ bookings: rows.map(toBooking) });
   })
 

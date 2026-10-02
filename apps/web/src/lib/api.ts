@@ -18,6 +18,7 @@ import type {
   InviteCollaboratorInput,
   OrganizerProfile,
   OrganizerProfileInput,
+  PaymentMethod,
   PublicOrganizerPage,
   EmailLogEntry,
   EventInput,
@@ -229,7 +230,9 @@ export function useAssignTable(eventId: string) {
 // approve / reject / mark-paid / keep apply to the booking's whole request;
 // release frees one table unless wholeRequest is set
 export type BookingAction =
-  | { action: "approve" | "reject" | "mark-paid" }
+  | { action: "approve" | "reject" }
+  | { action: "mark-paid"; paymentMethod?: PaymentMethod | null }
+  | { action: "payment-method"; paymentMethod: PaymentMethod | null }
   | { action: "release"; wholeRequest?: boolean }
   | { action: "keep"; extendDays: number | null };
 
@@ -244,7 +247,9 @@ export function useBookingAction(eventId?: string) {
             ? { extendDays: a.extendDays }
             : a.action === "release"
               ? { wholeRequest: a.wholeRequest ?? false }
-              : {},
+              : a.action === "mark-paid" || a.action === "payment-method"
+                ? { paymentMethod: a.paymentMethod ?? null }
+                : {},
       }).then((r) => r.bookings),
     onSuccess: () => invalidateBookings(qc, eventId),
   });

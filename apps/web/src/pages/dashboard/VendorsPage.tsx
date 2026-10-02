@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
-import type { BookingStatus, VendorGroup, VendorListItem } from "@flightplan/shared";
+import { paymentMethodLabels, type BookingStatus, type VendorGroup, type VendorListItem } from "@flightplan/shared";
 import BannedBadge from "../../components/BannedBadge";
 import { closedLabel } from "../../components/bookings";
 import { BanIcon, CloseIcon, DownloadIcon, PencilIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon } from "../../components/Icons";
@@ -598,7 +598,10 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
                       {r.tableLabels.length > 1 ? "Tables" : "Table"} {r.tableLabels.join(", ")}
                     </span>
                   </span>
-                  <span className="text-xs font-semibold text-ink-soft">{statusText[r.status]}</span>
+                  <span className="text-xs font-semibold text-ink-soft">
+                    {statusText[r.status]}
+                    {r.status === "paid" && r.paymentMethod && ` · ${paymentMethodLabels[r.paymentMethod]}`}
+                  </span>
                 </li>
               ))}
             </ul>

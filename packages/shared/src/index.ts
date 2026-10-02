@@ -228,6 +228,26 @@ export const vendorBookingSchema = vendorContactSchema.extend({
 });
 export type VendorBookingInput = z.input<typeof vendorBookingSchema>;
 
+// How a vendor paid. Payments happen outside Flightplan; organizers record the method when marking paid.
+export const PAYMENT_METHODS = ["etransfer", "cash", "square", "card", "paypal", "other"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const paymentMethodLabels: Record<PaymentMethod, string> = {
+  etransfer: "E-transfer",
+  cash: "Cash",
+  square: "Square",
+  card: "Credit / debit card",
+  paypal: "PayPal",
+  other: "Other",
+};
+
+/** Mark a request paid, optionally saying how (null = not recorded). */
+export const markPaidSchema = z.object({
+  paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional().default(null),
+});
+
+/** Change (or clear) how a paid request was paid. */
+export const setPaymentMethodSchema = z.object({ paymentMethod: z.enum(PAYMENT_METHODS).nullable() });
+
 /**
  * The organizer assigning one or more tables (as one request) to an existing vendor from their list,
  * or to new contact details. The event's per-vendor limit doesn't apply to the organizer.
@@ -243,6 +263,8 @@ export const assignTableSchema = z
     contact: vendorContactSchema.optional(),
     /** Mark as paid straight away (e.g. paid at the door or in advance) */
     paid: z.boolean().optional().default(false),
+    /** How they paid, when `paid` is set */
+    paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional().default(null),
   })
   .refine((a) => a.vendorId || a.contact, { message: "Pick a vendor or enter their details", path: ["vendorId"] });
 export type AssignTableInput = z.input<typeof assignTableSchema>;
@@ -326,6 +348,7 @@ export type VendorRequestHistory = {
   eventStartDate: string | null;
   tableLabels: string[];
   status: BookingStatus;
+  paymentMethod: PaymentMethod | null;
   createdAt: string;
 };
 
@@ -358,6 +381,8 @@ export type Booking = {
   paymentDueAt: string | null;
   paidAt: string | null;
   closedAt: string | null;
+  /** How the request was paid, if recorded (only for paid requests) */
+  paymentMethod: PaymentMethod | null;
   /** True when awaiting payment and the deadline has passed */
   overdue: boolean;
 };

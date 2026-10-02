@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import { MAX_TABLES_PER_REQUEST, type Booking, type EventRecord, type EventTable, type Invite } from "@flightplan/shared";
+import {
+  MAX_TABLES_PER_REQUEST,
+  PAYMENT_METHODS,
+  paymentMethodLabels,
+  type Booking,
+  type EventRecord,
+  type EventTable,
+  type Invite,
+  type PaymentMethod,
+} from "@flightplan/shared";
 import {
   BookingActions,
   closedLabel,
@@ -728,6 +737,7 @@ function AssignDialog({
   const [vendorId, setVendorId] = useState("");
   const [contact, setContact] = useState({ name: "", businessName: "", email: "", phone: "" });
   const [paid, setPaid] = useState(event.tablePriceCents === 0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const firstRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -741,7 +751,12 @@ function AssignDialog({
     e.preventDefault();
     assign.mutate(
       // Keep floor order, whatever order they were clicked in
-      { tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id), paid, ...(mode === "existing" ? { vendorId } : { contact }) },
+      {
+        tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id),
+        paid,
+        paymentMethod: paid ? paymentMethod || null : null,
+        ...(mode === "existing" ? { vendorId } : { contact }),
+      },
       { onSuccess: onClose },
     );
   }
@@ -873,6 +888,23 @@ function AssignDialog({
           <input type="checkbox" className="size-4 accent-coral" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
           Already paid
         </label>
+        {paid && event.tablePriceCents > 0 && (
+          <label className="mt-2 block text-sm font-semibold">
+            How did they pay?
+            <select
+              className={smallInput}
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}
+            >
+              <option value="">Not recorded</option>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m}>
+                  {paymentMethodLabels[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {assign.error && (
           <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">

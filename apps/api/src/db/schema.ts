@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, date, index, integer, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { BOOKING_SOURCES, BOOKING_STATUSES, COLLABORATOR_ROLES, EVENT_STATUSES } from "@flightplan/shared";
+import { BOOKING_SOURCES, BOOKING_STATUSES, COLLABORATOR_ROLES, EVENT_STATUSES, PAYMENT_METHODS } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
 
 export const organizerSignups = pgTable(
@@ -170,6 +170,8 @@ export const bookings = pgTable(
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     paymentDueAt: timestamp("payment_due_at", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
+    // How the vendor paid (e-transfer, cash…), recorded by the organizer. Same on every table of a request.
+    paymentMethod: text("payment_method", { enum: PAYMENT_METHODS }),
     // When it was rejected / released / cancelled
     closedAt: timestamp("closed_at", { withTimezone: true }),
     // Notification bookkeeping, so each reminder / overdue notice goes out once per deadline
