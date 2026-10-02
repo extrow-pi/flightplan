@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, isNull, lt, lte } from "drizzle-orm";
 import { addDays } from "@flightplan/shared";
 import { db, schema } from "../db/index.js";
+import { requestTotals } from "../bookings.js";
 import { enqueueEmails, type OutgoingEmail } from "./outbox.js";
 import { button, details, esc, layout, note, p, type EmailContent } from "./templates.js";
 
@@ -93,7 +94,14 @@ async function loadRequest(requestId: string) {
     status: active[0]?.booking.status ?? first.status,
     paymentDueAt: active[0]?.booking.paymentDueAt ?? null,
     allLabels: rows.map((r) => r.tableLabel),
+    /** Each table's price snapshot, by label */
+    prices: new Map(rows.map((r) => [r.tableLabel, r.booking])),
   };
+}
+
+/** What the given tables of a request cost, from their price snapshot */
+function totalsFor(r: RequestInfo, labels: string[]) {
+  return requestTotals(labels.flatMap((l) => (r.prices.has(l) ? [r.prices.get(l)!] : [])));
 }
 
 function eventDetails(r: RequestInfo, labels: string[]) {
@@ -109,8 +117,13 @@ function eventDetails(r: RequestInfo, labels: string[]) {
     ["Where", [event.venueName, event.address, event.city].filter(Boolean).join(", ")],
     [labels.length > 1 ? "Tables" : "Table", labels.join(", ")],
   ];
-  if (event.tablePriceCents > 0) {
-    rows.push(["Total", formatMoney(event.tablePriceCents * labels.length)]);
+  const t = totalsFor(r, labels);
+  if (t.subtotalCents > 0) {
+    if (t.discountCents > 0) {
+      rows.push(["Price", formatMoney(t.subtotalCents)]);
+      rows.push(["Discount", `${t.discountLabel} (−${formatMoney(t.discountCents)})`]);
+    }
+    rows.push(["Total", formatMoney(t.totalCents)]);
   }
   return details(rows);
 }
@@ -153,7 +166,7 @@ const firstName = (name: string) => esc(name.split(" ")[0]);
 /** "Please pay by …" block, shared by approval, assignment and reminder emails. */
 function paymentBlocks(r: RequestInfo, labels: string[]) {
   const blocks = [];
-  const total = formatMoney(r.event.tablePriceCents * labels.length);
+  const total = formatMoney(totalsFor(r, labels).totalCents);
   blocks.push(
     r.paymentDueAt
       ? p(`Please pay <strong>${total}</strong> by <strong>${esc(formatDeadline(r.paymentDueAt))}</strong> to keep your ${esc(tablesLabel(labels))}. Unpaid tables may be released after the deadline.`)

@@ -7,6 +7,11 @@ import type {
   BulkInviteResult,
   CollaboratorInvite,
   CreateVendorInput,
+  DiscountCode,
+  DiscountCodeInput,
+  DiscountCodeUse,
+  QuoteRequestInput,
+  QuoteResponse,
   UpdateVendorInput,
   VendorGroup,
   VendorListItem,
@@ -516,6 +521,55 @@ export function useSubmitBooking(kind: BookingLinkKind, token: string) {
       request<PublicBookingResult>(`/public/${kind}/${token}`, { method: "POST", body: input }),
     // Refresh availability either way (e.g. someone else took the table)
     onSettled: () => qc.invalidateQueries({ queryKey: ["public", kind, token] }),
+  });
+}
+
+/** Live price for the booking page: checks the discount code and picks the best discount. */
+export function useBookingQuote(kind: BookingLinkKind, token: string, input: QuoteRequestInput, enabled: boolean) {
+  return useQuery({
+    queryKey: ["public", kind, token, "quote", input],
+    queryFn: () => request<QuoteResponse>(`/public/${kind}/${token}/quote`, { method: "POST", body: input }),
+    enabled,
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+  });
+}
+
+// ── Discount codes ───────────────────────────────────────────────────────
+
+const codeKeys = { list: ["discount-codes"] as const, uses: (id: string) => ["discount-codes", id, "uses"] as const };
+
+export function useDiscountCodes() {
+  return useQuery({
+    queryKey: codeKeys.list,
+    queryFn: () => request<{ codes: DiscountCode[] }>("/discount-codes").then((r) => r.codes),
+  });
+}
+
+export function useDiscountCodeUses(id: string) {
+  return useQuery({
+    queryKey: codeKeys.uses(id),
+    queryFn: () => request<{ uses: DiscountCodeUse[] }>(`/discount-codes/${id}/uses`).then((r) => r.uses),
+  });
+}
+
+/** Create (no id) or update a code */
+export function useSaveDiscountCode(id?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DiscountCodeInput) =>
+      request<{ code: DiscountCode }>(id ? `/discount-codes/${id}` : "/discount-codes", { method: id ? "PUT" : "POST", body: input }).then(
+        (r) => r.code,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: codeKeys.list }),
+  });
+}
+
+export function useDeleteDiscountCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<void>(`/discount-codes/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: codeKeys.list }),
   });
 }
 

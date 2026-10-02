@@ -73,7 +73,8 @@ function Status({ data }: { data: PublicRequestStatus }) {
             title: data.overdue ? "Payment overdue" : "Payment due",
             body: (
               <>
-                Please pay <strong>{formatMoney(event.tablePriceCents * count)}</strong>
+                Please pay <strong>{formatMoney(data.totalCents)}</strong>
+                {data.discountCents > 0 && ` (${data.discountLabel})`}
                 {due ? (
                   <>
                     {" "}

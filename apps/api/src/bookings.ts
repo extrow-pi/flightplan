@@ -5,12 +5,15 @@ import {
   type Booking,
   type BookingSource,
   type BookingStatus,
+  type BulkDiscountTier,
   type PaymentMethod,
   type Vendor,
   type VendorContactInput,
   vendorContactSchema,
+  priceRequest,
 } from "@flightplan/shared";
 import { db, schema } from "./db/index.js";
+import { validateCode } from "./discounts.js";
 
 const { bookings, eventTables, vendors } = schema;
 
@@ -62,6 +65,9 @@ export function toBooking(b: BookingRow): Booking {
     paymentDueAt: iso(b.paymentDueAt),
     paidAt: iso(b.paidAt),
     paymentMethod: b.paymentMethod,
+    basePriceCents: b.basePriceCents,
+    priceCents: b.priceCents,
+    discountLabel: b.discountLabel,
     closedAt: iso(b.closedAt),
     overdue: b.status === "awaiting_payment" && b.paymentDueAt !== null && b.paymentDueAt.getTime() < Date.now(),
   };
@@ -129,10 +135,22 @@ export async function findOrCreateVendor(tx: Tx, organizerId: string, input: Ven
 
 type BookingEvent = {
   id: string;
+  organizerId: string;
   requiresApproval: boolean;
   tablePriceCents: number;
   paymentDueDays: number | null;
+  bulkDiscounts: BulkDiscountTier[];
 };
+
+/** What a request's tables add up to: list price, discount, and what to pay (from the price snapshot). */
+export function requestTotals(rows: { basePriceCents: number; priceCents: number; discountLabel: string }[]) {
+  const subtotalCents = rows.reduce((n, r) => n + r.basePriceCents, 0);
+  const totalCents = rows.reduce((n, r) => n + r.priceCents, 0);
+  return { subtotalCents, discountCents: subtotalCents - totalCents, totalCents, discountLabel: rows[0]?.discountLabel ?? "" };
+}
+
+/** A discount code that can't be used; the message is for the vendor */
+export class DiscountCodeError extends Error {}
 
 /**
  * Book one or more tables as a single request (all or nothing).
@@ -151,6 +169,8 @@ export async function createBookings(
     paid?: boolean;
     /** With `paid`: how they paid */
     paymentMethod?: PaymentMethod | null;
+    /** Optional discount code (checked here); throws DiscountCodeError if it can't be used */
+    discountCode?: string;
   },
 ): Promise<BookingRow[]> {
   const { event, source, tableIds } = args;
@@ -165,6 +185,25 @@ export async function createBookings(
     .where(and(inArray(bookings.tableId, tableIds), inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES])))
     .orderBy(asc(eventTables.number));
   if (held.length) throw new TableTakenError(held.map((h) => h.label));
+
+  // Price the request now and store it on each table, so later changes to the show's price or
+  // discounts don't change what this vendor owes. The best of the multi-table tier and the code wins.
+  let code = null;
+  if (args.discountCode) {
+    const checked = await validateCode(
+      { organizerId: event.organizerId, eventId: event.id, text: args.discountCode, email: contact.email },
+      tx,
+    );
+    if (checked.error) throw new DiscountCodeError(checked.error);
+    code = checked.code;
+  }
+  const quote = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: tableIds.length, tiers: event.bulkDiscounts, code });
+  const pricing = {
+    basePriceCents: event.tablePriceCents,
+    discountLabel: quote.label,
+    // A code only counts as used when it's the discount that applied
+    discountCodeId: quote.source === "code" && code ? code.id : null,
+  };
 
   // Organizer-assigned tables skip approval; vendor requests need it if the event says so
   const fields =
@@ -181,7 +220,7 @@ export async function createBookings(
       sp
         .insert(bookings)
         .values(
-          tableIds.map((tableId) => ({
+          tableIds.map((tableId, i) => ({
             requestId,
             eventId: event.id,
             tableId,
@@ -190,6 +229,8 @@ export async function createBookings(
             ...contact,
             message: args.message ?? "",
             ...fields,
+            ...pricing,
+            priceCents: quote.perTableCents[i],
           })),
         )
         .returning(),

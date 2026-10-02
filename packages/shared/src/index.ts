@@ -43,6 +43,98 @@ export const MAX_TABLES_PER_REQUEST = 20;
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a time");
 const cents = z.number({ error: "Enter an amount" }).int("Whole cents only").min(0, "Can't be negative").max(1_000_000, "That's too high");
 
+// ── Pricing and discounts ────────────────────────────────────────────────────
+
+// Multi-table discount tiers, set per show: "3+ tables: 10% off" or "5+ tables: $15 off each table".
+// The highest tier a request reaches applies.
+export const BULK_DISCOUNT_KINDS = ["percent", "per_table"] as const;
+export type BulkDiscountKind = (typeof BULK_DISCOUNT_KINDS)[number];
+export const MAX_DISCOUNT_TIERS = 10;
+
+export const bulkDiscountTierSchema = z
+  .object({
+    minTables: z.number({ error: "Enter a number" }).int("Whole numbers only").min(2, "At least 2 tables").max(20, "Up to 20"),
+    kind: z.enum(BULK_DISCOUNT_KINDS),
+    /** Percent (1–100) for "percent"; cents off each table for "per_table" */
+    value: z.number({ error: "Enter an amount" }).int().min(1, "Must be more than 0").max(1_000_000),
+  })
+  .refine((t) => t.kind !== "percent" || t.value <= 100, { message: "Up to 100%", path: ["value"] });
+export type BulkDiscountTier = z.output<typeof bulkDiscountTierSchema>;
+
+// Discount codes: a percentage or a fixed amount off a whole request
+export const DISCOUNT_CODE_KINDS = ["percent", "amount"] as const;
+export type DiscountCodeKind = (typeof DISCOUNT_CODE_KINDS)[number];
+
+export type AppliedDiscount = { kind: "percent" | "per_table" | "amount"; value: number };
+
+/** Human label for a discount, e.g. "3+ tables: 10% off" or "Code EARLYBIRD: $20 off" */
+export function discountLabel(d: { source: "tier" | "code"; kind: "percent" | "per_table" | "amount"; value: number; minTables?: number; code?: string }) {
+  const amount = d.kind === "percent" ? `${d.value}% off` : `${formatCents(d.value)} off${d.kind === "per_table" ? " each table" : ""}`;
+  return d.source === "tier" ? `${d.minTables}+ tables: ${amount}` : `Code ${d.code}: ${amount}`;
+}
+
+function formatCents(c: number) {
+  return "$" + (c / 100).toFixed(2).replace(/\.00$/, "");
+}
+
+export type PriceQuote = {
+  tableCount: number;
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+  /** What the discount is, e.g. "3+ tables: 10% off"; "" for none */
+  label: string;
+  /** Which discount won (the bigger one; a tier wins ties) */
+  source: "tier" | "code" | null;
+  /** Each table's share of the total, in table order (they add up to totalCents) */
+  perTableCents: number[];
+};
+
+/**
+ * Price a request for `tableCount` tables. Applies the best multi-table tier, or the code if it saves
+ * more (never both). The code must already be validated.
+ */
+export function priceRequest(args: {
+  tablePriceCents: number;
+  tableCount: number;
+  tiers: BulkDiscountTier[];
+  code?: { code: string; kind: DiscountCodeKind; value: number } | null;
+}): PriceQuote {
+  const { tablePriceCents: price, tableCount: n } = args;
+  const subtotal = price * n;
+  const tier = [...args.tiers].filter((t) => n >= t.minTables).sort((a, b) => b.minTables - a.minTables)[0];
+  const tierOff = !tier
+    ? 0
+    : tier.kind === "percent"
+      ? Math.round((subtotal * tier.value) / 100)
+      : Math.min(tier.value, price) * n;
+  const codeOff = !args.code
+    ? 0
+    : args.code.kind === "percent"
+      ? Math.round((subtotal * args.code.value) / 100)
+      : Math.min(args.code.value, subtotal);
+
+  let source: PriceQuote["source"] = null;
+  let discount = 0;
+  let label = "";
+  if (codeOff > tierOff && args.code) {
+    source = "code";
+    discount = codeOff;
+    label = discountLabel({ source: "code", ...args.code });
+  } else if (tierOff > 0 && tier) {
+    source = "tier";
+    discount = tierOff;
+    label = discountLabel({ source: "tier", ...tier });
+  }
+  discount = Math.min(discount, subtotal);
+  const total = subtotal - discount;
+  // Split the total across tables; leftover cents go to the first tables
+  const base = n ? Math.floor(total / n) : 0;
+  const extra = n ? total - base * n : 0;
+  const perTableCents = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+  return { tableCount: n, subtotalCents: subtotal, discountCents: discount, totalCents: total, label, source, perTableCents };
+}
+
 // A show day, as an offset from the show's first day (0 = first day). Times are local wall-clock.
 export const eventDaySchema = z
   .object({
@@ -82,6 +174,8 @@ export const eventInputSchema = z
     /** Whether the public booking link accepts bookings (personal invites work either way) */
     bookingOpen: z.boolean().optional().default(false),
     paymentInstructions: z.string().trim().max(1000).optional().default(""),
+    /** Multi-table discounts, e.g. 3+ tables 10% off; the highest tier reached applies */
+    bulkDiscounts: z.array(bulkDiscountTierSchema).max(MAX_DISCOUNT_TIERS, `Up to ${MAX_DISCOUNT_TIERS} tiers`).optional().default([]),
     /** How many tables a vendor can pick in one request */
     maxTablesPerRequest: z
       .number({ error: "Enter a number" })
@@ -102,12 +196,17 @@ export const eventInputSchema = z
     if (offsets.length && !offsets.includes(0)) {
       ctx.addIssue({ code: "custom", path: ["days"], message: "The first day must be day 1" });
     }
+    const mins = e.bulkDiscounts.map((t) => t.minTables);
+    if (new Set(mins).size !== mins.length) {
+      ctx.addIssue({ code: "custom", path: ["bulkDiscounts"], message: "Each tier needs a different number of tables" });
+    }
   })
   // Templates are undated; days are kept in order
   .transform((e) => ({
     ...e,
     startDate: e.status === "template" ? null : e.startDate,
     days: [...e.days].sort((a, b) => a.dayOffset - b.dayOffset),
+    bulkDiscounts: [...e.bulkDiscounts].sort((a, b) => a.minTables - b.minTables),
   }));
 
 export type EventInput = z.input<typeof eventInputSchema>;
@@ -225,8 +324,25 @@ export const vendorBookingSchema = vendorContactSchema.extend({
     .max(MAX_TABLES_PER_REQUEST, `Up to ${MAX_TABLES_PER_REQUEST} tables`)
     .refine((ids) => new Set(ids).size === ids.length, "Each table can only be picked once"),
   message: z.string().trim().max(1000).optional().default(""),
+  /** Optional discount code */
+  discountCode: z.string().trim().toUpperCase().max(40).optional().default(""),
 });
 export type VendorBookingInput = z.input<typeof vendorBookingSchema>;
+
+/** Price preview on the booking page, before submitting */
+export const quoteRequestSchema = z.object({
+  tableCount: z.number().int().min(1).max(MAX_TABLES_PER_REQUEST),
+  discountCode: z.string().trim().toUpperCase().max(40).optional().default(""),
+  /** Lets "one use per vendor" codes be checked early */
+  email: z.union([z.literal(""), z.email().trim().toLowerCase()]).optional().default(""),
+});
+export type QuoteRequestInput = z.input<typeof quoteRequestSchema>;
+export type QuoteResponse = PriceQuote & {
+  /** Why the code didn't apply, if one was entered and rejected */
+  codeError: string | null;
+  /** The code was valid but the multi-table discount saves more, so it wasn't used */
+  codeNotBest: boolean;
+};
 
 // How a vendor paid. Payments happen outside Flightplan; organizers record the method when marking paid.
 export const PAYMENT_METHODS = ["etransfer", "cash", "square", "card", "paypal", "other"] as const;
@@ -263,6 +379,8 @@ export const assignTableSchema = z
     contact: vendorContactSchema.optional(),
     /** Mark as paid straight away (e.g. paid at the door or in advance) */
     paid: z.boolean().optional().default(false),
+    /** Optional discount code */
+    discountCode: z.string().trim().toUpperCase().max(40).optional().default(""),
     /** How they paid, when `paid` is set */
     paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional().default(null),
   })
@@ -381,6 +499,11 @@ export type Booking = {
   paymentDueAt: string | null;
   paidAt: string | null;
   closedAt: string | null;
+  /** List price of this table when booked, and what this table costs after any discount */
+  basePriceCents: number;
+  priceCents: number;
+  /** The request's discount, e.g. "3+ tables: 10% off" ("" for none) */
+  discountLabel: string;
   /** How the request was paid, if recorded (only for paid requests) */
   paymentMethod: PaymentMethod | null;
   /** True when awaiting payment and the deadline has passed */
@@ -445,6 +568,9 @@ export type PublicBookingPage = {
     paymentDueDays: number | null;
     floorMapUrl: string | null;
     maxTablesPerRequest: number;
+    bulkDiscounts: BulkDiscountTier[];
+    /** Whether the organizer has any discount codes that could apply (shows the code field) */
+    acceptsCodes: boolean;
   };
   tables: { id: string; label: string; available: boolean }[];
   /** For invite links: who it was sent to, and whether it's been used */
@@ -460,6 +586,10 @@ export type PublicBookingResult = {
   tableLabels: string[];
   paymentDueAt: string | null;
   paymentInstructions: string;
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+  discountLabel: string;
 };
 
 /** A vendor's private status page for one request (/booking/:requestId, linked from emails). */
@@ -485,6 +615,11 @@ export type PublicRequestStatus = {
   paymentDueAt: string | null;
   overdue: boolean;
   paymentInstructions: string;
+  /** For the tables still held: list price, discount and what to pay */
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+  discountLabel: string;
 };
 
 // ── Email log ───────────────────────────────────────────────────────────────
@@ -600,4 +735,55 @@ export type PublicOrganizerPage = {
   upcoming: PublicShow[];
   /** Most recent first */
   past: PublicShow[];
+};
+
+// ── Discount codes (the Discounts page) ─────────────────────────────────────
+
+export const DISCOUNT_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{2,29}$/;
+
+export const discountCodeSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(DISCOUNT_CODE_PATTERN, "3–30 letters, numbers, - or _ (e.g. EARLYBIRD)"),
+    kind: z.enum(DISCOUNT_CODE_KINDS),
+    /** Percent (1–100) for "percent"; cents off the request for "amount" */
+    value: z.number({ error: "Enter an amount" }).int().min(1, "Must be more than 0").max(1_000_000),
+    description: z.string().trim().max(200).optional().default(""),
+    /** Limits; all optional */
+    maxUses: z.number().int().min(1, "At least 1").max(100_000).nullable().optional().default(null),
+    /** Last day it works (inclusive), in the app's timezone */
+    expiresOn: z.iso.date("Pick a date").nullable().optional().default(null),
+    oncePerVendor: z.boolean().optional().default(false),
+    /** Shows it works for; empty = all of the organizer's shows */
+    eventIds: z.array(z.uuid()).max(200).optional().default([]),
+    active: z.boolean().optional().default(true),
+  })
+  .refine((c) => c.kind !== "percent" || c.value <= 100, { message: "Up to 100%", path: ["value"] });
+export type DiscountCodeInput = z.input<typeof discountCodeSchema>;
+
+export type DiscountCode = z.output<typeof discountCodeSchema> & {
+  id: string;
+  createdAt: string;
+  /** Requests that used it and weren't rejected or cancelled */
+  uses: number;
+  /** Total discount given so far, across those requests */
+  discountGivenCents: number;
+  status: "active" | "paused" | "expired" | "used_up";
+};
+
+/** A request that used a code, for the code's usage list */
+export type DiscountCodeUse = {
+  requestId: string;
+  eventId: string;
+  eventName: string;
+  vendorName: string;
+  vendorEmail: string;
+  tableLabels: string[];
+  status: BookingStatus;
+  discountCents: number;
+  totalCents: number;
+  createdAt: string;
 };

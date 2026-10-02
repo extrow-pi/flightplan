@@ -20,6 +20,7 @@ import {
 import {
   approvedFields,
   createBookings,
+  DiscountCodeError,
   findOrCreateVendor,
   overdueCondition,
   TableTakenError,
@@ -64,10 +65,12 @@ async function findEvent(id: string, userId: string) {
   const [event] = await db
     .select({
       id: events.id,
+      organizerId: events.organizerId,
       status: events.status,
       requiresApproval: events.requiresApproval,
       tablePriceCents: events.tablePriceCents,
       paymentDueDays: events.paymentDueDays,
+      bulkDiscounts: events.bulkDiscounts,
     })
     .from(events)
     .where(eq(events.id, id));
@@ -197,6 +200,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           source: "organizer",
           paid: input.paid,
           paymentMethod: input.paid ? input.paymentMethod : null,
+          discountCode: input.discountCode || undefined,
         });
       });
       void notifyRequestCreated(rows[0].requestId);
@@ -205,6 +209,9 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
       // Names the taken tables, e.g. "Sorry, tables 4, 5 were just taken"
       if (err instanceof TableTakenError) return c.json<ApiError>({ error: err.message }, 409);
       if (err instanceof VendorNotFoundError) return c.json(notFound("Vendor"), 404);
+      if (err instanceof DiscountCodeError) {
+        return c.json<ApiError>({ error: err.message, fieldErrors: { discountCode: [err.message] } }, 400);
+      }
       throw err;
     }
   })

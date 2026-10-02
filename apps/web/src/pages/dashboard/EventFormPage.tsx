@@ -7,8 +7,10 @@ import {
   eventInputSchema,
   FLOOR_MAP_MAX_BYTES,
   FLOOR_MAP_TYPES,
+  MAX_DISCOUNT_TIERS,
   MAX_EVENT_DAYS,
   MAX_TABLES_PER_REQUEST,
+  type BulkDiscountKind,
   type EventInput,
   type EventRecord,
   type EventStatus,
@@ -23,9 +25,12 @@ import {
   useSaveEvent,
   useUploadFloorMap,
 } from "../../lib/api";
-import { formatDate, todayISO } from "../../lib/format";
+import { formatDate, formatMoney, todayISO } from "../../lib/format";
 
 type Kind = "event" | "template";
+
+// One multi-table discount tier. `value` is a percent, or dollars off each table.
+type TierRow = { key: number; minTables: string; kind: BulkDiscountKind; value: string };
 
 // One schedule row. Events use `date`; templates use `day` (1 = first day).
 type DayRow = { key: number; date: string; day: string; startTime: string; endTime: string };
@@ -48,9 +53,11 @@ type FormState = {
   bookingOpen: boolean;
   paymentInstructions: string;
   maxTablesPerRequest: string;
+  tiers: TierRow[];
 };
 
-type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen">, string>> & {
+type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen" | "tiers">, string>> & {
+  tiers?: string;
   days?: string;
   rows?: Record<number, Partial<Record<"date" | "day" | "startTime" | "endTime", string>>>;
 };
@@ -74,6 +81,7 @@ const emptyForm = (): FormState => ({
   bookingOpen: false,
   paymentInstructions: "",
   maxTablesPerRequest: "4",
+  tiers: [],
 });
 
 function fromEvent(e: EventRecord): FormState {
@@ -100,6 +108,12 @@ function fromEvent(e: EventRecord): FormState {
     bookingOpen: e.bookingOpen,
     paymentInstructions: e.paymentInstructions,
     maxTablesPerRequest: String(e.maxTablesPerRequest),
+    tiers: e.bulkDiscounts.map((t) => ({
+      key: nextKey++,
+      minTables: String(t.minTables),
+      kind: t.kind,
+      value: t.kind === "percent" ? String(t.value) : (t.value / 100).toString(),
+    })),
   };
 }
 
@@ -137,6 +151,11 @@ function toInput(f: FormState, status: EventStatus, rowsAreDated: boolean): Even
     bookingOpen: status === "template" ? false : f.bookingOpen,
     paymentInstructions: f.paymentInstructions,
     maxTablesPerRequest: toInt(f.maxTablesPerRequest),
+    bulkDiscounts: f.tiers.map((t) => ({
+      minTables: toInt(t.minTables),
+      kind: t.kind,
+      value: t.kind === "percent" ? toInt(t.value) : toCents(t.value),
+    })),
   };
 }
 
@@ -150,6 +169,8 @@ function toErrors(issues: z.core.$ZodIssue[]): Errors {
       errors.rows[index] ??= {};
       const key = sub === "dayOffset" ? "day" : (sub as "startTime" | "endTime");
       errors.rows[index][key] ??= issue.message;
+    } else if (field === "bulkDiscounts") {
+      errors.tiers ??= typeof index === "number" ? `Tier ${index + 1}: ${issue.message}` : issue.message;
     } else if (field === "tablePriceCents") errors.tablePrice ??= issue.message;
     else if (field === "ticketPriceCents") errors.ticketPrice ??= issue.message;
     else if (field === "startDate") errors.days ??= "Pick a date for every day";
@@ -167,6 +188,7 @@ function fromServerErrors(fieldErrors: Record<string, string[] | undefined>): Er
     if (field === "tablePriceCents") errors.tablePrice = message;
     else if (field === "ticketPriceCents") errors.ticketPrice = message;
     else if (field === "days" || field === "startDate") errors.days = message;
+    else if (field === "bulkDiscounts") errors.tiers = message;
     else (errors as Record<string, string>)[field] = message;
   }
   return errors;
@@ -555,6 +577,17 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
           </Field>
         </Section>
 
+        <TiersSection
+          tiers={form.tiers}
+          tablePrice={toCents(form.tablePrice)}
+          maxPerRequest={toInt(form.maxTablesPerRequest)}
+          error={errors.tiers}
+          onChange={(tiers) => {
+            update("tiers", tiers);
+            setErrors((e) => ({ ...e, tiers: undefined }));
+          }}
+        />
+
         <FloorMapSection event={event} />
         </fieldset>
 
@@ -933,6 +966,119 @@ function Toggle({
         {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
       </span>
     </label>
+  );
+}
+
+/** Multi-table discount tiers: "3+ tables: 10% off", "5+ tables: $15 off each table". */
+function TiersSection({
+  tiers,
+  tablePrice,
+  maxPerRequest,
+  error,
+  onChange,
+}: {
+  tiers: TierRow[];
+  tablePrice: number;
+  /** Vendors can't reach tiers above this */
+  maxPerRequest: number;
+  error?: string;
+  onChange: (tiers: TierRow[]) => void;
+}) {
+  const set = (key: number, patch: Partial<TierRow>) => onChange(tiers.map((t) => (t.key === key ? { ...t, ...patch } : t)));
+  const add = () => {
+    const highest = Math.max(1, ...tiers.map((t) => Number(t.minTables) || 0));
+    onChange([...tiers, { key: nextKey++, minTables: String(Math.min(highest + 2, 20)), kind: "percent", value: "10" }]);
+  };
+  // What the tier works out to at its minimum size, so organizers can sanity-check it
+  const example = (t: TierRow) => {
+    const n = Number(t.minTables);
+    const v = Number(t.value);
+    if (!Number.isFinite(tablePrice) || !tablePrice || !n || !v) return null;
+    const off = t.kind === "percent" ? Math.round((tablePrice * n * v) / 100) : Math.min(Math.round(v * 100), tablePrice) * n;
+    return `${n} tables: ${formatMoney(tablePrice * n - off)} instead of ${formatMoney(tablePrice * n)}`;
+  };
+
+  return (
+    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+      <legend className="sr-only">Multi-table discounts</legend>
+      <h2 className="text-lg font-extrabold" aria-hidden="true">
+        Multi-table discounts
+      </h2>
+      <p className="mt-1 text-sm text-ink-soft">
+        Reward vendors who book more tables. The highest tier a request reaches applies. If a vendor also has a
+        discount code, they get whichever saves more.
+      </p>
+      {tiers.length > 0 && (
+        <ul className="mt-5 space-y-3">
+          {tiers.map((t, i) => (
+            <li key={t.key} className="rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5">
+              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={2}
+                  max={20}
+                  aria-label={`Tier ${i + 1}: minimum tables`}
+                  value={t.minTables}
+                  onChange={(e) => set(t.key, { minTables: e.target.value })}
+                  className="w-16 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none"
+                />
+                <span>+ tables get</span>
+                {t.kind === "per_table" && <span>$</span>}
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step={t.kind === "percent" ? 1 : 0.01}
+                  aria-label={`Tier ${i + 1}: ${t.kind === "percent" ? "percent off" : "dollars off each table"}`}
+                  value={t.value}
+                  onChange={(e) => set(t.key, { value: e.target.value })}
+                  className="w-20 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none"
+                />
+                <select
+                  aria-label={`Tier ${i + 1}: discount type`}
+                  value={t.kind}
+                  onChange={(e) => set(t.key, { kind: e.target.value as BulkDiscountKind })}
+                  className="rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
+                >
+                  <option value="percent">% off the total</option>
+                  <option value="per_table">off each table</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => onChange(tiers.filter((x) => x.key !== t.key))}
+                  aria-label={`Remove tier ${i + 1}`}
+                  className="ml-auto rounded-full p-2 text-ink-muted hover:bg-peach hover:text-coral-ink"
+                >
+                  <TrashIcon className="size-4" />
+                </button>
+              </div>
+              {Number(t.minTables) > maxPerRequest ? (
+                <p className="mt-1.5 text-xs font-semibold text-gold-ink">
+                  Vendors can pick up to {maxPerRequest} {maxPerRequest === 1 ? "table" : "tables"} per request, so they
+                  can't reach this tier. Raise “Max tables per request” above, or lower this tier.
+                </p>
+              ) : (
+                example(t) && <p className="mt-1.5 text-xs text-ink-muted">{example(t)}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && (
+        <p className="mt-3 text-sm font-semibold text-coral-ink" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={add}
+        disabled={tiers.length >= MAX_DISCOUNT_TIERS}
+        className="mt-4 inline-flex items-center gap-2 rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+      >
+        <PlusIcon className="size-4" strokeWidth={3} /> Add a tier
+      </button>
+    </fieldset>
   );
 }
 

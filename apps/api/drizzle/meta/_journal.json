@@ -99,6 +99,13 @@
       "when": 1790916509801,
       "tag": "0013_payment_method",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790916783635,
+      "tag": "0014_discounts",
+      "breakpoints": true
     }
   ]
 }

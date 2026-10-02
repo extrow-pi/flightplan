@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   ACTIVE_BOOKING_STATUSES,
   addDays,
+  quoteRequestSchema,
   vendorBookingSchema,
   type ApiError,
   type BookingSource,
@@ -11,7 +12,8 @@ import {
   type PublicBookingResult,
   type PublicRequestStatus,
 } from "@flightplan/shared";
-import { createBookings, findOrCreateVendor, TableTakenError } from "../bookings.js";
+import { createBookings, DiscountCodeError, findOrCreateVendor, requestTotals, TableTakenError } from "../bookings.js";
+import { eventAcceptsCodes, quote } from "../discounts.js";
 import { db, schema } from "../db/index.js";
 import { notifyRequestCreated } from "../email/notifications.js";
 import { uploadUrl } from "../uploads.js";
@@ -72,7 +74,7 @@ async function loadPage(kind: "event" | "invite", token: string) {
   if (!found) return null;
   const { event, invite } = found;
 
-  const [days, tables, held] = await Promise.all([
+  const [days, tables, held, acceptsCodes] = await Promise.all([
     db
       .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
       .from(eventDays)
@@ -87,6 +89,7 @@ async function loadPage(kind: "event" | "invite", token: string) {
       .select({ tableId: bookings.tableId })
       .from(bookings)
       .where(and(eq(bookings.eventId, event.id), inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES]))),
+    eventAcceptsCodes(event.organizerId, event.id),
   ]);
 
   const endDate = event.startDate && days.length ? addDays(event.startDate, Math.max(...days.map((d) => d.dayOffset))) : null;
@@ -106,6 +109,8 @@ async function loadPage(kind: "event" | "invite", token: string) {
       paymentDueDays: event.paymentDueDays,
       floorMapUrl: uploadUrl(event.floorMapFile),
       maxTablesPerRequest: event.maxTablesPerRequest,
+      bulkDiscounts: event.bulkDiscounts,
+      acceptsCodes,
     },
     tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id) })),
     invite: invite ? { name: invite.name, email: invite.email, used: invite.bookingId !== null } : null,
@@ -123,6 +128,21 @@ function bookingHandlers(kind: "event" | "invite") {
       const loaded = await loadPage(kind, c.req.param("token"));
       return loaded ? c.json(loaded.page) : c.json(notFound, 404);
     })
+    // Price preview while the vendor picks tables and enters a code
+    .post("/:token/quote", async (c) => {
+      const loaded = await loadPage(kind, c.req.param("token"));
+      if (!loaded) return c.json(notFound, 404);
+      const parsed = quoteRequestSchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) return c.json<ApiError>({ error: "Pick at least one table" }, 400);
+      return c.json(
+        await quote({
+          event: loaded.event,
+          tableCount: parsed.data.tableCount,
+          codeText: parsed.data.discountCode,
+          email: parsed.data.email,
+        }),
+      );
+    })
     .post("/:token", async (c) => {
       const loaded = await loadPage(kind, c.req.param("token"));
       if (!loaded) return c.json(notFound, 404);
@@ -136,7 +156,7 @@ function bookingHandlers(kind: "event" | "invite") {
           400,
         );
       }
-      const { tableIds, message, ...contact } = parsed.data;
+      const { tableIds, message, discountCode, ...contact } = parsed.data;
       if (tableIds.length > event.maxTablesPerRequest) {
         return c.json<ApiError>(
           { error: `You can request up to ${event.maxTablesPerRequest} table${event.maxTablesPerRequest > 1 ? "s" : ""} at once.` },
@@ -158,6 +178,7 @@ function bookingHandlers(kind: "event" | "invite") {
             contact,
             message,
             source,
+            discountCode: discountCode || undefined,
           });
           if (invite) {
             // Claim the invite; fails if it was used or cancelled in the meantime
@@ -179,10 +200,14 @@ function bookingHandlers(kind: "event" | "invite") {
           tableLabels: picked.map((t) => t.label),
           paymentDueAt: rows[0].paymentDueAt?.toISOString() ?? null,
           paymentInstructions: event.paymentInstructions,
+          ...requestTotals(rows),
         };
         return c.json(result, 201);
       } catch (err) {
         if (err instanceof TableTakenError) return c.json<ApiError>({ error: err.message }, 409);
+        if (err instanceof DiscountCodeError) {
+          return c.json<ApiError>({ error: err.message, fieldErrors: { discountCode: [err.message] } }, 400);
+        }
         if (err instanceof InviteUsedError) {
           return c.json<ApiError>({ error: "This invite link has already been used to book a table." }, 409);
         }
@@ -244,6 +269,7 @@ const requestStatusRoutes = new Hono().get("/:requestId", async (c) => {
     paymentDueAt: lead?.paymentDueAt?.toISOString() ?? null,
     overdue: Boolean(lead && lead.status === "awaiting_payment" && lead.paymentDueAt && lead.paymentDueAt.getTime() < Date.now()),
     paymentInstructions: status === "pending" || status === "awaiting_payment" ? event.paymentInstructions : "",
+    ...requestTotals(active.map((r) => r.booking)),
   };
   return c.json(body);
 });

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import {
   MAX_TABLES_PER_REQUEST,
   PAYMENT_METHODS,
+  priceRequest,
   paymentMethodLabels,
   type Booking,
   type EventRecord,
@@ -382,8 +383,11 @@ function RequestCard({
             )}
           </span>
         ))}
-        {event.tablePriceCents > 0 && (
-          <span className="ml-auto text-sm font-bold text-ink-soft">{formatMoney(event.tablePriceCents * tables.length)}</span>
+        {tables.some((t) => t.booking.basePriceCents > 0) && (
+          <span className="ml-auto text-right text-sm font-bold text-ink-soft">
+            {formatMoney(tables.reduce((n, t) => n + t.booking.priceCents, 0))}
+            {b.discountLabel && <span className="block text-xs font-semibold text-[#2d7a6a]">{b.discountLabel}</span>}
+          </span>
         )}
       </div>
 
@@ -755,6 +759,7 @@ function AssignDialog({
         tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id),
         paid,
         paymentMethod: paid ? paymentMethod || null : null,
+        discountCode: discountCode.trim().toUpperCase(),
         ...(mode === "existing" ? { vendorId } : { contact }),
       },
       { onSuccess: onClose },
@@ -765,6 +770,8 @@ function AssignDialog({
   const toggle = (id: string) =>
     setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
   const count = tableIds.length;
+  const preview = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: count, tiers: event.bulkDiscounts });
+  const [discountCode, setDiscountCode] = useState("");
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="assign-title">
@@ -786,7 +793,8 @@ function AssignDialog({
           </span>
           <span className="text-sm text-ink-soft" aria-live="polite">
             {count ? `${count} selected` : "None selected"}
-            {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(event.tablePriceCents * count)}`}
+            {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(preview.totalCents)}`}
+            {count > 0 && preview.discountCents > 0 && <span className="block text-xs text-[#2d7a6a]">{preview.label}</span>}
           </span>
         </div>
         <div
@@ -882,6 +890,22 @@ function AssignDialog({
             ))}
             <p className="text-xs text-ink-muted">If this email is already in your vendor list, the booking is added to that vendor.</p>
           </div>
+        )}
+
+        {event.tablePriceCents > 0 && (
+          <label className="mt-5 block text-sm font-bold">
+            Discount code <span className="font-normal text-ink-muted">(optional)</span>
+            <input
+              className={`${smallInput} uppercase`}
+              value={discountCode}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setDiscountCode(e.target.value)}
+            />
+            <span className="mt-1 block text-xs font-normal text-ink-muted">
+              Applied if it saves more than the multi-table discount.
+            </span>
+          </label>
         )}
 
         <label className="mt-5 flex items-center gap-2 text-sm font-semibold">

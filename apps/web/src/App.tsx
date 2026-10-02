@@ -15,6 +15,7 @@ import TeamPage from "./pages/dashboard/TeamPage";
 import AcceptInvitePage from "./pages/AcceptInvitePage";
 import VendorsPage from "./pages/dashboard/VendorsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
+import DiscountsPage from "./pages/dashboard/DiscountsPage";
 import OrganizerPage from "./pages/OrganizerPage";
 
 const router = createBrowserRouter([
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: "templates", element: <TemplatesPage /> },
       { path: "emails", element: <EmailLogPage /> },
       { path: "vendors", element: <VendorsPage /> },
+      { path: "discounts", element: <DiscountsPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "templates/new", element: <EventFormPage kind="template" /> },
       { path: "templates/:id", element: <EventFormPage kind="template" /> },
