@@ -84,7 +84,7 @@ export default function VendorsPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-4">
           <label className="relative block">
             <span className="sr-only">Search vendors</span>
@@ -282,7 +282,7 @@ function GroupsCard({ groups, onPick }: { groups: VendorGroup[]; onPick: (id: st
                     aria-label="Group name"
                     value={renaming.name}
                     onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
-                    className="min-w-0 flex-1 rounded-lg border-2 border-cream px-2 py-1 text-sm focus:border-coral focus:outline-none"
+                    className="min-w-0 flex-1 rounded-lg border-2 border-cream px-2 py-1 text-base focus:border-coral focus:outline-none sm:text-sm"
                   />
                   <button type="submit" className="rounded-full bg-slate px-3 text-xs font-bold text-white">
                     Save
@@ -348,7 +348,7 @@ function GroupsCard({ groups, onPick }: { groups: VendorGroup[]; onPick: (id: st
           value={name}
           maxLength={40}
           onChange={(e) => setName(e.target.value)}
-          className="min-w-0 flex-1 rounded-full border-2 border-cream bg-white px-3 py-1.5 text-sm focus:border-coral focus:outline-none"
+          className="min-w-0 flex-1 rounded-full border-2 border-cream bg-white px-3 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
         />
         <button
           type="submit"
@@ -514,7 +514,7 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
           <StarIcon className="size-4 text-gold-ink" fill={form.favourite ? "currentColor" : "none"} /> Favourite
         </label>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name" error={errors.name?.[0]}>
             <input className={inputClass} value={form.name} onChange={set("name")} required />
           </Field>

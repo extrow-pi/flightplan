@@ -830,7 +830,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="text-lg font-extrabold" aria-hidden="true">
         {title}
       </h2>
-      <div className="mt-5 grid gap-5 sm:grid-cols-2">{children}</div>
+      <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">{children}</div>
     </fieldset>
   );
 }

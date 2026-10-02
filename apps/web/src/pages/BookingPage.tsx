@@ -175,7 +175,7 @@ function BookingForm({
       {page.closedReason ? (
         <Notice title="Booking isn't available">{page.closedReason}</Notice>
       ) : (
-        <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-[1.3fr_1fr]" noValidate>
+        <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" noValidate>
           <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
             <h2 className="text-lg font-extrabold">1. Pick your {max > 1 ? "tables" : "table"}</h2>
             <p className="mt-1 text-sm text-ink-soft">

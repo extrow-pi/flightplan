@@ -75,7 +75,7 @@ export default function TeamPage() {
           Loading team…
         </p>
       ) : (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-6">
             <Members event={event} team={team.data} />
             {isOwner && team.data.invites.length > 0 && <PendingInvites event={event} team={team.data} />}
@@ -177,7 +177,7 @@ function Members({ event, team }: { event: EventRecord; team: EventTeamResponse 
                   value={m.role}
                   disabled={setRole.isPending}
                   onChange={(e) => setRole.mutate({ userId: m.userId, role: e.target.value as CollaboratorRole })}
-                  className="rounded-full border-2 border-cream bg-white px-3 py-1.5 text-sm font-bold text-ink focus:border-coral focus:outline-none"
+                  className="rounded-full border-2 border-cream bg-white px-3 py-1.5 text-base font-bold text-ink focus:border-coral focus:outline-none sm:text-sm"
                 >
                   <option value="editor">Editor</option>
                   <option value="viewer">Viewer</option>

@@ -104,8 +104,19 @@ export default function TablesPage() {
           Loading tables…
         </p>
       ) : (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
+            {/* On phones the side panel sits below the list, so keep the main action in reach */}
+            {editable && (
+              <button
+                type="button"
+                onClick={() => setAssigning("pick")}
+                disabled={!available.length || isPast(event)}
+                className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] disabled:opacity-50 lg:hidden"
+              >
+                Assign tables
+              </button>
+            )}
             <div className="flex w-fit gap-1 rounded-full bg-white p-1 ring-1 ring-ink/10" role="radiogroup" aria-label="View">
               {(
                 [
@@ -231,7 +242,7 @@ export default function TablesPage() {
                 type="button"
                 onClick={() => setAssigning("pick")}
                 disabled={!available.length || isPast(event)}
-                className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
+                className="hidden w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50 lg:block"
               >
                 Assign tables
               </button>
@@ -628,7 +639,7 @@ function GroupInvite({ event }: { event: EventRecord }) {
             setTarget(e.target.value);
             bulk.reset();
           }}
-          className="min-w-0 flex-1 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-sm focus:border-coral focus:outline-none"
+          className="min-w-0 flex-1 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
         >
           <option value="favourites">★ Favourites</option>
           {groups.data?.map((g) => (

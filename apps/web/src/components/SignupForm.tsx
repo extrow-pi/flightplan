@@ -92,7 +92,7 @@ export default function SignupForm() {
   const generalError = mutation.error && !(mutation.error instanceof SignupError && mutation.error.body.fieldErrors);
 
   return (
-    <form onSubmit={onSubmit} noValidate className="grid gap-5 sm:grid-cols-2">
+    <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 gap-5 sm:grid-cols-2">
       <Field label="Your name" htmlFor="name" error={err("name")}>
         <input
           id="name"
