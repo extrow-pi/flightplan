@@ -15,6 +15,7 @@ import { eventRoutes } from "./routes/events.js";
 import { alertRoutes, bookingRoutes, eventBookingRoutes, inviteRoutes } from "./routes/bookings.js";
 import { vendorGroupRoutes, vendorRoutes } from "./routes/vendors.js";
 import { profileRoutes, publicOrganizerRoutes } from "./routes/profile.js";
+import { discountCodeRoutes } from "./routes/discountCodes.js";
 import { publicRoutes } from "./routes/public.js";
 import { emailRoutes } from "./routes/emails.js";
 import { collaboratorInviteRoutes, teamRoutes } from "./routes/collaborators.js";
@@ -46,6 +47,7 @@ app.route("/alerts", alertRoutes);
 app.route("/vendors", vendorRoutes);
 app.route("/vendor-groups", vendorGroupRoutes);
 app.route("/profile", profileRoutes);
+app.route("/discount-codes", discountCodeRoutes);
 app.route("/emails", emailRoutes);
 
 // No sign-in needed: vendor booking pages and floor map images

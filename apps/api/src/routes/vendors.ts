@@ -175,6 +175,7 @@ export const vendorRoutes = new Hono<AuthEnv>()
         eventStartDate: events.startDate,
         tableLabel: eventTables.label,
         status: bookings.status,
+        paymentMethod: bookings.paymentMethod,
         createdAt: bookings.createdAt,
       })
       .from(bookings)
@@ -191,6 +192,7 @@ export const vendorRoutes = new Hono<AuthEnv>()
       if (existing) {
         existing.tableLabels.push(r.tableLabel);
         if (rank[r.status] < rank[existing.status]) existing.status = r.status;
+        existing.paymentMethod ??= r.paymentMethod;
         continue;
       }
       byRequest.set(r.requestId, {
@@ -200,6 +202,7 @@ export const vendorRoutes = new Hono<AuthEnv>()
         eventStartDate: r.eventStartDate,
         tableLabels: [r.tableLabel],
         status: r.status,
+        paymentMethod: r.paymentMethod,
         createdAt: r.createdAt.toISOString(),
       });
     }

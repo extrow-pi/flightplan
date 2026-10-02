@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import { MAX_TABLES_PER_REQUEST, type Booking, type EventRecord, type EventTable, type Invite } from "@flightplan/shared";
+import {
+  MAX_TABLES_PER_REQUEST,
+  PAYMENT_METHODS,
+  priceRequest,
+  paymentMethodLabels,
+  type Booking,
+  type EventRecord,
+  type EventTable,
+  type Invite,
+  type PaymentMethod,
+} from "@flightplan/shared";
 import {
   BookingActions,
   closedLabel,
@@ -104,8 +114,19 @@ export default function TablesPage() {
           Loading tables…
         </p>
       ) : (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
+            {/* On phones the side panel sits below the list, so keep the main action in reach */}
+            {editable && (
+              <button
+                type="button"
+                onClick={() => setAssigning("pick")}
+                disabled={!available.length || isPast(event)}
+                className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] disabled:opacity-50 lg:hidden"
+              >
+                Assign tables
+              </button>
+            )}
             <div className="flex w-fit gap-1 rounded-full bg-white p-1 ring-1 ring-ink/10" role="radiogroup" aria-label="View">
               {(
                 [
@@ -231,7 +252,7 @@ export default function TablesPage() {
                 type="button"
                 onClick={() => setAssigning("pick")}
                 disabled={!available.length || isPast(event)}
-                className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
+                className="hidden w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50 lg:block"
               >
                 Assign tables
               </button>
@@ -362,8 +383,11 @@ function RequestCard({
             )}
           </span>
         ))}
-        {event.tablePriceCents > 0 && (
-          <span className="ml-auto text-sm font-bold text-ink-soft">{formatMoney(event.tablePriceCents * tables.length)}</span>
+        {tables.some((t) => t.booking.basePriceCents > 0) && (
+          <span className="ml-auto text-right text-sm font-bold text-ink-soft">
+            {formatMoney(tables.reduce((n, t) => n + t.booking.priceCents, 0))}
+            {b.discountLabel && <span className="block text-xs font-semibold text-[#2d7a6a]">{b.discountLabel}</span>}
+          </span>
         )}
       </div>
 
@@ -628,7 +652,7 @@ function GroupInvite({ event }: { event: EventRecord }) {
             setTarget(e.target.value);
             bulk.reset();
           }}
-          className="min-w-0 flex-1 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-sm focus:border-coral focus:outline-none"
+          className="min-w-0 flex-1 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
         >
           <option value="favourites">★ Favourites</option>
           {groups.data?.map((g) => (
@@ -717,6 +741,7 @@ function AssignDialog({
   const [vendorId, setVendorId] = useState("");
   const [contact, setContact] = useState({ name: "", businessName: "", email: "", phone: "" });
   const [paid, setPaid] = useState(event.tablePriceCents === 0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const firstRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -730,7 +755,13 @@ function AssignDialog({
     e.preventDefault();
     assign.mutate(
       // Keep floor order, whatever order they were clicked in
-      { tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id), paid, ...(mode === "existing" ? { vendorId } : { contact }) },
+      {
+        tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id),
+        paid,
+        paymentMethod: paid ? paymentMethod || null : null,
+        discountCode: discountCode.trim().toUpperCase(),
+        ...(mode === "existing" ? { vendorId } : { contact }),
+      },
       { onSuccess: onClose },
     );
   }
@@ -739,6 +770,8 @@ function AssignDialog({
   const toggle = (id: string) =>
     setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
   const count = tableIds.length;
+  const preview = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: count, tiers: event.bulkDiscounts });
+  const [discountCode, setDiscountCode] = useState("");
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="assign-title">
@@ -760,7 +793,8 @@ function AssignDialog({
           </span>
           <span className="text-sm text-ink-soft" aria-live="polite">
             {count ? `${count} selected` : "None selected"}
-            {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(event.tablePriceCents * count)}`}
+            {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(preview.totalCents)}`}
+            {count > 0 && preview.discountCents > 0 && <span className="block text-xs text-[#2d7a6a]">{preview.label}</span>}
           </span>
         </div>
         <div
@@ -858,10 +892,43 @@ function AssignDialog({
           </div>
         )}
 
+        {event.tablePriceCents > 0 && (
+          <label className="mt-5 block text-sm font-bold">
+            Discount code <span className="font-normal text-ink-muted">(optional)</span>
+            <input
+              className={`${smallInput} uppercase`}
+              value={discountCode}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setDiscountCode(e.target.value)}
+            />
+            <span className="mt-1 block text-xs font-normal text-ink-muted">
+              Applied if it saves more than the multi-table discount.
+            </span>
+          </label>
+        )}
+
         <label className="mt-5 flex items-center gap-2 text-sm font-semibold">
           <input type="checkbox" className="size-4 accent-coral" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
           Already paid
         </label>
+        {paid && event.tablePriceCents > 0 && (
+          <label className="mt-2 block text-sm font-semibold">
+            How did they pay?
+            <select
+              className={smallInput}
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}
+            >
+              <option value="">Not recorded</option>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m}>
+                  {paymentMethodLabels[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {assign.error && (
           <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">

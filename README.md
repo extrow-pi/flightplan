@@ -93,7 +93,7 @@ Settings (per event, and copied from templates):
 - **Vendors pay within N days** (or no deadline): the clock starts at approval, or at booking if no approval is needed. Free tables are confirmed immediately.
 - **Public booking link** `/book/:token`: anyone can request an open table while the event is published and the link is open.
 - **Personal invites** `/invite/:token`: single-use links for specific vendors. They work while the public link is closed, and on drafts.
-- **Payment instructions:** shown to vendors after they book. Payments happen outside the app; the organizer clicks **Mark paid**.
+- **Payment instructions:** shown to vendors after they book. Payments happen outside the app; the organizer clicks **Mark paid** and picks how the vendor paid (e-transfer, cash, Square, card, PayPal, other, or not recorded). The method can be changed later, and it shows in the vendor's history.
 - **Max tables per vendor request** (default 4, up to 20): vendors can pick several tables at once.
 
 **Multi-table requests:** a vendor's request is one booking per table, all sharing a `request_id`. The request is all-or-nothing: if any picked table is taken, nothing is booked and the vendor is told which tables to change. Approve, reject, mark paid and keep apply to the whole request, with one payment deadline. Release can free a single table or the whole request.
@@ -139,6 +139,15 @@ Shows and templates can have more than one organizer. Open the **Team** tab to s
 - **Vendors:** they belong to the event owner. Tables assigned by an editor go into the owner's vendor list. When assigning, collaborators only see vendors who've booked shows shared with them.
 - **Notifications:** organizer emails (new requests and bookings, overdue payments) go to everyone on the team. Vendor replies still go to the owner.
 - **Templates:** a show created from a shared template is owned by whoever creates it and keeps the template's team. The template's owner joins as an editor.
+
+### Discounts
+
+- **Multi-table discounts** are set per show (and copied from templates): tiers such as "3+ tables: 10% off" or "5+ tables: $15 off each table". The highest tier a request reaches applies. Tiers above the show's per-request table limit aren't shown to vendors, and the form warns about them.
+- **Discount codes** are set on the **Discounts** page. Each is a percentage or a fixed amount off the request. Optional limits: maximum uses, an expiry date (inclusive, in `APP_TIMEZONE`), one use per vendor email, and specific shows only. Codes can be paused or deleted.
+- **Best one wins.** A vendor gets either the tier or the code, whichever saves more, never both. A code only counts as used when it's the discount that applied.
+- **Usage:** a use is a request that applied the code and wasn't rejected or cancelled, so rejecting a request gives its use back. The Discounts page shows uses, total discount given, and a list of the requests.
+- **Price snapshot:** when a request is made, each booking stores its list price (`base_price_cents`), its share of the discounted total (`price_cents`), the discount label and the code. Later changes to the show's price, tiers or codes don't change what a vendor owes. Emails, the vendor status page and the Tables page all show these stored totals.
+- **The booking page** shows the tiers, a code field (when the organizer has a code that could apply), a live price breakdown via `POST /api/public/book/:token/quote`, and a nudge when one more table would reach the next tier. Organizers can also enter a code when assigning tables.
 
 ### Vendor emails
 
@@ -256,10 +265,15 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/events/:id/bookings` | Organizer assigns one or more tables as one request: `{ tableIds: [...], vendorId }` or `{ tableIds: [...], contact }`, optional `paid` |
 | POST | `/api/events/:id/invites` | Create a personal invite link: `{ name?, email? }` |
 | DELETE | `/api/invites/:id` | Cancel an unused invite |
-| POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` | Apply to the booking's whole request |
+| POST | `/api/bookings/:id/approve` · `reject` · `mark-paid` | Apply to the booking's whole request (`mark-paid` takes an optional `{ paymentMethod }`) |
+| POST | `/api/bookings/:id/payment-method` | Change or clear how a paid request was paid: `{ paymentMethod: "etransfer" | "cash" | "square" | "card" | "paypal" | "other" | null }` |
 | POST | `/api/bookings/:id/release` | Free this table, or the whole request with `{ "wholeRequest": true }` |
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
+| GET / POST | `/api/discount-codes` | The organizer's codes (with uses and status) / create one |
+| PUT / DELETE | `/api/discount-codes/:id` | Update or delete a code (past bookings keep their discount) |
+| GET | `/api/discount-codes/:id/uses` | Requests that used a code |
+| POST | `/api/public/book/:token/quote` · `/api/public/invite/:token/quote` | Price preview: `{ tableCount, discountCode?, email? }` gives the subtotal, discount, total, and any code error (no sign-in) |
 | GET / PUT | `/api/profile` | The organizer's public page settings (with a suggested handle) / save them |
 | GET | `/api/profile/handle-available?handle=` | Whether a handle is valid and free |
 | POST / DELETE | `/api/profile/logo` | Upload (multipart `file`) or remove the page logo |

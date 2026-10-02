@@ -1,9 +1,17 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import { addDays, type PublicBookingPage, type PublicBookingResult, type VendorContactInput } from "@flightplan/shared";
+import {
+  addDays,
+  discountLabel,
+  priceRequest,
+  type PriceQuote,
+  type PublicBookingPage,
+  type PublicBookingResult,
+  type VendorContactInput,
+} from "@flightplan/shared";
 import Logo from "../components/Logo";
 import { CheckIcon, ClockIcon, MapPinIcon } from "../components/Icons";
-import { ApiRequestError, usePublicBooking, useSubmitBooking, type BookingLinkKind } from "../lib/api";
+import { ApiRequestError, useBookingQuote, usePublicBooking, useSubmitBooking, type BookingLinkKind } from "../lib/api";
 import { formatDate, formatDateRange, formatMoney, timeRange } from "../lib/format";
 
 // Vendors don't have accounts, so their details are remembered in this browser for next time
@@ -92,6 +100,13 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
         <span className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
           {event.tablePriceCents ? `${formatMoney(event.tablePriceCents)} per table` : "Free tables"}
         </span>
+        {event.tablePriceCents > 0 &&
+          // Tiers above the per-request limit can never apply here
+          event.bulkDiscounts.filter((t) => t.minTables <= event.maxTablesPerRequest).map((t) => (
+            <span key={t.minTables} className="rounded-full bg-[#e8f8f5] px-3 py-1.5 font-bold text-[#2d7a6a]">
+              {discountLabel({ source: "tier", ...t })}
+            </span>
+          ))}
         {event.requiresApproval && (
           <span className="rounded-full bg-[#fff4cc] px-3 py-1.5 font-bold text-gold-ink">Organizer approves each request</span>
         )}
@@ -133,13 +148,30 @@ function BookingForm({
   });
   const [remember, setRemember] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
+  // The code being typed, and the one the vendor applied (sent with the booking)
+  const [codeInput, setCodeInput] = useState("");
+  const [appliedCode, setAppliedCode] = useState("");
 
   // Selected tables in floor order; drop any that were taken since (availability refreshes after a clash)
   const selected = page.tables.filter((t) => picked.includes(t.id) && t.available);
   const availableCount = page.tables.filter((t) => t.available).length;
   const fieldErrors = submit.error instanceof ApiRequestError ? submit.error.body.fieldErrors : undefined;
   const labels = selected.map((t) => t.label).join(", ");
-  const total = selected.length * page.event.tablePriceCents;
+  const paid = page.event.tablePriceCents > 0;
+
+  // Price: multi-table tiers are worked out right here; with a code, the server checks it and
+  // picks whichever discount saves more (the same rule it uses when booking)
+  const tierOnly = priceRequest({ tablePriceCents: page.event.tablePriceCents, tableCount: selected.length, tiers: page.event.bulkDiscounts });
+  const quote = useBookingQuote(
+    kind,
+    token,
+    { tableCount: Math.max(1, selected.length), discountCode: appliedCode, email: details.email.includes("@") ? details.email : "" },
+    Boolean(appliedCode) && selected.length > 0 && paid,
+  );
+  const price: PriceQuote = appliedCode && quote.data && selected.length ? { ...quote.data, tableCount: selected.length } : tierOnly;
+  const codeError = (appliedCode && quote.data?.codeError) || fieldErrors?.discountCode?.[0] || null;
+  // The next tier up, to nudge vendors who are close to it
+  const nextTier = page.event.bulkDiscounts.find((t) => t.minTables > selected.length && t.minTables <= max);
 
   function toggle(id: string) {
     setLocalError(null);
@@ -158,7 +190,7 @@ function BookingForm({
     if (!selected.length) return setLocalError("Pick a table first.");
     const { message, ...contact } = details;
     submit.mutate(
-      { tableIds: selected.map((t) => t.id), ...details },
+      { tableIds: selected.map((t) => t.id), ...details, discountCode: appliedCode },
       {
         onSuccess: (result) => {
           saveRemembered(remember ? contact : null);
@@ -175,7 +207,7 @@ function BookingForm({
       {page.closedReason ? (
         <Notice title="Booking isn't available">{page.closedReason}</Notice>
       ) : (
-        <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-[1.3fr_1fr]" noValidate>
+        <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" noValidate>
           <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
             <h2 className="text-lg font-extrabold">1. Pick your {max > 1 ? "tables" : "table"}</h2>
             <p className="mt-1 text-sm text-ink-soft">
@@ -256,15 +288,95 @@ function BookingForm({
               </label>
             </div>
 
+            {paid && page.event.acceptsCodes && (
+              <div className="mt-5">
+                {appliedCode ? (
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="rounded-full bg-slate px-3 py-1 font-extrabold tracking-wide text-white">{appliedCode}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedCode("");
+                        setCodeInput("");
+                      }}
+                      className="font-bold text-coral-ink hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="discountCode" className="text-sm font-bold">
+                      Discount code <span className="font-normal text-ink-muted">(optional)</span>
+                    </label>
+                    <div className="mt-1 flex gap-2">
+                      <input
+                        id="discountCode"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className={`${inputClass} mt-0 uppercase`}
+                        value={codeInput}
+                        onChange={(e) => setCodeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            setAppliedCode(codeInput.trim().toUpperCase());
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={!codeInput.trim()}
+                        onClick={() => setAppliedCode(codeInput.trim().toUpperCase())}
+                        className="shrink-0 rounded-xl border-2 border-slate/30 px-4 font-bold text-slate transition hover:border-slate disabled:opacity-50"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {codeError ? (
+                  <p className="mt-1.5 text-sm font-semibold text-coral-ink" role="alert">
+                    {codeError}
+                  </p>
+                ) : appliedCode && quote.data?.codeNotBest && selected.length > 0 ? (
+                  <p className="mt-1.5 text-sm text-ink-soft">Your multi-table discount saves more, so that's applied instead.</p>
+                ) : appliedCode && !selected.length ? (
+                  <p className="mt-1.5 text-sm text-ink-soft">Pick your tables to see your price.</p>
+                ) : null}
+              </div>
+            )}
+
             {selected.length > 0 && (
-              <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5">
-                <span className="font-bold">
-                  {selected.length > 1 ? `Tables ${labels}` : `Table ${labels}`}
-                </span>
-                {page.event.tablePriceCents > 0 && (
-                  <span className="font-extrabold text-coral-ink">{formatMoney(total)}</span>
+              <div className="mt-5 space-y-1.5 rounded-2xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5" aria-live="polite">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-bold">{selected.length > 1 ? `Tables ${labels}` : `Table ${labels}`}</span>
+                  {paid && (
+                    <span className={price.discountCents ? "text-sm text-ink-muted line-through" : "font-extrabold text-coral-ink"}>
+                      {formatMoney(price.subtotalCents)}
+                    </span>
+                  )}
+                </div>
+                {paid && price.discountCents > 0 && (
+                  <>
+                    <div className="flex items-center justify-between gap-3 text-sm font-semibold text-[#2d7a6a]">
+                      <span>{price.label}</span>
+                      <span>−{formatMoney(price.discountCents)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t border-ink/10 pt-1.5">
+                      <span className="font-bold">Total</span>
+                      <span className="font-extrabold text-coral-ink">{formatMoney(price.totalCents)}</span>
+                    </div>
+                  </>
                 )}
               </div>
+            )}
+            {paid && nextTier && selected.length > 0 && (
+              <p className="mt-2 text-sm text-ink-soft">
+                Add {nextTier.minTables - selected.length} more {nextTier.minTables - selected.length === 1 ? "table" : "tables"} to get{" "}
+                {discountLabel({ source: "tier", ...nextTier }).split(": ")[1]}.
+              </p>
             )}
 
             {(localError || (submit.error && !fieldErrors)) && (
@@ -333,7 +445,9 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
           </>
         ) : (
           <>
-            Please pay {formatMoney(page.event.tablePriceCents * count)} for {tables} at <strong>{page.event.name}</strong>
+            Please pay {formatMoney(result.totalCents)}
+            {result.discountCents > 0 && <> ({result.discountLabel}, you save {formatMoney(result.discountCents)})</>} for {tables} at{" "}
+            <strong>{page.event.name}</strong>
             {due ? (
               <>
                 {" "}

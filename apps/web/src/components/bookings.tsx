@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Booking } from "@flightplan/shared";
+import { PAYMENT_METHODS, paymentMethodLabels, type Booking, type PaymentMethod } from "@flightplan/shared";
 import { useBookingAction } from "../lib/api";
 
 // ── Status ───────────────────────────────────────────────────────────────
@@ -85,12 +85,52 @@ export function BookingActions({
 }) {
   const act = useBookingAction(eventId);
   const [confirmRelease, setConfirmRelease] = useState(false);
+  const [choosingMethod, setChoosingMethod] = useState(false);
   const busy = act.isPending;
   const run = (a: Parameters<typeof act.mutate>[0]) => act.mutate(a);
   const id = booking.id;
   const extend = paymentDueDays ?? 7;
   const count = requestTables.length;
   const all = count > 1 ? ` (${count} tables)` : "";
+
+  // "Mark paid" asks how they paid (or skip), then marks the whole request paid
+  if (choosingMethod) {
+    return (
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="How did they pay?">
+        <span className="basis-full text-sm font-semibold">How did they pay{all ? ` for all ${count} tables` : ""}?</span>
+        {PAYMENT_METHODS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            className={btn.secondary}
+            disabled={busy}
+            onClick={() =>
+              act.mutate({ bookingId: id, action: "mark-paid", paymentMethod: m }, { onSuccess: () => setChoosingMethod(false) })
+            }
+          >
+            {paymentMethodLabels[m]}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={btn.danger}
+          disabled={busy}
+          onClick={() => act.mutate({ bookingId: id, action: "mark-paid", paymentMethod: null }, { onSuccess: () => setChoosingMethod(false) })}
+          title="Mark paid without recording how"
+        >
+          Skip
+        </button>
+        <button type="button" className={btn.danger} onClick={() => setChoosingMethod(false)}>
+          Cancel
+        </button>
+        {act.error && (
+          <span className="basis-full text-sm font-semibold text-coral-ink" role="alert">
+            {act.error.message}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   if (confirmRelease) {
     return (
@@ -152,9 +192,30 @@ export function BookingActions({
       )}
 
       {(booking.status === "awaiting_payment" || booking.status === "pending") && (
-        <button type="button" className={btn.secondary} disabled={busy} onClick={() => run({ bookingId: id, action: "mark-paid" })}>
+        <button type="button" className={btn.secondary} disabled={busy} onClick={() => setChoosingMethod(true)}>
           Mark paid{all}
         </button>
+      )}
+
+      {booking.status === "paid" && (
+        <label className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+          Paid via
+          <select
+            value={booking.paymentMethod ?? ""}
+            disabled={busy}
+            onChange={(e) =>
+              run({ bookingId: id, action: "payment-method", paymentMethod: (e.target.value || null) as PaymentMethod | null })
+            }
+            className="rounded-full border-2 border-cream bg-white px-2.5 py-1 text-base font-bold text-ink focus:border-coral focus:outline-none sm:text-sm"
+          >
+            <option value="">Not recorded</option>
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {paymentMethodLabels[m]}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
       {booking.status !== "pending" && !(booking.status === "awaiting_payment" && booking.overdue) && (

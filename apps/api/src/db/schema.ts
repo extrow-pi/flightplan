@@ -1,6 +1,14 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { BOOKING_SOURCES, BOOKING_STATUSES, COLLABORATOR_ROLES, EVENT_STATUSES } from "@flightplan/shared";
+import { boolean, date, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  BOOKING_SOURCES,
+  BOOKING_STATUSES,
+  COLLABORATOR_ROLES,
+  DISCOUNT_CODE_KINDS,
+  EVENT_STATUSES,
+  PAYMENT_METHODS,
+  type BulkDiscountTier,
+} from "@flightplan/shared";
 import { user } from "./auth-schema.js";
 
 export const organizerSignups = pgTable(
@@ -46,6 +54,8 @@ export const events = pgTable(
     bookingOpen: boolean("booking_open").notNull().default(false),
     paymentInstructions: text("payment_instructions").notNull().default(""),
     maxTablesPerRequest: integer("max_tables_per_request").notNull().default(4),
+    // Multi-table discount tiers, validated by bulkDiscountTierSchema
+    bulkDiscounts: jsonb("bulk_discounts").$type<BulkDiscountTier[]>().notNull().default([]),
     // Secret for the public booking link /book/:token
     bookingToken: text("booking_token")
       .notNull()
@@ -116,6 +126,48 @@ export const vendors = pgTable(
   (t) => [uniqueIndex("vendors_organizer_email_idx").on(t.organizerId, t.email)],
 );
 
+// Discount codes an organizer gives out: a percentage or a fixed amount off a request. All limits are optional.
+export const discountCodes = pgTable(
+  "discount_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizerId: text("organizer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Uppercase; validated with DISCOUNT_CODE_PATTERN
+    code: text("code").notNull(),
+    kind: text("kind", { enum: DISCOUNT_CODE_KINDS }).notNull(),
+    // Percent for "percent", cents off the request for "amount"
+    value: integer("value").notNull(),
+    description: text("description").notNull().default(""),
+    maxUses: integer("max_uses"),
+    // Last day the code works, inclusive, in APP_TIMEZONE
+    expiresOn: date("expires_on"),
+    oncePerVendor: boolean("once_per_vendor").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("discount_codes_organizer_code_idx").on(t.organizerId, t.code)],
+);
+
+// Shows a code is limited to. No rows = it works for all of the organizer's shows.
+export const discountCodeEvents = pgTable(
+  "discount_code_events",
+  {
+    codeId: uuid("code_id")
+      .notNull()
+      .references(() => discountCodes.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.codeId, t.eventId] })],
+);
+
 // Organizer-defined vendor groups (e.g. "Pokémon", "Food trucks"). A vendor can be in several.
 export const vendorGroups = pgTable(
   "vendor_groups",
@@ -170,6 +222,15 @@ export const bookings = pgTable(
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     paymentDueAt: timestamp("payment_due_at", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
+    // How the vendor paid (e-transfer, cash…), recorded by the organizer. Same on every table of a request.
+    paymentMethod: text("payment_method", { enum: PAYMENT_METHODS }),
+    // Price snapshot taken when the request is made, so later price or discount changes don't
+    // change what the vendor owes: the table's list price, its share of the request's total after
+    // any discount, and which discount applied (the same on every table of a request)
+    basePriceCents: integer("base_price_cents").notNull().default(0),
+    priceCents: integer("price_cents").notNull().default(0),
+    discountLabel: text("discount_label").notNull().default(""),
+    discountCodeId: uuid("discount_code_id").references(() => discountCodes.id, { onDelete: "set null" }),
     // When it was rejected / released / cancelled
     closedAt: timestamp("closed_at", { withTimezone: true }),
     // Notification bookkeeping, so each reminder / overdue notice goes out once per deadline

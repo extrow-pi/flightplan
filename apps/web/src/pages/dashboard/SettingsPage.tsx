@@ -79,7 +79,7 @@ function PublicPageForm({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <form onSubmit={onSubmit} className="space-y-6">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
           <h2 className="text-lg font-extrabold">Public page</h2>
@@ -104,7 +104,7 @@ function PublicPageForm({
             </span>
           </label>
 
-          <div className="mt-5 grid gap-4">
+          <div className="mt-5 grid grid-cols-1 gap-4">
             <Field label="Page address" error={errors.handle?.[0]}>
               <div className="mt-1 flex items-center overflow-hidden rounded-xl border-2 border-cream bg-white focus-within:border-coral">
                 <span className="shrink-0 bg-cream-50 px-3 py-2 text-sm text-ink-muted">/o/</span>
@@ -139,7 +139,7 @@ function PublicPageForm({
                 placeholder="What kind of shows you run, where, and who they're for."
               />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Website" error={errors.websiteUrl?.[0]}>
                 <input className={inputClass} value={form.websiteUrl} onChange={set("websiteUrl")} placeholder="jetlaggedcards.ca" />
               </Field>
