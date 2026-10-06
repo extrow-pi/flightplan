@@ -101,6 +101,10 @@ Settings (per event, and copied from templates):
 Booking statuses: `pending` → `awaiting_payment` → `paid`, or `rejected` / `released` / `cancelled`. A table can hold only one active booking at a time (enforced by a partial unique index).
 When a payment deadline passes, the booking shows as **Payment overdue** in *Needs your attention* on the dashboard and on the event's **Tables & vendors** tab. From there the organizer can **Release table**, **Keep, +N days** or **Keep, no deadline**.
 
+**Vendors without a table:** **Add vendor without a table** puts a vendor on a show (from the vendor list or as a new contact, with an optional note) before deciding where they go. They show under **No table yet** on the Tables & vendors tab, aren't emailed, and come off that list as soon as they're booked on a table (by the organizer or through a booking link).
+
+**Search and assigning:** the search box on the Tables & vendors tab finds vendors by name, business, email, phone or table number. Vendors from the list who aren't at the show yet appear under **Not at this show yet** with **Add** and **Assign** buttons. In the Assign dialog the vendor picker is searchable and shows each vendor's tables at this show (e.g. "Tables 3, 4 · Paid"), and the chosen vendor's tables appear ticked in the table grid.
+
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
 
 ### Public organizer page
@@ -261,7 +265,9 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET / PUT / DELETE | `/api/events/:id` | Read / update (including the day schedule) / delete one of the organizer's events or templates |
 | POST | `/api/events/:id/spawn` | Create a draft from a template: body `{ "startDate": "2026-11-13" }` |
 | POST / DELETE | `/api/events/:id/floor-map` | Upload (multipart `file`) or remove the floor map |
-| GET | `/api/events/:id/tables` | Tables with their active bookings, past bookings and invites |
+| GET | `/api/events/:id/tables` | Tables with their active bookings, past bookings, invites and vendors without a table |
+| POST | `/api/events/:id/unassigned` | Add a vendor to the show without a table: `{ vendorId }` or `{ contact }`, optional `note` (409 if they already hold a table there) |
+| DELETE | `/api/events/:id/unassigned/:vendorId` | Take a vendor without a table off the show |
 | POST | `/api/events/:id/bookings` | Organizer assigns one or more tables as one request: `{ tableIds: [...], vendorId }` or `{ tableIds: [...], contact }`, optional `paid` |
 | POST | `/api/events/:id/invites` | Create a personal invite link: `{ name?, email? }` |
 | DELETE | `/api/invites/:id` | Cancel an unused invite |

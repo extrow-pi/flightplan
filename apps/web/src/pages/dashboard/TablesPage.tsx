@@ -10,6 +10,8 @@ import {
   type EventTable,
   type Invite,
   type PaymentMethod,
+  type UnassignedVendor,
+  type Vendor,
 } from "@flightplan/shared";
 import {
   BookingActions,
@@ -25,11 +27,13 @@ import {
 import { canEdit, EventTabs, isPast, SharedBadge } from "../../components/events";
 import BannedBadge from "../../components/BannedBadge";
 import CopyButton from "../../components/CopyButton";
-import { ArrowLeftIcon, CloseIcon, StarIcon } from "../../components/Icons";
+import { ArrowLeftIcon, CheckIcon, CloseIcon, SearchIcon, StarIcon } from "../../components/Icons";
 import {
   ApiRequestError,
   eventToInput,
+  useAddEventVendor,
   useAssignTable,
+  useRemoveEventVendor,
   useCreateInvite,
   useEvent,
   useEventTables,
@@ -41,17 +45,21 @@ import {
 } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 
-type Filter = "all" | ReturnType<typeof tableState>;
+type Filter = "all" | "unassigned" | ReturnType<typeof tableState>;
 
 export default function TablesPage() {
   const { id } = useParams();
   const { data: event, isPending, error } = useEvent(id);
   const tables = useEventTables(event && event.status !== "template" ? id : undefined);
+  // The owner's vendor list, for searching vendors who aren't at this show yet (editors only)
+  const vendorList = useEventVendors(id ?? "", Boolean(event && event.status !== "template" && canEdit(event)));
   const [filter, setFilter] = useState<Filter>("all");
   const [view, setView] = useState<"vendors" | "tables">("vendors");
+  const [query, setQuery] = useState("");
   // A request to point out after clicking "Review" in the table view
   const [highlight, setHighlight] = useState<string | null>(null);
-  const [assigning, setAssigning] = useState<EventTable | null | "pick">(null);
+  const [assigning, setAssigning] = useState<{ tableId?: string; vendorId?: string } | null>(null);
+  const [adding, setAdding] = useState<{ vendorId?: string } | null>(null);
 
   if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
   if (error || !event) {
@@ -69,27 +77,77 @@ export default function TablesPage() {
 
   // Viewers see everything but can't change bookings
   const editable = canEdit(event);
+  const past = isPast(event);
   const all = tables.data?.tables ?? [];
+  const unassigned = tables.data?.unassigned ?? [];
   const requests = groupRequests(all);
   const available = all.filter((t) => !t.booking);
+  const atShow = vendorsAtShow(requests, unassigned);
 
-  // Filters count tables in the table view and vendor requests in the vendor view
+  // Search by vendor name, business, email, phone or table label
+  const q = query.trim().toLowerCase();
+  const hit = (...fields: string[]) => !q || fields.some((f) => f.toLowerCase().includes(q));
+  const bookingFields = (b: Booking) => [b.name, b.businessName, b.email, b.phone];
+  const shownRequests = requests.filter((r) => hit(...bookingFields(r.booking), ...r.tables.map((t) => t.table.label)));
+  const shownTables = all.filter((t) => hit(t.label, ...(t.booking ? bookingFields(t.booking) : [])));
+  const shownUnassigned = unassigned.filter((u) => hit(u.name, u.businessName, u.email, u.phone, u.note));
+  // Vendors from the list who match the search but aren't at this show at all
+  const elsewhere =
+    q && editable && !past
+      ? (vendorList.data ?? []).filter((v) => !atShow.has(v.id) && hit(v.name, v.businessName, v.email, v.phone)).slice(0, 5)
+      : [];
+
+  // Filters count tables in the table view and vendors in the vendor view
   const stateOf = (x: EventTable | VendorRequest) => ("requestId" in x ? x.state : tableState(x.booking));
-  const items: (EventTable | VendorRequest)[] = view === "tables" ? all : requests;
-  const filters = (["all", ...TABLE_STATES] as Filter[]).filter((f) => !(view === "vendors" && f === "available"));
-  const count = (f: Filter) => (f === "all" ? items.length : items.filter((x) => stateOf(x) === f).length);
+  const items: (EventTable | VendorRequest)[] = view === "tables" ? shownTables : shownRequests;
+  const filters = (["all", ...TABLE_STATES, "unassigned"] as Filter[]).filter((f) =>
+    view === "vendors" ? f !== "available" : f !== "unassigned",
+  );
+  const count = (f: Filter) =>
+    f === "unassigned"
+      ? shownUnassigned.length
+      : f === "all"
+        ? items.length + (view === "vendors" ? shownUnassigned.length : 0)
+        : items.filter((x) => stateOf(x) === f).length;
   const activeFilter = filters.includes(filter) ? filter : "all";
   const matches = (x: EventTable | VendorRequest) => activeFilter === "all" || stateOf(x) === activeFilter;
+  const showUnassigned = activeFilter === "all" || activeFilter === "unassigned";
+  const vendorCount = requests.length + unassigned.length;
+  const nothingShown =
+    view === "vendors" ? !shownRequests.some(matches) && !(showUnassigned && shownUnassigned.length) : !shownTables.some(matches);
 
   function reviewRequest(requestId: string) {
     setView("vendors");
     setFilter("all");
+    setQuery("");
     setHighlight(requestId);
     // Wait for the vendor view to render, then bring the card into view
     requestAnimationFrame(() =>
       document.getElementById(`request-${requestId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
     );
   }
+
+  const actionButtons = (className: string) =>
+    editable && (
+      <div className={className}>
+        <button
+          type="button"
+          onClick={() => setAssigning({})}
+          disabled={!available.length || past}
+          className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
+        >
+          Assign tables
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdding({})}
+          disabled={past}
+          className="w-full rounded-full border-2 border-slate/30 bg-white px-6 py-2.5 font-bold text-slate transition hover:border-slate disabled:opacity-50"
+        >
+          Add vendor without a table
+        </button>
+      </div>
+    );
 
   return (
     <>
@@ -116,21 +174,25 @@ export default function TablesPage() {
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
-            {/* On phones the side panel sits below the list, so keep the main action in reach */}
-            {editable && (
-              <button
-                type="button"
-                onClick={() => setAssigning("pick")}
-                disabled={!available.length || isPast(event)}
-                className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] disabled:opacity-50 lg:hidden"
-              >
-                Assign tables
-              </button>
-            )}
+            {/* On phones the side panel sits below the list, so keep the main actions in reach */}
+            {actionButtons("grid gap-2 sm:grid-cols-2 lg:hidden")}
+
+            <label className="relative block">
+              <span className="sr-only">Search vendors and tables</span>
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-muted" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search vendors or tables"
+                className="w-full rounded-full border-2 border-cream bg-white py-2.5 pr-4 pl-10 text-ink placeholder:text-ink-muted/70 focus:border-coral focus:outline-none"
+              />
+            </label>
+
             <div className="flex w-fit gap-1 rounded-full bg-white p-1 ring-1 ring-ink/10" role="radiogroup" aria-label="View">
               {(
                 [
-                  ["vendors", `By vendor (${requests.length})`],
+                  ["vendors", `By vendor (${vendorCount})`],
                   ["tables", `By table (${all.length})`],
                 ] as const
               ).map(([v, label]) => (
@@ -166,14 +228,62 @@ export default function TablesPage() {
                       active ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
                     }`}
                   >
-                    {f === "all" ? (view === "tables" ? "All tables" : "All vendors") : tableStateLabel(f)}
+                    {f === "all"
+                      ? view === "tables"
+                        ? "All tables"
+                        : "All vendors"
+                      : f === "unassigned"
+                        ? "No table yet"
+                        : tableStateLabel(f)}
                     <span className={`rounded-full px-2 py-0.5 text-xs ${active ? "bg-white/20" : "bg-cream"}`}>{n}</span>
                   </button>
                 );
               })}
             </div>
 
-            {all.length === 0 ? (
+            {elsewhere.length > 0 && (
+              <section className="rounded-3xl bg-white p-5 ring-1 ring-ink/5" aria-labelledby="elsewhere-title">
+                <h2 id="elsewhere-title" className="text-sm font-bold text-ink-soft">
+                  Not at this show yet
+                </h2>
+                <ul className="mt-2 divide-y divide-ink/5">
+                  {elsewhere.map((v) => (
+                    <li key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold">
+                          {v.favourite && (
+                            <StarIcon className="mr-1 inline size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
+                          )}
+                          {v.name}
+                          {v.businessName && <span className="font-semibold text-ink-soft"> · {v.businessName}</span>}
+                        </p>
+                        <p className="truncate text-sm text-ink-soft">{v.email}</p>
+                      </div>
+                      {v.banned && <BannedBadge />}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAdding({ vendorId: v.id })}
+                          className="rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate"
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAssigning({ vendorId: v.id })}
+                          disabled={!available.length}
+                          className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep disabled:opacity-50"
+                        >
+                          Assign
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {all.length === 0 && view === "tables" ? (
               <p className="rounded-3xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
                 This event has no vendor tables yet. Set the number of tables on the{" "}
                 <Link to={`/dashboard/events/${event.id}`} className="font-bold text-coral-ink hover:underline">
@@ -183,7 +293,7 @@ export default function TablesPage() {
               </p>
             ) : view === "vendors" ? (
               <div className="space-y-3">
-                {requests.filter(matches).map((r) => (
+                {shownRequests.filter(matches).map((r) => (
                   <RequestCard
                     key={r.requestId}
                     request={r}
@@ -193,21 +303,34 @@ export default function TablesPage() {
                     flags={tables.data.vendorFlags[r.booking.vendorId]}
                   />
                 ))}
-                {requests.length === 0 ? (
+                {showUnassigned &&
+                  shownUnassigned.map((u) => (
+                    <UnassignedCard
+                      key={u.vendorId}
+                      vendor={u}
+                      event={event}
+                      editable={editable}
+                      canAssign={available.length > 0 && !past}
+                      flags={tables.data.vendorFlags[u.vendorId]}
+                      onAssign={() => setAssigning({ vendorId: u.vendorId })}
+                      onEdit={() => setAdding({ vendorId: u.vendorId })}
+                    />
+                  ))}
+                {vendorCount === 0 ? (
                   <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
-                    No vendors yet. Share the booking link or assign a table to get started.
+                    No vendors yet. Share the booking link, assign a table or add a vendor to get started.
                   </p>
                 ) : (
-                  !requests.some(matches) && (
+                  nothingShown && (
                     <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
-                      No vendors match this filter.
+                      {q ? `No vendors at this show match “${query.trim()}”.` : "No vendors match this filter."}
                     </p>
                   )
                 )}
               </div>
             ) : (
               <ul className="divide-y divide-ink/5 overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
-                {all.filter(matches).map((t) => (
+                {shownTables.filter(matches).map((t) => (
                   <TableRow
                     key={t.id}
                     table={t}
@@ -216,11 +339,11 @@ export default function TablesPage() {
                       t.booking ? (requests.find((r) => r.requestId === t.booking!.requestId)?.tables.length ?? 1) : 0
                     }
                     editable={editable}
-                    onAssign={() => setAssigning(t)}
+                    onAssign={() => setAssigning({ tableId: t.id })}
                     onReview={() => t.booking && reviewRequest(t.booking.requestId)}
                   />
                 ))}
-                {!all.some(matches) && <li className="p-6 text-center text-ink-soft">No tables match this filter.</li>}
+                {nothingShown && <li className="p-6 text-center text-ink-soft">No tables match {q ? "your search" : "this filter"}.</li>}
               </ul>
             )}
 
@@ -248,14 +371,7 @@ export default function TablesPage() {
 
           <aside className="space-y-6">
             {editable ? (
-              <button
-                type="button"
-                onClick={() => setAssigning("pick")}
-                disabled={!available.length || isPast(event)}
-                className="hidden w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50 lg:block"
-              >
-                Assign tables
-              </button>
+              actionButtons("hidden space-y-2 lg:block")
             ) : (
               <p className="rounded-2xl bg-sky/15 px-4 py-3 text-sm font-semibold text-slate" role="status">
                 You have view-only access. Ask {event.access.ownerName} to make you an editor to manage bookings.
@@ -271,12 +387,59 @@ export default function TablesPage() {
       {assigning && (
         <AssignDialog
           event={event}
-          tables={available}
-          initialTableId={assigning === "pick" ? undefined : assigning.id}
+          tables={all}
+          atShow={atShow}
+          initialTableId={assigning.tableId}
+          initialVendorId={assigning.vendorId}
           onClose={() => setAssigning(null)}
         />
       )}
+      {adding && (
+        <AddVendorDialog
+          event={event}
+          atShow={atShow}
+          unassigned={unassigned}
+          initialVendorId={adding.vendorId}
+          onClose={() => setAdding(null)}
+        />
+      )}
     </>
+  );
+}
+
+// ── Who's at the show ────────────────────────────────────────────────────
+
+/** Where a vendor stands at this show: the tables they hold, or added without a table yet. */
+type VendorAtShow = { tables: string[]; state: ReturnType<typeof tableState> | "unassigned" };
+
+function vendorsAtShow(requests: VendorRequest[], unassigned: UnassignedVendor[]) {
+  const map = new Map<string, VendorAtShow>();
+  for (const r of requests) {
+    const existing = map.get(r.booking.vendorId);
+    const labels = r.tables.map((t) => t.table.label);
+    // Requests come sorted most urgent first, so the first state seen is the one to show
+    if (existing) existing.tables.push(...labels);
+    else map.set(r.booking.vendorId, { tables: labels, state: r.state });
+  }
+  for (const u of unassigned) if (!map.has(u.vendorId)) map.set(u.vendorId, { tables: [], state: "unassigned" });
+  return map;
+}
+
+/** "Tables 3, 4 · Paid" or "No table yet" */
+function atShowLabel(s: VendorAtShow) {
+  if (s.state === "unassigned") return "No table yet";
+  return `${s.tables.length > 1 ? "Tables" : "Table"} ${s.tables.join(", ")} · ${tableStateLabel(s.state)}`;
+}
+
+function AtShowBadge({ status }: { status: VendorAtShow }) {
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+        status.state === "unassigned" ? "bg-cream text-ink-soft" : "bg-slate text-white"
+      }`}
+    >
+      {atShowLabel(status)}
+    </span>
   );
 }
 
@@ -719,44 +882,444 @@ function FloorMapCard({ event }: { event: EventRecord }) {
   );
 }
 
-// ── Assign dialog ────────────────────────────────────────────────────────
+// ── Vendors without a table ──────────────────────────────────────────────
 
-function AssignDialog({
+function UnassignedCard({
+  vendor: u,
   event,
-  tables,
-  initialTableId,
-  onClose,
+  editable,
+  canAssign,
+  flags,
+  onAssign,
+  onEdit,
 }: {
+  vendor: UnassignedVendor;
   event: EventRecord;
-  tables: EventTable[];
-  initialTableId?: string;
-  onClose: () => void;
+  editable: boolean;
+  canAssign: boolean;
+  flags?: { favourite: boolean; banned: boolean };
+  onAssign: () => void;
+  onEdit: () => void;
 }) {
-  const assign = useAssignTable(event.id);
-  const vendors = useEventVendors(event.id);
-  const [tableIds, setTableIds] = useState<string[]>(initialTableId ? [initialTableId] : []);
-  const [chosenMode, setMode] = useState<"existing" | "new" | null>(null);
-  // Until the organizer picks, default to their vendor list if they have one
-  const mode = chosenMode ?? (vendors.data?.length ? "existing" : "new");
-  const [vendorId, setVendorId] = useState("");
-  const [contact, setContact] = useState({ name: "", businessName: "", email: "", phone: "" });
-  const [paid, setPaid] = useState(event.tablePriceCents === 0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
-  const firstRef = useRef<HTMLDivElement>(null);
+  const remove = useRemoveEventVendor(event.id);
+  const [confirming, setConfirming] = useState(false);
 
+  return (
+    <article className={`rounded-3xl bg-white p-5 shadow-sm ${flags?.banned ? "ring-2 ring-coral-ink/40" : "ring-1 ring-ink/5"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-extrabold">
+            {flags?.favourite && (
+              <StarIcon className="size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
+            )}
+            <span>
+              {u.name}
+              {u.businessName && <span className="font-semibold text-ink-soft"> · {u.businessName}</span>}
+            </span>
+            {flags?.banned && <BannedBadge />}
+          </h3>
+          <p className="mt-0.5 text-sm break-words text-ink-soft">
+            <a href={`mailto:${u.email}`} className="hover:underline">
+              {u.email}
+            </a>
+            {u.phone && ` · ${u.phone}`} · Added {new Date(u.addedAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}
+          </p>
+        </div>
+        <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-bold whitespace-nowrap text-ink-soft">No table yet</span>
+      </div>
+      {u.note && <p className="mt-2 text-sm text-ink-soft italic">{u.note}</p>}
+
+      {editable && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/5 pt-3">
+          {confirming ? (
+            <>
+              <span className="text-sm font-semibold">Take {u.name} off this show?</span>
+              <button
+                type="button"
+                onClick={() => remove.mutate(u.vendorId)}
+                disabled={remove.isPending}
+                className="rounded-full bg-coral-ink px-3.5 py-1.5 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {remove.isPending ? "Removing…" : "Remove"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="rounded-full px-3.5 py-1.5 text-sm font-bold text-ink-soft hover:bg-cream"
+              >
+                Keep
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onAssign}
+                disabled={!canAssign}
+                className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep disabled:opacity-50"
+              >
+                Assign tables
+              </button>
+              <button
+                type="button"
+                onClick={onEdit}
+                className="rounded-full px-3.5 py-1.5 text-sm font-bold text-ink-soft hover:bg-cream"
+              >
+                Edit note
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(true)}
+                className="rounded-full px-3.5 py-1.5 text-sm font-bold text-coral-ink hover:bg-peach"
+              >
+                Remove from show
+              </button>
+            </>
+          )}
+          {remove.error && (
+            <p className="w-full text-sm font-semibold text-coral-ink" role="alert">
+              {remove.error.message}
+            </p>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+// ── Picking a vendor ─────────────────────────────────────────────────────
+
+/** Search the vendor list and pick one. Each vendor shows where they stand at this show. */
+function VendorPicker({
+  vendors,
+  value,
+  onChange,
+  atShow,
+  isDisabled,
+}: {
+  vendors: Vendor[];
+  value: string;
+  onChange: (id: string) => void;
+  atShow: Map<string, VendorAtShow>;
+  /** Vendors that can't be picked here, with the reason */
+  isDisabled?: (v: Vendor) => string | null;
+}) {
+  const [search, setSearch] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  const q = search.trim().toLowerCase();
+  // A vendor picked before the dialog opened may be far down the list
+  useEffect(() => {
+    const list = listRef.current;
+    const picked = list?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (list && picked) list.scrollTop = picked.offsetTop - list.offsetTop - 6;
+  }, []);
+  const shown = vendors.filter(
+    (v) => !q || [v.name, v.businessName, v.email, v.phone].some((f) => f.toLowerCase().includes(q)),
+  );
+
+  return (
+    <div className="mt-3">
+      <label className="relative block">
+        <span className="sr-only">Search your vendors</span>
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, business or email"
+          className={`${smallInput} mt-0 pl-9`}
+        />
+      </label>
+      <div
+        ref={listRef}
+        role="radiogroup"
+        aria-label="Vendor"
+        className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-2xl bg-cream-50 p-1.5 ring-1 ring-ink/5"
+      >
+        {shown.map((v) => {
+          const status = atShow.get(v.id);
+          const reason = isDisabled?.(v) ?? null;
+          const on = v.id === value;
+          return (
+            <button
+              key={v.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              disabled={Boolean(reason)}
+              title={reason ?? undefined}
+              onClick={() => onChange(v.id)}
+              className={`flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-3 py-2 text-left transition disabled:opacity-50 ${
+                on ? "bg-white ring-2 ring-coral" : "hover:bg-white"
+              }`}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold">
+                  {v.favourite && <span className="text-gold-ink">★ </span>}
+                  {v.name}
+                  {v.businessName && <span className="font-semibold text-ink-soft"> · {v.businessName}</span>}
+                </span>
+                <span className="block truncate text-xs text-ink-muted">{v.email}</span>
+              </span>
+              {v.banned && <span className="rounded-full bg-coral-ink px-2 py-0.5 text-xs font-bold text-white">Banned</span>}
+              {status && <AtShowBadge status={status} />}
+            </button>
+          );
+        })}
+        {!shown.length && <p className="px-3 py-2 text-sm text-ink-muted">No vendors match “{search.trim()}”.</p>}
+      </div>
+    </div>
+  );
+}
+
+/** Contact fields for a vendor who isn't in the list yet. */
+function NewVendorFields({
+  contact,
+  onChange,
+}: {
+  contact: { name: string; businessName: string; email: string; phone: string };
+  onChange: (c: { name: string; businessName: string; email: string; phone: string }) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-2">
+      {(
+        [
+          ["name", "Name", "text", true],
+          ["businessName", "Business (optional)", "text", false],
+          ["email", "Email", "email", true],
+          ["phone", "Phone (optional)", "tel", false],
+        ] as const
+      ).map(([key, label, type, required]) => (
+        <div key={key}>
+          <input
+            className={smallInput}
+            type={type}
+            placeholder={label}
+            aria-label={label}
+            required={required}
+            value={contact[key]}
+            onChange={(e) => onChange({ ...contact, [key]: e.target.value })}
+          />
+        </div>
+      ))}
+      <p className="text-xs text-ink-muted">If this email is already in your vendor list, it's added to that vendor.</p>
+    </div>
+  );
+}
+
+function VendorModeToggle({ mode, onChange }: { mode: "existing" | "new"; onChange: (m: "existing" | "new") => void }) {
+  return (
+    <div className="mt-5 flex gap-1 rounded-full bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Vendor source">
+      {(["existing", "new"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="radio"
+          aria-checked={mode === m}
+          onClick={() => onChange(m)}
+          className={`flex-1 rounded-full px-3 py-1.5 text-sm font-bold transition ${mode === m ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
+        >
+          {m === "existing" ? "From your vendors" : "New vendor"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Close on Escape and focus the first thing in the dialog. */
+function useDialog(onClose: () => void) {
+  const firstRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     firstRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+  return firstRef;
+}
+
+function Dialog({
+  title,
+  intro,
+  onClose,
+  onSubmit,
+  children,
+}: {
+  title: string;
+  intro: string;
+  onClose: () => void;
+  onSubmit: (e: FormEvent) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
+      <form onSubmit={onSubmit} className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
+        <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
+          <CloseIcon className="size-5" />
+        </button>
+        <h2 id="dialog-title" className="pr-8 text-2xl font-extrabold">
+          {title}
+        </h2>
+        <p className="mt-1 text-sm text-ink-soft">{intro}</p>
+        {children}
+      </form>
+    </div>
+  );
+}
+
+function errorMessage(error: Error) {
+  const fieldErrors = error instanceof ApiRequestError ? error.body.fieldErrors : undefined;
+  return fieldErrors ? (Object.values(fieldErrors).flat()[0] ?? error.message) : error.message;
+}
+
+const emptyContact = { name: "", businessName: "", email: "", phone: "" };
+
+// ── Add vendor (no table) dialog ─────────────────────────────────────────
+
+function AddVendorDialog({
+  event,
+  atShow,
+  unassigned,
+  initialVendorId,
+  onClose,
+}: {
+  event: EventRecord;
+  atShow: Map<string, VendorAtShow>;
+  unassigned: UnassignedVendor[];
+  initialVendorId?: string;
+  onClose: () => void;
+}) {
+  const add = useAddEventVendor(event.id);
+  const vendors = useEventVendors(event.id);
+  const editing = unassigned.find((u) => u.vendorId === initialVendorId);
+  const [chosenMode, setMode] = useState<"existing" | "new" | null>(initialVendorId ? "existing" : null);
+  const mode = chosenMode ?? (vendors.data?.length ? "existing" : "new");
+  const [vendorId, setVendorId] = useState(initialVendorId ?? "");
+  const [contact, setContact] = useState(emptyContact);
+  const [note, setNote] = useState(editing?.note ?? "");
+  const firstRef = useDialog(onClose);
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    add.mutate({ note, ...(mode === "existing" ? { vendorId } : { contact }) }, { onSuccess: onClose });
+  }
+
+  return (
+    <Dialog
+      title={editing ? `Note for ${editing.name}` : "Add vendor without a table"}
+      intro={
+        editing
+          ? "They're on this show without a table yet."
+          : "Put a vendor on this show now and give them tables later. They're not emailed."
+      }
+      onClose={onClose}
+      onSubmit={onSubmit}
+    >
+      <div ref={firstRef} tabIndex={-1} className="focus:outline-none">
+        {!editing && <VendorModeToggle mode={mode} onChange={setMode} />}
+        {editing ? null : mode === "existing" ? (
+          vendors.data?.length ? (
+            <VendorPicker
+              vendors={vendors.data}
+              value={vendorId}
+              onChange={setVendorId}
+              atShow={atShow}
+              isDisabled={(v) => {
+                const s = atShow.get(v.id);
+                return s && s.state !== "unassigned" ? "Already has tables at this show" : null;
+              }}
+            />
+          ) : (
+            <p className="mt-3 text-sm text-ink-soft">
+              {vendors.isPending ? "Loading your vendors…" : "No vendors yet. Add a new one instead."}
+            </p>
+          )
+        ) : (
+          <NewVendorFields contact={contact} onChange={setContact} />
+        )}
+      </div>
+
+      <label className="mt-5 block text-sm font-bold">
+        Note <span className="font-normal text-ink-muted">(optional)</span>
+        <textarea
+          className={`${smallInput} min-h-20 text-base sm:text-sm`}
+          value={note}
+          maxLength={500}
+          placeholder="e.g. Wants a corner spot, confirming on Friday"
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+
+      {add.error && (
+        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          {errorMessage(add.error)}
+        </p>
+      )}
+
+      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={add.isPending || (mode === "existing" && !vendorId)}
+          className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+        >
+          {add.isPending ? "Saving…" : editing ? "Save note" : "Add to show"}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+// ── Assign dialog ────────────────────────────────────────────────────────
+
+function AssignDialog({
+  event,
+  tables,
+  atShow,
+  initialTableId,
+  initialVendorId,
+  onClose,
+}: {
+  event: EventRecord;
+  /** All the event's tables; only open ones can be picked */
+  tables: EventTable[];
+  atShow: Map<string, VendorAtShow>;
+  initialTableId?: string;
+  initialVendorId?: string;
+  onClose: () => void;
+}) {
+  const assign = useAssignTable(event.id);
+  const vendors = useEventVendors(event.id);
+  const [tableIds, setTableIds] = useState<string[]>(initialTableId ? [initialTableId] : []);
+  const [chosenMode, setMode] = useState<"existing" | "new" | null>(initialVendorId ? "existing" : null);
+  // Until the organizer picks, default to their vendor list if they have one
+  const mode = chosenMode ?? (vendors.data?.length ? "existing" : "new");
+  const [vendorId, setVendorId] = useState(initialVendorId ?? "");
+  const [contact, setContact] = useState(emptyContact);
+  const [paid, setPaid] = useState(event.tablePriceCents === 0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
+  const [discountCode, setDiscountCode] = useState("");
+  const firstRef = useDialog(onClose);
+
+  const open = tables.filter((t) => !t.booking);
+  // The chosen vendor, or a vendor in the list with the new contact's email
+  const chosen =
+    mode === "existing"
+      ? vendors.data?.find((v) => v.id === vendorId)
+      : vendors.data?.find((v) => contact.email && v.email === contact.email.trim().toLowerCase());
+  const status = chosen ? atShow.get(chosen.id) : undefined;
+  // Show the vendor's own tables in the grid, so it's clear what they already have
+  const shown = tables.filter((t) => !t.booking || (chosen && t.booking.vendorId === chosen.id));
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     assign.mutate(
       // Keep floor order, whatever order they were clicked in
       {
-        tableIds: tables.filter((t) => tableIds.includes(t.id)).map((t) => t.id),
+        tableIds: open.filter((t) => tableIds.includes(t.id)).map((t) => t.id),
         paid,
         paymentMethod: paid ? paymentMethod || null : null,
         discountCode: discountCode.trim().toUpperCase(),
@@ -766,190 +1329,161 @@ function AssignDialog({
     );
   }
 
-  const fieldErrors = assign.error instanceof ApiRequestError ? assign.error.body.fieldErrors : undefined;
   const toggle = (id: string) =>
     setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
   const count = tableIds.length;
   const preview = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: count, tiers: event.bulkDiscounts });
-  const [discountCode, setDiscountCode] = useState("");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="assign-title">
-      <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <form onSubmit={onSubmit} className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
-        <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
-          <CloseIcon className="size-5" />
-        </button>
-        <h2 id="assign-title" className="pr-8 text-2xl font-extrabold">
-          Assign tables
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">
-          Pick one or more open tables. They're booked together as one request and approved straight away.
-        </p>
-
-        <div className="mt-5 flex items-baseline justify-between gap-2">
-          <span id="assign-tables-label" className="text-sm font-bold">
-            Tables
-          </span>
-          <span className="text-sm text-ink-soft" aria-live="polite">
-            {count ? `${count} selected` : "None selected"}
-            {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(preview.totalCents)}`}
-            {count > 0 && preview.discountCents > 0 && <span className="block text-xs text-[#2d7a6a]">{preview.label}</span>}
-          </span>
-        </div>
-        <div
-          ref={firstRef}
-          tabIndex={-1}
-          role="group"
-          aria-labelledby="assign-tables-label"
-          className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-2xl bg-cream-50 p-2 ring-1 ring-ink/5 focus:outline-none"
-        >
-          {tables.map((t) => {
-            const on = tableIds.includes(t.id);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggle(t.id)}
-                disabled={!on && count >= MAX_TABLES_PER_REQUEST}
-                className={`min-w-11 rounded-lg px-2.5 py-1.5 text-sm font-extrabold transition disabled:opacity-40 ${
-                  on ? "bg-slate text-white" : "bg-white text-slate ring-1 ring-slate/20 hover:ring-slate"
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-        {count >= MAX_TABLES_PER_REQUEST && (
-          <p className="mt-1 text-xs text-ink-muted">Up to {MAX_TABLES_PER_REQUEST} tables at a time.</p>
-        )}
-
-        <div className="mt-5 flex gap-1 rounded-full bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Vendor">
-          {(["existing", "new"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={mode === m}
-              onClick={() => setMode(m)}
-              className={`flex-1 rounded-full px-3 py-1.5 text-sm font-bold transition ${mode === m ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
-            >
-              {m === "existing" ? "From your vendors" : "New vendor"}
-            </button>
-          ))}
-        </div>
-
+    <Dialog
+      title="Assign tables"
+      intro="Pick a vendor and one or more open tables. They're booked together as one request and approved straight away."
+      onClose={onClose}
+      onSubmit={onSubmit}
+    >
+      <div ref={firstRef} tabIndex={-1} className="focus:outline-none">
+        <VendorModeToggle mode={mode} onChange={setMode} />
         {mode === "existing" ? (
           vendors.data?.length ? (
-            <select
-              aria-label="Vendor"
-              className={`${smallInput} mt-3`}
-              value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                Choose a vendor…
-              </option>
-              {vendors.data.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.favourite ? "★ " : ""}
-                  {v.name}
-                  {v.businessName ? ` · ${v.businessName}` : ""} ({v.email}){v.banned ? " · BANNED" : ""}
-                </option>
-              ))}
-            </select>
+            <VendorPicker vendors={vendors.data} value={vendorId} onChange={setVendorId} atShow={atShow} />
           ) : (
             <p className="mt-3 text-sm text-ink-soft">
               {vendors.isPending ? "Loading your vendors…" : "No vendors yet. They're added automatically as they book."}
             </p>
           )
         ) : (
-          <div className="mt-3 space-y-2">
-            {(
-              [
-                ["name", "Name", "text", true],
-                ["businessName", "Business (optional)", "text", false],
-                ["email", "Email", "email", true],
-                ["phone", "Phone (optional)", "tel", false],
-              ] as const
-            ).map(([key, label, type, required]) => (
-              <div key={key}>
-                <input
-                  className={smallInput}
-                  type={type}
-                  placeholder={label}
-                  aria-label={label}
-                  required={required}
-                  value={contact[key]}
-                  onChange={(e) => setContact((c) => ({ ...c, [key]: e.target.value }))}
-                />
-              </div>
-            ))}
-            <p className="text-xs text-ink-muted">If this email is already in your vendor list, the booking is added to that vendor.</p>
-          </div>
+          <NewVendorFields contact={contact} onChange={setContact} />
         )}
+      </div>
 
-        {event.tablePriceCents > 0 && (
-          <label className="mt-5 block text-sm font-bold">
-            Discount code <span className="font-normal text-ink-muted">(optional)</span>
-            <input
-              className={`${smallInput} uppercase`}
-              value={discountCode}
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(e) => setDiscountCode(e.target.value)}
-            />
-            <span className="mt-1 block text-xs font-normal text-ink-muted">
-              Applied if it saves more than the multi-table discount.
-            </span>
-          </label>
-        )}
+      {chosen && status && (
+        <p className="mt-3 rounded-xl bg-sky/15 px-3 py-2 text-sm text-slate" role="status">
+          {status.state === "unassigned" ? (
+            <>
+              <strong>{chosen.name}</strong> is on this show without a table yet.
+            </>
+          ) : (
+            <>
+              <strong>{chosen.name}</strong> already has {atShowLabel(status).toLowerCase()}. New tables are added as a
+              separate request.
+            </>
+          )}
+        </p>
+      )}
 
-        <label className="mt-5 flex items-center gap-2 text-sm font-semibold">
-          <input type="checkbox" className="size-4 accent-coral" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
-          Already paid
-        </label>
-        {paid && event.tablePriceCents > 0 && (
-          <label className="mt-2 block text-sm font-semibold">
-            How did they pay?
-            <select
-              className={smallInput}
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}
+      <div className="mt-5 flex items-baseline justify-between gap-2">
+        <span id="assign-tables-label" className="text-sm font-bold">
+          Tables
+        </span>
+        <span className="text-sm text-ink-soft" aria-live="polite">
+          {count ? `${count} selected` : "None selected"}
+          {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(preview.totalCents)}`}
+          {count > 0 && preview.discountCents > 0 && <span className="block text-xs text-[#2d7a6a]">{preview.label}</span>}
+        </span>
+      </div>
+      <div
+        role="group"
+        aria-labelledby="assign-tables-label"
+        className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-2xl bg-cream-50 p-2 ring-1 ring-ink/5"
+      >
+        {shown.map((t) => {
+          if (t.booking) {
+            // One of the chosen vendor's tables: shown for context, not pickable
+            return (
+              <span
+                key={t.id}
+                title={`Already ${chosen?.name}'s (${tableStateLabel(tableState(t.booking)).toLowerCase()})`}
+                className="inline-flex min-w-11 items-center justify-center gap-1 rounded-lg bg-sky/25 px-2.5 py-1.5 text-sm font-extrabold text-slate"
+              >
+                <CheckIcon className="size-3.5" aria-hidden="true" />
+                {t.label}
+                <span className="sr-only"> (already theirs)</span>
+              </span>
+            );
+          }
+          const on = tableIds.includes(t.id);
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => toggle(t.id)}
+              disabled={!on && count >= MAX_TABLES_PER_REQUEST}
+              className={`min-w-11 rounded-lg px-2.5 py-1.5 text-sm font-extrabold transition disabled:opacity-40 ${
+                on ? "bg-slate text-white" : "bg-white text-slate ring-1 ring-slate/20 hover:ring-slate"
+              }`}
             >
-              <option value="">Not recorded</option>
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {paymentMethodLabels[m]}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+      {status && status.tables.length > 0 && (
+        <p className="mt-1 flex items-center gap-1 text-xs text-ink-muted">
+          <CheckIcon className="size-3" aria-hidden="true" /> = already theirs
+        </p>
+      )}
+      {count >= MAX_TABLES_PER_REQUEST && (
+        <p className="mt-1 text-xs text-ink-muted">Up to {MAX_TABLES_PER_REQUEST} tables at a time.</p>
+      )}
 
-        {assign.error && (
-          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
-            {fieldErrors ? Object.values(fieldErrors).flat()[0] ?? assign.error.message : assign.error.message}
-          </p>
-        )}
+      {event.tablePriceCents > 0 && (
+        <label className="mt-5 block text-sm font-bold">
+          Discount code <span className="font-normal text-ink-muted">(optional)</span>
+          <input
+            className={`${smallInput} uppercase`}
+            value={discountCode}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setDiscountCode(e.target.value)}
+          />
+          <span className="mt-1 block text-xs font-normal text-ink-muted">
+            Applied if it saves more than the multi-table discount.
+          </span>
+        </label>
+      )}
 
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={assign.isPending || !count || (mode === "existing" && !vendorId)}
-            className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+      <label className="mt-5 flex items-center gap-2 text-sm font-semibold">
+        <input type="checkbox" className="size-4 accent-coral" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
+        Already paid
+      </label>
+      {paid && event.tablePriceCents > 0 && (
+        <label className="mt-2 block text-sm font-semibold">
+          How did they pay?
+          <select
+            className={smallInput}
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "")}
           >
-            {assign.isPending ? "Assigning…" : count > 1 ? `Assign ${count} tables` : "Assign table"}
-          </button>
-        </div>
-      </form>
-    </div>
+            <option value="">Not recorded</option>
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {paymentMethodLabels[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {assign.error && (
+        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          {errorMessage(assign.error)}
+        </p>
+      )}
+
+      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={assign.isPending || !count || (mode === "existing" && !vendorId)}
+          className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+        >
+          {assign.isPending ? "Assigning…" : count > 1 ? `Assign ${count} tables` : "Assign table"}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 

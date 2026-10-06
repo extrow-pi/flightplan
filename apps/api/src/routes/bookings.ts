@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   ACTIVE_BOOKING_STATUSES,
+  addEventVendorSchema,
   assignTableSchema,
   bulkInviteSchema,
   createInviteSchema,
@@ -16,6 +17,7 @@ import {
   type BulkInviteResult,
   type EventTablesResponse,
   type Invite,
+  type UnassignedVendor,
 } from "@flightplan/shared";
 import {
   approvedFields,
@@ -49,7 +51,7 @@ import {
   type Access,
 } from "../access.js";
 
-const { bookings, eventCollaborators, eventDays, events, eventTables, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
+const { bookings, eventCollaborators, eventDays, events, eventTables, eventVendors, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
 
 const idSchema = z.uuid();
 const notFound = (what = "Event") => ({ error: `${what} not found` }) satisfies ApiError;
@@ -79,20 +81,27 @@ async function findEvent(id: string, userId: string) {
 
 /**
  * Vendors from the event owner's list that the user may see. Owners see their whole list;
- * collaborators only see vendors who have booked one of that owner's events shared with them.
+ * collaborators only see vendors who have booked (or been added to) one of that owner's events shared with them.
  */
 function visibleVendors(access: Access, userId: string) {
   const ofOwner = eq(vendors.organizerId, access.ownerId);
   if (access.role === "owner") return ofOwner;
+  const sharedEvent = and(eq(events.organizerId, access.ownerId), accessibleEvents(userId));
   return and(
     ofOwner,
-    inArray(
-      vendors.id,
-      db
-        .select({ id: bookings.vendorId })
-        .from(bookings)
-        .innerJoin(events, eq(events.id, bookings.eventId))
-        .where(and(eq(events.organizerId, access.ownerId), accessibleEvents(userId))),
+    or(
+      inArray(
+        vendors.id,
+        db.select({ id: bookings.vendorId }).from(bookings).innerJoin(events, eq(events.id, bookings.eventId)).where(sharedEvent),
+      ),
+      inArray(
+        vendors.id,
+        db
+          .select({ id: eventVendors.vendorId })
+          .from(eventVendors)
+          .innerJoin(events, eq(events.id, eventVendors.eventId))
+          .where(sharedEvent),
+      ),
     ),
   );
 }
@@ -121,16 +130,30 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
     const event = await findEvent(c.req.param("id"), c.var.user.id);
     if (!event) return c.json(notFound(), 404);
 
-    const [tableRows, bookingRows, inviteRows] = await Promise.all([
+    const [tableRows, bookingRows, inviteRows, unassignedRows] = await Promise.all([
       db.select().from(eventTables).where(eq(eventTables.eventId, event.id)).orderBy(asc(eventTables.number)),
       db.select().from(bookings).where(eq(bookings.eventId, event.id)).orderBy(desc(bookings.createdAt)),
       db.select().from(vendorInvites).where(eq(vendorInvites.eventId, event.id)).orderBy(desc(vendorInvites.createdAt)),
+      db
+        .select({
+          vendorId: vendors.id,
+          name: vendors.name,
+          businessName: vendors.businessName,
+          email: vendors.email,
+          phone: vendors.phone,
+          note: eventVendors.note,
+          createdAt: eventVendors.createdAt,
+        })
+        .from(eventVendors)
+        .innerJoin(vendors, eq(vendors.id, eventVendors.vendorId))
+        .where(eq(eventVendors.eventId, event.id))
+        .orderBy(asc(eventVendors.createdAt)),
     ]);
 
     const activeByTable = new Map(
       bookingRows.filter((b) => active.includes(b.status as (typeof active)[number])).map((b) => [b.tableId, toBooking(b)]),
     );
-    const vendorIds = [...new Set(bookingRows.map((b) => b.vendorId))];
+    const vendorIds = [...new Set([...bookingRows.map((b) => b.vendorId), ...unassignedRows.map((u) => u.vendorId)])];
     const flagRows = vendorIds.length
       ? await db
           .select({ id: vendors.id, favourite: vendors.favourite, bannedAt: vendors.bannedAt })
@@ -141,6 +164,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
       tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, booking: activeByTable.get(t.id) ?? null })),
       history: bookingRows.filter((b) => !active.includes(b.status as (typeof active)[number])).map(toBooking),
       invites: inviteRows.map(toInvite),
+      unassigned: unassignedRows.map(({ createdAt, ...u }): UnassignedVendor => ({ ...u, addedAt: createdAt.toISOString() })),
       vendorFlags: Object.fromEntries(flagRows.map((v) => [v.id, { favourite: v.favourite, banned: v.bannedAt !== null }])),
     };
     return c.json(body);
@@ -313,7 +337,67 @@ eventBookingRoutes.post("/:id/invites/bulk", async (c) => {
   return c.json(result, 201);
 });
 
+// Add a vendor to the show without a table yet (or update their note if they're already on the list)
+eventBookingRoutes.post("/:id/unassigned", async (c) => {
+  const event = await findEvent(c.req.param("id"), c.var.user.id);
+  if (!event || event.status === "template") return c.json(notFound(), 404);
+  if (!canEdit(event.access)) return c.json(forbidden("add vendors"), 403);
+  const parsed = addEventVendorSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json(invalid(parsed.error), 400);
+  const input = parsed.data;
+
+  try {
+    const vendor = await db.transaction(async (tx) => {
+      let vendor: { id: string; name: string };
+      if (input.vendorId) {
+        const [found] = await tx
+          .select()
+          .from(vendors)
+          .where(and(eq(vendors.id, input.vendorId), visibleVendors(event.access, c.var.user.id)));
+        if (!found) throw new VendorNotFoundError();
+        vendor = found;
+      } else {
+        // Vendors always go in the event owner's list, whoever adds them
+        const { id } = await findOrCreateVendor(tx, event.access.ownerId, input.contact!);
+        vendor = { id, name: input.contact!.name };
+      }
+      const [held] = await tx
+        .select({ label: eventTables.label })
+        .from(bookings)
+        .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
+        .where(and(eq(bookings.eventId, event.id), eq(bookings.vendorId, vendor.id), inArray(bookings.status, active)));
+      if (held) throw new AlreadyBookedError(`${vendor.name} already has table ${held.label} at this show`);
+      await tx
+        .insert(eventVendors)
+        .values({ eventId: event.id, vendorId: vendor.id, note: input.note })
+        .onConflictDoUpdate({ target: [eventVendors.eventId, eventVendors.vendorId], set: { note: input.note } });
+      return vendor;
+    });
+    return c.json({ vendorId: vendor.id }, 201);
+  } catch (err) {
+    if (err instanceof VendorNotFoundError) return c.json(notFound("Vendor"), 404);
+    if (err instanceof AlreadyBookedError) return c.json<ApiError>({ error: err.message }, 409);
+    throw err;
+  }
+});
+
+// Take an unassigned vendor off the show
+eventBookingRoutes.delete("/:id/unassigned/:vendorId", async (c) => {
+  const event = await findEvent(c.req.param("id"), c.var.user.id);
+  if (!event) return c.json(notFound(), 404);
+  if (!canEdit(event.access)) return c.json(forbidden("remove vendors"), 403);
+  const vendorId = idSchema.safeParse(c.req.param("vendorId"));
+  if (!vendorId.success) return c.json(notFound("Vendor"), 404);
+  const removed = await db
+    .delete(eventVendors)
+    .where(and(eq(eventVendors.eventId, event.id), eq(eventVendors.vendorId, vendorId.data)))
+    .returning();
+  if (!removed.length) return c.json(notFound("Vendor"), 404);
+  return c.json({ ok: true });
+});
+
 class VendorNotFoundError extends Error {}
+class AlreadyBookedError extends Error {}
 
 // ── Bookings: /api/bookings/:id/… ────────────────────────────────────────
 

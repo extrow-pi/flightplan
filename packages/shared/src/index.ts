@@ -387,6 +387,27 @@ export const assignTableSchema = z
   .refine((a) => a.vendorId || a.contact, { message: "Pick a vendor or enter their details", path: ["vendorId"] });
 export type AssignTableInput = z.input<typeof assignTableSchema>;
 
+/** Add a vendor to a show without a table yet: one from the organizer's list, or new contact details. */
+export const addEventVendorSchema = z
+  .object({
+    vendorId: z.uuid().optional(),
+    contact: vendorContactSchema.optional(),
+    note: z.string().trim().max(500, "Keep the note under 500 characters").optional().default(""),
+  })
+  .refine((a) => a.vendorId || a.contact, { message: "Pick a vendor or enter their details", path: ["vendorId"] });
+export type AddEventVendorInput = z.input<typeof addEventVendorSchema>;
+
+/** A vendor added to a show who doesn't have a table there yet. */
+export type UnassignedVendor = {
+  vendorId: string;
+  name: string;
+  businessName: string;
+  email: string;
+  phone: string;
+  note: string;
+  addedAt: string;
+};
+
 export const createInviteSchema = z.object({
   name: z.string().trim().max(100).optional().default(""),
   email: z.union([z.literal(""), z.email("Enter a valid email").trim().toLowerCase()]).optional().default(""),
@@ -535,7 +556,9 @@ export type EventTablesResponse = {
   /** Past bookings (rejected / released / cancelled), newest first */
   history: Booking[];
   invites: Invite[];
-  /** Favourite / banned flags for the vendors in this event's bookings, by vendor id */
+  /** Vendors added to the show who don't have a table yet, oldest first */
+  unassigned: UnassignedVendor[];
+  /** Favourite / banned flags for the vendors in this event's bookings (and unassigned vendors), by vendor id */
   vendorFlags: Record<string, { favourite: boolean; banned: boolean }>;
 };
 

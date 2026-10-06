@@ -248,6 +248,23 @@ export const bookings = pgTable(
   ],
 );
 
+// Vendors the organizer has added to a show without a table yet. The row goes away once
+// the vendor is booked on a table at that show.
+export const eventVendors = pgTable(
+  "event_vendors",
+  {
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    vendorId: uuid("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.eventId, t.vendorId] }), index("event_vendors_vendor_idx").on(t.vendorId)],
+);
+
 // Personal booking links the organizer sends to specific vendors. Single use.
 export const vendorInvites = pgTable(
   "vendor_invites",
