@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  AddEventVendorInput,
   ApiError,
   AssignTableInput,
   Booking,
@@ -205,10 +206,11 @@ export function useAlerts() {
 }
 
 /** Vendors that can be picked when assigning a table on this event (the event owner's list). */
-export function useEventVendors(eventId: string) {
+export function useEventVendors(eventId: string, enabled = true) {
   return useQuery({
     queryKey: [...bookingKeys.vendors, eventId],
     queryFn: () => request<{ vendors: Vendor[] }>(`/events/${eventId}/vendors`).then((r) => r.vendors),
+    enabled: enabled && Boolean(eventId),
   });
 }
 
@@ -228,6 +230,24 @@ export function useAssignTable(eventId: string) {
   return useMutation({
     mutationFn: (input: AssignTableInput) =>
       request<{ bookings: Booking[] }>(`/events/${eventId}/bookings`, { method: "POST", body: input }).then((r) => r.bookings),
+    onSuccess: () => invalidateBookings(qc, eventId),
+  });
+}
+
+/** Add a vendor to the show without a table yet. */
+export function useAddEventVendor(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AddEventVendorInput) =>
+      request<{ vendorId: string }>(`/events/${eventId}/unassigned`, { method: "POST", body: input }),
+    onSuccess: () => invalidateBookings(qc, eventId),
+  });
+}
+
+export function useRemoveEventVendor(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vendorId: string) => request(`/events/${eventId}/unassigned/${vendorId}`, { method: "DELETE" }),
     onSuccess: () => invalidateBookings(qc, eventId),
   });
 }

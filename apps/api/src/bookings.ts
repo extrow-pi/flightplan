@@ -15,7 +15,7 @@ import {
 import { db, schema } from "./db/index.js";
 import { validateCode } from "./discounts.js";
 
-const { bookings, eventTables, vendors } = schema;
+const { bookings, eventTables, eventVendors, vendors } = schema;
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type BookingRow = typeof bookings.$inferSelect;
@@ -214,9 +214,10 @@ export async function createBookings(
         : approvedFields(event, now);
 
   const requestId = randomUUID();
+  let rows: BookingRow[];
   try {
     // A savepoint, so a clash on the unique index doesn't abort the caller's transaction
-    return await tx.transaction((sp) =>
+    rows = await tx.transaction((sp) =>
       sp
         .insert(bookings)
         .values(
@@ -239,6 +240,9 @@ export async function createBookings(
     if (isUniqueViolation(err)) throw new TableTakenError();
     throw err;
   }
+  // Once booked on a table they're no longer waiting for one
+  await tx.delete(eventVendors).where(and(eq(eventVendors.eventId, event.id), eq(eventVendors.vendorId, args.vendorId)));
+  return rows;
 }
 
 /**
