@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import {
   MAX_TABLES_PER_REQUEST,
   PAYMENT_METHODS,
+  discountLabel,
   priceRequest,
   paymentMethodLabels,
   type Booking,
@@ -32,6 +33,7 @@ import {
   ApiRequestError,
   eventToInput,
   useAddEventVendor,
+  useAssignQuote,
   useAssignTable,
   useRemoveEventVendor,
   useCreateInvite,
@@ -1332,7 +1334,26 @@ function AssignDialog({
   const toggle = (id: string) =>
     setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
   const count = tableIds.length;
-  const preview = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: count, tiers: event.bulkDiscounts });
+  const charged = event.tablePriceCents > 0;
+
+  // Without a code the price is worked out here; with one, the server checks the code (debounced)
+  const [code, setCode] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setCode(discountCode.trim().toUpperCase()), 400);
+    return () => clearTimeout(timer);
+  }, [discountCode]);
+  const vendorEmail = chosen?.email ?? (mode === "new" ? contact.email.trim().toLowerCase() : "");
+  const quote = useAssignQuote(
+    event.id,
+    { tableCount: Math.max(count, 1), discountCode: code, email: /^\S+@\S+\.\S+$/.test(vendorEmail) ? vendorEmail : "" },
+    charged && Boolean(code),
+  );
+  const tierPrice = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: count, tiers: event.bulkDiscounts });
+  const price = code && quote.data && quote.data.tableCount === count ? quote.data : tierPrice;
+  // Tiers this request could reach, and the next one up
+  const tiers = event.bulkDiscounts.filter((t) => t.minTables <= MAX_TABLES_PER_REQUEST);
+  const activeTier = [...tiers].reverse().find((t) => count >= t.minTables);
+  const nextTier = tiers.find((t) => t.minTables > count && t.minTables <= open.length);
 
   return (
     <Dialog
@@ -1375,11 +1396,7 @@ function AssignDialog({
         <span id="assign-tables-label" className="text-sm font-bold">
           Tables
         </span>
-        <span className="text-sm text-ink-soft" aria-live="polite">
-          {count ? `${count} selected` : "None selected"}
-          {count > 0 && event.tablePriceCents > 0 && ` · ${formatMoney(preview.totalCents)}`}
-          {count > 0 && preview.discountCents > 0 && <span className="block text-xs text-[#2d7a6a]">{preview.label}</span>}
-        </span>
+        <span className="text-sm text-ink-soft">{count ? `${count} selected` : "None selected"}</span>
       </div>
       <div
         role="group"
@@ -1427,20 +1444,89 @@ function AssignDialog({
         <p className="mt-1 text-xs text-ink-muted">Up to {MAX_TABLES_PER_REQUEST} tables at a time.</p>
       )}
 
-      {event.tablePriceCents > 0 && (
-        <label className="mt-5 block text-sm font-bold">
-          Discount code <span className="font-normal text-ink-muted">(optional)</span>
-          <input
-            className={`${smallInput} uppercase`}
-            value={discountCode}
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setDiscountCode(e.target.value)}
-          />
-          <span className="mt-1 block text-xs font-normal text-ink-muted">
-            Applied if it saves more than the multi-table discount.
-          </span>
-        </label>
+      {charged && (
+        <>
+          {/* The show's multi-table discounts, with the one this request reaches highlighted */}
+          {tiers.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Multi-table discounts">
+              {tiers.map((t) => {
+                const on = t === activeTier;
+                return (
+                  <li
+                    key={t.minTables}
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      on ? "bg-[#e8f8f5] text-[#2d7a6a] ring-1 ring-[#2d7a6a]/30" : "bg-cream text-ink-soft"
+                    }`}
+                  >
+                    {on && <CheckIcon className="mr-1 inline size-3" aria-hidden="true" />}
+                    {discountLabel({ source: "tier", ...t })}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-ink-muted">
+              No multi-table discounts on this show. Add them on the{" "}
+              <Link to={`/dashboard/events/${event.id}`} className="font-bold text-coral-ink hover:underline">
+                Details
+              </Link>{" "}
+              tab.
+            </p>
+          )}
+
+          {count > 0 && (
+            <div className="mt-3 space-y-1.5 rounded-2xl bg-cream-50 px-4 py-3 text-sm ring-1 ring-ink/5" aria-live="polite">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold text-ink-soft">
+                  {count} × {formatMoney(event.tablePriceCents)}
+                </span>
+                <span className={price.discountCents ? "text-ink-muted line-through" : "font-extrabold"}>
+                  {formatMoney(price.subtotalCents)}
+                </span>
+              </div>
+              {price.discountCents > 0 && (
+                <>
+                  <div className="flex items-center justify-between gap-3 font-semibold text-[#2d7a6a]">
+                    <span>{price.label}</span>
+                    <span>−{formatMoney(price.discountCents)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-ink/10 pt-1.5">
+                    <span className="font-bold">Total</span>
+                    <span className="font-extrabold text-coral-ink">{formatMoney(price.totalCents)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {nextTier && count > 0 && (
+            <p className="mt-2 text-xs text-ink-soft">
+              {nextTier.minTables - count} more {nextTier.minTables - count === 1 ? "table" : "tables"} gets{" "}
+              {discountLabel({ source: "tier", ...nextTier }).split(": ")[1]}.
+            </p>
+          )}
+
+          <label className="mt-5 block text-sm font-bold">
+            Discount code <span className="font-normal text-ink-muted">(optional)</span>
+            <input
+              className={`${smallInput} uppercase`}
+              value={discountCode}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setDiscountCode(e.target.value)}
+            />
+          </label>
+          {code && quote.data?.codeError ? (
+            <p className="mt-1 text-xs font-semibold text-coral-ink" role="alert">
+              {quote.data.codeError}
+            </p>
+          ) : code && quote.data?.codeNotBest && count > 0 ? (
+            <p className="mt-1 text-xs text-ink-soft">The multi-table discount saves more, so that's applied instead.</p>
+          ) : code && price.source === "code" && count > 0 ? (
+            <p className="mt-1 text-xs font-semibold text-[#2d7a6a]">Code applied.</p>
+          ) : (
+            <p className="mt-1 text-xs text-ink-muted">Applied if it saves more than the multi-table discount.</p>
+          )}
+        </>
       )}
 
       <label className="mt-5 flex items-center gap-2 text-sm font-semibold">

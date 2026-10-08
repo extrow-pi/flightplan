@@ -234,6 +234,17 @@ export function useAssignTable(eventId: string) {
   });
 }
 
+/** Price preview in the Assign dialog, used once a discount code is entered. */
+export function useAssignQuote(eventId: string, input: QuoteRequestInput, enabled: boolean) {
+  return useQuery({
+    queryKey: ["events", eventId, "quote", input],
+    queryFn: () => request<QuoteResponse>(`/events/${eventId}/quote`, { method: "POST", body: input }),
+    enabled,
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+  });
+}
+
 /** Add a vendor to the show without a table yet. */
 export function useAddEventVendor(eventId: string) {
   const qc = useQueryClient();
