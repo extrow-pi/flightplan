@@ -9,6 +9,7 @@ import {
   createInviteSchema,
   keepBookingSchema,
   markPaidSchema,
+  quoteRequestSchema,
   setPaymentMethodSchema,
   releaseBookingSchema,
   type ApiError,
@@ -30,6 +31,7 @@ import {
   toVendor,
 } from "../bookings.js";
 import { db, schema } from "../db/index.js";
+import { quote } from "../discounts.js";
 import {
   notifyApproved,
   notifyKept,
@@ -379,6 +381,18 @@ eventBookingRoutes.post("/:id/unassigned", async (c) => {
     if (err instanceof AlreadyBookedError) return c.json<ApiError>({ error: err.message }, 409);
     throw err;
   }
+});
+
+// Price preview for the Assign dialog: the multi-table discount, or the code if it saves more
+eventBookingRoutes.post("/:id/quote", async (c) => {
+  const event = await findEvent(c.req.param("id"), c.var.user.id);
+  if (!event || event.status === "template") return c.json(notFound(), 404);
+  if (!canEdit(event.access)) return c.json(forbidden("assign tables"), 403);
+  const parsed = quoteRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json(invalid(parsed.error), 400);
+  return c.json(
+    await quote({ event, tableCount: parsed.data.tableCount, codeText: parsed.data.discountCode, email: parsed.data.email }),
+  );
 });
 
 // Take an unassigned vendor off the show
