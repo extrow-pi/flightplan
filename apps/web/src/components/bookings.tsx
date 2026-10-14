@@ -95,41 +95,7 @@ export function BookingActions({
 
   // "Mark paid" asks how they paid (or skip), then marks the whole request paid
   if (choosingMethod) {
-    return (
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="How did they pay?">
-        <span className="basis-full text-sm font-semibold">How did they pay{all ? ` for all ${count} tables` : ""}?</span>
-        {PAYMENT_METHODS.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={btn.secondary}
-            disabled={busy}
-            onClick={() =>
-              act.mutate({ bookingId: id, action: "mark-paid", paymentMethod: m }, { onSuccess: () => setChoosingMethod(false) })
-            }
-          >
-            {paymentMethodLabels[m]}
-          </button>
-        ))}
-        <button
-          type="button"
-          className={btn.danger}
-          disabled={busy}
-          onClick={() => act.mutate({ bookingId: id, action: "mark-paid", paymentMethod: null }, { onSuccess: () => setChoosingMethod(false) })}
-          title="Mark paid without recording how"
-        >
-          Skip
-        </button>
-        <button type="button" className={btn.danger} onClick={() => setChoosingMethod(false)}>
-          Cancel
-        </button>
-        {act.error && (
-          <span className="basis-full text-sm font-semibold text-coral-ink" role="alert">
-            {act.error.message}
-          </span>
-        )}
-      </div>
-    );
+    return <MarkPaidChooser bookingId={id} eventId={eventId} tableCount={count} onDone={() => setChoosingMethod(false)} />;
   }
 
   if (confirmRelease) {
@@ -197,26 +163,7 @@ export function BookingActions({
         </button>
       )}
 
-      {booking.status === "paid" && (
-        <label className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
-          Paid via
-          <select
-            value={booking.paymentMethod ?? ""}
-            disabled={busy}
-            onChange={(e) =>
-              run({ bookingId: id, action: "payment-method", paymentMethod: (e.target.value || null) as PaymentMethod | null })
-            }
-            className="rounded-full border-2 border-cream bg-white px-2.5 py-1 text-base font-bold text-ink focus:border-coral focus:outline-none sm:text-sm"
-          >
-            <option value="">Not recorded</option>
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {paymentMethodLabels[m]}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {booking.status === "paid" && <PaidViaSelect booking={booking} eventId={eventId} />}
 
       {booking.status !== "pending" && !(booking.status === "awaiting_payment" && booking.overdue) && (
         <button type="button" className={btn.danger} disabled={busy} onClick={() => setConfirmRelease(true)}>
@@ -230,6 +177,78 @@ export function BookingActions({
         </span>
       )}
     </div>
+  );
+}
+
+/** "How did they pay?" chips (or Skip). Marks the booking's whole request paid. */
+export function MarkPaidChooser({
+  bookingId,
+  eventId,
+  tableCount,
+  onDone,
+}: {
+  bookingId: string;
+  eventId?: string;
+  /** Tables in the request, all marked paid together */
+  tableCount: number;
+  onDone: () => void;
+}) {
+  const act = useBookingAction(eventId);
+  const markPaid = (paymentMethod: PaymentMethod | null) =>
+    act.mutate({ bookingId, action: "mark-paid", paymentMethod }, { onSuccess: onDone });
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="How did they pay?">
+      <span className="basis-full text-sm font-semibold">
+        How did they pay{tableCount > 1 ? ` for all ${tableCount} tables` : ""}?
+      </span>
+      {PAYMENT_METHODS.map((m) => (
+        <button key={m} type="button" className={btn.secondary} disabled={act.isPending} onClick={() => markPaid(m)}>
+          {paymentMethodLabels[m]}
+        </button>
+      ))}
+      <button
+        type="button"
+        className={btn.danger}
+        disabled={act.isPending}
+        onClick={() => markPaid(null)}
+        title="Mark paid without recording how"
+      >
+        Skip
+      </button>
+      <button type="button" className={btn.danger} onClick={onDone}>
+        Cancel
+      </button>
+      {act.error && (
+        <span className="basis-full text-sm font-semibold text-coral-ink" role="alert">
+          {act.error.message}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** How a paid request was paid, changeable afterwards (applies to the whole request). */
+export function PaidViaSelect({ booking, eventId, compact = false }: { booking: Booking; eventId?: string; compact?: boolean }) {
+  const act = useBookingAction(eventId);
+  return (
+    <label className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+      <span className={compact ? "sr-only" : ""}>Paid via</span>
+      <select
+        value={booking.paymentMethod ?? ""}
+        disabled={act.isPending}
+        onChange={(e) =>
+          act.mutate({ bookingId: booking.id, action: "payment-method", paymentMethod: (e.target.value || null) as PaymentMethod | null })
+        }
+        className="rounded-full border-2 border-cream bg-white px-2.5 py-1 text-base font-bold text-ink focus:border-coral focus:outline-none sm:text-sm"
+      >
+        <option value="">{compact ? "Paid via…" : "Not recorded"}</option>
+        {PAYMENT_METHODS.map((m) => (
+          <option key={m} value={m}>
+            {paymentMethodLabels[m]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
