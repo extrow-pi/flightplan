@@ -17,6 +17,8 @@ import {
 import {
   BookingActions,
   closedLabel,
+  MarkPaidChooser,
+  PaidViaSelect,
   paymentDueLabel,
   ReleaseTableButton,
   sourceLabels,
@@ -591,6 +593,17 @@ function TableRow({
   onReview: () => void;
 }) {
   const b = table.booking;
+  const [choosingMethod, setChoosingMethod] = useState(false);
+  const markPaidButton = b && (
+    <button
+      type="button"
+      onClick={() => setChoosingMethod(true)}
+      className="rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold whitespace-nowrap text-slate transition hover:border-slate"
+      title={requestSize > 1 ? `Marks all ${requestSize} tables in this request paid` : undefined}
+    >
+      Mark paid
+    </button>
+  );
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
       <span
@@ -601,7 +614,7 @@ function TableRow({
       >
         {table.label}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-32 flex-1">
         {b ? (
           <p className="truncate font-bold">
             {b.businessName || b.name}
@@ -612,7 +625,7 @@ function TableRow({
         )}
       </div>
       <TableStateBadge state={tableState(b)} />
-      <div className="flex min-w-24 justify-end">
+      <div className="flex min-w-24 flex-wrap items-center justify-end gap-2">
         {!editable ? null : !b ? (
           !isPast(event) && (
             <button
@@ -624,18 +637,30 @@ function TableRow({
             </button>
           )
         ) : b.status === "pending" || b.overdue ? (
-          // Decisions happen on the vendor's request card
-          <button
-            type="button"
-            onClick={onReview}
-            className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
-          >
-            Review
-          </button>
+          <>
+            {/* A late payment can still be recorded here; other decisions happen on the vendor's request card */}
+            {b.overdue && !choosingMethod && markPaidButton}
+            <button
+              type="button"
+              onClick={onReview}
+              className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
+            >
+              Review
+            </button>
+          </>
         ) : (
-          <ReleaseTableButton bookingId={b.id} eventId={event.id} tableLabel={table.label} />
+          <>
+            {b.status === "awaiting_payment" && !choosingMethod && markPaidButton}
+            {b.status === "paid" && <PaidViaSelect booking={b} eventId={event.id} compact />}
+            <ReleaseTableButton bookingId={b.id} eventId={event.id} tableLabel={table.label} />
+          </>
         )}
       </div>
+      {b && choosingMethod && (
+        <div className="basis-full rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5">
+          <MarkPaidChooser bookingId={b.id} eventId={event.id} tableCount={requestSize} onDone={() => setChoosingMethod(false)} />
+        </div>
+      )}
     </li>
   );
 }
