@@ -12,6 +12,9 @@ import {
   type Invite,
   type PaymentMethod,
   type UnassignedVendor,
+  type VendorAudience,
+  VENDOR_AUDIENCES,
+  vendorAudienceLabels,
   type Vendor,
 } from "@flightplan/shared";
 import {
@@ -30,13 +33,14 @@ import {
 import { canEdit, EventTabs, isPast, SharedBadge } from "../../components/events";
 import BannedBadge from "../../components/BannedBadge";
 import CopyButton from "../../components/CopyButton";
-import { ArrowLeftIcon, CheckIcon, CloseIcon, DownloadIcon, SearchIcon, StarIcon, UploadIcon } from "../../components/Icons";
+import { ArrowLeftIcon, CheckIcon, CloseIcon, DownloadIcon, MailIcon, SearchIcon, StarIcon, UploadIcon } from "../../components/Icons";
 import VendorImportDialog from "../../components/VendorImportDialog";
 import {
   ApiRequestError,
   eventToInput,
   useAddEventVendor,
   useAssignQuote,
+  useMessageVendors,
   useAssignTable,
   useRemoveEventVendor,
   useCreateInvite,
@@ -670,6 +674,180 @@ function TableRow({
 
 // ── Side cards ───────────────────────────────────────────────────────────
 
+/** Write one message to the vendors at this show, picked by where their request stands. */
+function EmailVendorsDialog({
+  event,
+  requests,
+  unassigned,
+  onClose,
+}: {
+  event: EventRecord;
+  requests: VendorRequest[];
+  unassigned: UnassignedVendor[];
+  onClose: () => void;
+}) {
+  const send = useMessageVendors(event.id);
+  const [audience, setAudience] = useState<VendorAudience[]>(["paid", "awaiting_payment"]);
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [includeDetails, setIncludeDetails] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [testSent, setTestSent] = useState(false);
+  const [sent, setSent] = useState<number | null>(null);
+  const firstRef = useDialog(onClose);
+
+  // Which groups each vendor is in (a vendor with two requests can be in two)
+  const groups = new Map<string, Set<VendorAudience>>();
+  const into = (id: string, a: VendorAudience) => groups.set(id, (groups.get(id) ?? new Set()).add(a));
+  for (const r of requests) into(r.booking.vendorId, r.booking.status as VendorAudience);
+  for (const u of unassigned) into(u.vendorId, "unassigned");
+  const countIn = (picked: VendorAudience[]) => [...groups.values()].filter((g) => picked.some((a) => g.has(a))).length;
+  const recipients = countIn(audience);
+
+  const toggle = (a: VendorAudience) => {
+    setConfirming(false);
+    setAudience((list) => (list.includes(a) ? list.filter((x) => x !== a) : [...list, a]));
+  };
+  const input = { subject, message, audience, includeDetails };
+  const fieldErrors = send.error instanceof ApiRequestError ? send.error.body.fieldErrors : undefined;
+  const ready = subject.trim() && message.trim() && recipients > 0;
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!confirming) return setConfirming(true);
+    send.mutate(input, { onSuccess: (r) => setSent(r.sent) });
+  }
+
+  if (sent !== null) {
+    return (
+      <Dialog title="Message sent" intro="" onClose={onClose} onSubmit={(e) => (e.preventDefault(), onClose())}>
+        <p className="mt-3" role="status">
+          Your message is on its way to {sent} {sent === 1 ? "vendor" : "vendors"}. Replies come to your email. You can follow
+          delivery in the{" "}
+          <Link to="/dashboard/emails" className="font-bold text-coral-ink hover:underline">
+            Email log
+          </Link>
+          .
+        </p>
+        <div className="mt-6 flex justify-end">
+          <button type="submit" className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white">
+            Done
+          </button>
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog
+      title="Email vendors"
+      intro={`Each vendor gets their own copy, so they can't see who else it went to. Replies come to your email.`}
+      onClose={onClose}
+      onSubmit={onSubmit}
+    >
+      <div ref={firstRef} tabIndex={-1} className="focus:outline-none">
+        <fieldset className="mt-5">
+          <legend className="text-sm font-bold">Send to</legend>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {VENDOR_AUDIENCES.map((a) => {
+              const n = countIn([a]);
+              const on = audience.includes(a);
+              return (
+                <button
+                  key={a}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggle(a)}
+                  disabled={!n && !on}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition disabled:opacity-40 ${
+                    on ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
+                  }`}
+                >
+                  {on && <CheckIcon className="size-3.5" aria-hidden="true" />}
+                  {vendorAudienceLabels[a]}
+                  <span className={`rounded-full px-1.5 text-xs ${on ? "bg-white/20" : "bg-cream"}`}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-ink-muted" aria-live="polite">
+            {recipients ? `${recipients} ${recipients === 1 ? "vendor" : "vendors"}` : "Nobody picked yet"}
+          </p>
+        </fieldset>
+      </div>
+
+      <label className="mt-4 block text-sm font-bold">
+        Subject
+        <input
+          className={smallInput}
+          value={subject}
+          maxLength={150}
+          placeholder={`e.g. Load-in details for ${event.name}`}
+          onChange={(e) => (setSubject(e.target.value), setConfirming(false))}
+        />
+        {fieldErrors?.subject && <span className="mt-1 block text-xs text-coral-ink">{fieldErrors.subject[0]}</span>}
+      </label>
+      <label className="mt-4 block text-sm font-bold">
+        Message
+        <textarea
+          className={`${smallInput} min-h-40`}
+          value={message}
+          maxLength={5000}
+          placeholder="Doors open for setup at 9 a.m. Please park behind the hall…"
+          onChange={(e) => (setMessage(e.target.value), setConfirming(false))}
+        />
+        <span className="mt-1 block text-xs font-normal text-ink-muted">Starts with “Hi [first name],”. Leave a blank line between paragraphs.</span>
+        {fieldErrors?.message && <span className="mt-1 block text-xs text-coral-ink">{fieldErrors.message[0]}</span>}
+      </label>
+      <label className="mt-4 flex items-start gap-2 text-sm font-semibold">
+        <input type="checkbox" className="mt-0.5 size-4 accent-coral" checked={includeDetails} onChange={(e) => setIncludeDetails(e.target.checked)} />
+        <span>
+          Add each vendor's tables and status under the message
+        </span>
+      </label>
+
+      {send.error && !fieldErrors && (
+        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          {send.error.message}
+        </p>
+      )}
+      {testSent && !send.error && (
+        <p className="mt-4 rounded-xl bg-[#e8f8f5] px-4 py-3 text-sm font-semibold text-[#2d7a6a]" role="status">
+          Test sent to your email, filled in with one vendor's details.
+        </p>
+      )}
+
+      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <button
+          type="button"
+          disabled={!ready || send.isPending}
+          onClick={() => send.mutate({ ...input, test: true }, { onSuccess: () => setTestSent(true) })}
+          className="rounded-full px-4 py-3 font-bold whitespace-nowrap text-slate hover:bg-cream disabled:opacity-50 sm:mr-auto"
+        >
+          Send me a test
+        </button>
+        <button type="button" onClick={onClose} className="rounded-full px-4 py-3 font-bold text-ink-soft hover:bg-cream">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!ready || send.isPending}
+          className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold whitespace-nowrap text-white disabled:opacity-50"
+        >
+          {send.isPending
+            ? "Sending…"
+            : confirming
+              ? `Yes, email ${recipients} ${recipients === 1 ? "vendor" : "vendors"}`
+              : `Send to ${recipients} ${recipients === 1 ? "vendor" : "vendors"}`}
+        </button>
+      </div>
+      {confirming && !send.isPending && (
+        <p className="mt-2 text-right text-xs text-ink-muted">Click again to send. This can't be undone.</p>
+      )}
+    </Dialog>
+  );
+}
+
 const exportSources: Record<Booking["source"], string> = {
   public_link: "Booking link",
   invite: "Invite",
@@ -689,6 +867,7 @@ function VendorFileCard({
   editable: boolean;
 }) {
   const [importing, setImporting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const count = requests.length + unassigned.length;
   const date = (iso: string) => iso.slice(0, 10);
 
@@ -722,7 +901,7 @@ function VendorFileCard({
     <Card title="Vendor list">
       <p className="text-sm text-ink-soft">
         Download everyone at this show with their tables, status and payment as a spreadsheet
-        {editable ? ", or add vendors from a CSV file" : ""}.
+        {editable ? ", add vendors from a CSV file, or email them" : ""}.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button
@@ -743,7 +922,18 @@ function VendorFileCard({
             <UploadIcon className="size-4" /> Import CSV
           </button>
         )}
+        {editable && (
+          <button
+            type="button"
+            onClick={() => setEmailing(true)}
+            disabled={!count}
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+          >
+            <MailIcon className="size-4" /> Email vendors
+          </button>
+        )}
       </div>
+      {emailing && <EmailVendorsDialog event={event} requests={requests} unassigned={unassigned} onClose={() => setEmailing(false)} />}
       {importing && (
         <VendorImportDialog
           event={{ id: event.id, name: event.name }}

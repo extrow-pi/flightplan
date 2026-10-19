@@ -105,6 +105,8 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 
 **Search and assigning:** the search box on the Tables & vendors tab finds vendors by name, business, email, phone or table number. Vendors from the list who aren't at the show yet appear under **Not at this show yet** with **Add** and **Assign** buttons. In the Assign dialog the vendor picker is searchable and shows each vendor's tables at this show (e.g. "Tables 3, 4 · Paid"), and the chosen vendor's tables appear ticked in the table grid.
 
+**Emailing a show's vendors:** **Email vendors** (in the Vendor list card) sends one message to everyone at the show in the groups picked: Paid, Awaiting payment (including overdue), Needs approval, No table yet. Each vendor gets their own copy starting "Hi [first name],", optionally followed by their tables and status, with replies going to the organizer who sent it. **Send me a test** sends one copy to yourself first. Sending the same subject to the same show again within 2 minutes is blocked. Messages show in the Email log.
+
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
 
 ### Public organizer page
@@ -289,6 +291,7 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
 | POST | `/api/vendors/import` | Import vendor rows read from a CSV: `{ rows, overwrite: [emails] or "all", preview }` |
 | POST | `/api/events/:id/import` | Same, and adds the vendors to the show without a table |
+| POST | `/api/events/:id/message` | Email the show's vendors: `{ subject, message, audience: ["paid", "awaiting_payment", "pending", "unassigned"], includeDetails, test }` |
 | PATCH | `/api/vendors/:id` | Edit details, `favourite`, `banned` + `banReason`, `groupIds` |
 | GET | `/api/vendors/:id/requests` | A vendor's request history across the organizer's shows |
 | GET / POST | `/api/vendor-groups` | The organizer's vendor groups / create one: `{ name }` |

@@ -580,3 +580,34 @@ export function startNotificationScheduler(intervalMs = 5 * 60_000) {
   setTimeout(() => void run(), 10_000).unref();
 }
 
+
+// ── Messages from the organizer to a show's vendors ─────────────────────
+
+/** A message the organizer writes to vendors at one show. Each vendor gets their own copy. */
+export function vendorMessageEmail(args: {
+  event: { name: string };
+  sender: { name: string };
+  vendor: { name: string; tables: string[]; status: string };
+  subject: string;
+  message: string;
+  includeDetails: boolean;
+}): EmailContent {
+  const { event, sender, vendor } = args;
+  // Blank lines start a new paragraph; single line breaks are kept
+  const paragraphs = args.message
+    .split(/\r?\n\s*\r?\n/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) => p(esc(para).replace(/\r?\n/g, "<br>"), para));
+  const yours: [string, string][] = [
+    ["Show", event.name],
+    ["Your tables", vendor.tables.length ? vendor.tables.join(", ") : "Not assigned yet"],
+    ["Status", vendor.status],
+  ];
+  return layout(
+    args.subject,
+    args.subject,
+    [p(`Hi ${firstName(vendor.name)},`), ...paragraphs, ...(args.includeDetails ? [details(yours)] : [])],
+    `You're receiving this because you're a vendor at ${event.name}. Reply to this email to reach ${sender.name}.`,
+  );
+}

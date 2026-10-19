@@ -37,6 +37,8 @@ import type {
   PublicRequestStatus,
   Vendor,
   VendorImportInput,
+  VendorMessageInput,
+  VendorMessageResult,
   VendorImportResult,
   VendorBookingInput,
 } from "@flightplan/shared";
@@ -621,6 +623,16 @@ export function useDeleteDiscountCode() {
 }
 
 // ── Email log ────────────────────────────────────────────────────────────
+
+/** Email the vendors at a show (or a test copy to yourself). */
+export function useMessageVendors(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: VendorMessageInput) =>
+      request<VendorMessageResult>(`/events/${eventId}/message`, { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["emails"] }),
+  });
+}
 
 export function useEmailLog() {
   return useQuery({
