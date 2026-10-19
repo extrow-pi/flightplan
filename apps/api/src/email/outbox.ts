@@ -1,5 +1,7 @@
 import { and, asc, eq, inArray, lt } from "drizzle-orm";
 import { db, schema } from "../db/index.js";
+import type { EmailAttachmentRef } from "../db/schema.js";
+import { resendAttachments } from "./attachments.js";
 
 const { emails } = schema;
 
@@ -25,6 +27,7 @@ export type OutgoingEmail = {
   organizerId?: string | null;
   eventId?: string | null;
   requestId?: string | null;
+  attachments?: EmailAttachmentRef[];
 };
 
 /** Queue emails for sending. */
@@ -35,6 +38,7 @@ export async function enqueueEmails(messages: OutgoingEmail[]) {
 }
 
 async function sendViaResend(e: typeof emails.$inferSelect): Promise<string> {
+  const attachments = await resendAttachments(e.attachments);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -45,8 +49,9 @@ async function sendViaResend(e: typeof emails.$inferSelect): Promise<string> {
       subject: e.subject,
       html: e.html,
       text: e.text,
+      ...(attachments.length && { attachments }),
     }),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(e.attachments.length ? 60_000 : 15_000),
   });
   const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
   if (!res.ok) throw new Error(`Resend ${res.status}: ${body.message ?? "unknown error"}`);

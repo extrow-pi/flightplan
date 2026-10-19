@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
-import { FLOOR_MAP_MAX_BYTES } from "@flightplan/shared";
+import { ATTACHMENT_MAX_BYTES, FLOOR_MAP_MAX_BYTES } from "@flightplan/shared";
 
 // Uploaded files live on local disk for now (apps/api/.data/uploads, or UPLOADS_DIR).
 // Swap this module for object storage (S3, R2…) before running more than one API server.
@@ -50,6 +50,52 @@ export async function saveImage(file: File): Promise<string> {
 export async function deleteUpload(name: string) {
   if (!fileNamePattern.test(name)) return;
   await unlink(`${uploadsDir}/${name}`).catch(() => {});
+}
+
+// ── Email attachments ────────────────────────────────────────────────────
+// Kept in a subfolder that the public /uploads route can't serve (its file pattern has no "/").
+
+const attachmentsDir = `${uploadsDir}/attachments`;
+await mkdir(attachmentsDir, { recursive: true });
+
+const attachmentTypes = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+} as const;
+const attachmentPattern = /^attachments\/[0-9a-f-]{36}\.(pdf|png|jpg|webp|gif)$/;
+
+/** Validate and store a file for an email. Checks the file's first bytes, not its name or claimed type. */
+export async function saveAttachment(file: File) {
+  if (file.size === 0) throw new UploadError("That file is empty");
+  if (file.size > ATTACHMENT_MAX_BYTES) throw new UploadError(`Files can be up to ${ATTACHMENT_MAX_BYTES / 1024 / 1024} MB`);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const starts = (...sig: number[]) => sig.every((b, i) => bytes[i] === b);
+  const ext: keyof typeof attachmentTypes | null = starts(0x25, 0x50, 0x44, 0x46, 0x2d) // %PDF-
+    ? "pdf"
+    : starts(0x47, 0x49, 0x46, 0x38) // GIF8
+      ? "gif"
+      : sniffImage(bytes);
+  if (!ext) throw new UploadError("Attach a PDF or an image (PNG, JPEG, WebP or GIF)");
+
+  const name = `attachments/${randomUUID()}.${ext}`;
+  await writeFile(`${uploadsDir}/${name}`, bytes);
+  // Keep the uploader's file name, minus anything that could confuse an email client
+  const base =
+    file.name
+      .replace(/[\\/:*?"<>|\r\n]+/g, "_")
+      .replace(/\.[^.]*$/, "")
+      .trim()
+      .slice(0, 100) || "attachment";
+  return { file: name, filename: `${base}.${ext}`, contentType: attachmentTypes[ext], size: bytes.length };
+}
+
+/** An attachment's bytes, or null if it's gone. */
+export async function readAttachment(name: string) {
+  if (!attachmentPattern.test(name)) return null;
+  return readFile(`${uploadsDir}/${name}`).catch(() => null);
 }
 
 export function uploadUrl(name: string | null) {

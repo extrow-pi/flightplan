@@ -133,6 +133,12 @@ export const PencilIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const PaperclipIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" />
+  </Icon>
+);
+
 export const TrashIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

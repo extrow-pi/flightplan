@@ -374,8 +374,31 @@ export const emails = pgTable(
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
     providerId: text("provider_id"),
+    // Files sent with the email (stored once in the uploads folder, shared by every copy).
+    // `contentId` is set for images shown in the email (<img src="cid:…">).
+    attachments: jsonb("attachments").$type<EmailAttachmentRef[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   (t) => [index("emails_status_idx").on(t.status), index("emails_organizer_idx").on(t.organizerId, t.createdAt)],
+);
+
+export type EmailAttachmentRef = { file: string; filename: string; contentType: string; contentId?: string };
+
+// Files an organizer uploads for a message to vendors, before it's sent. Only the uploader can use them.
+export const emailAttachments = pgTable(
+  "email_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    uploadedBy: text("uploaded_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Stored file name in the uploads folder (attachments/<uuid>.<ext>)
+    file: text("file").notNull(),
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("email_attachments_uploader_idx").on(t.uploadedBy)],
 );
