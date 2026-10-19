@@ -591,8 +591,14 @@ export function vendorMessageEmail(args: {
   subject: string;
   message: string;
   includeDetails: boolean;
+  /** Images shown in the email, by their attachment content id */
+  images?: { top: { cid: string; alt: string }[]; bottom: { cid: string; alt: string }[] };
 }): EmailContent {
   const { event, sender, vendor } = args;
+  const image = (i: { cid: string; alt: string }) => ({
+    html: `<p style="margin:0 0 16px"><img src="cid:${esc(i.cid)}" alt="${esc(i.alt)}" style="display:block;max-width:100%;height:auto;border:0;border-radius:12px"></p>`,
+    text: "",
+  });
   // Blank lines start a new paragraph; single line breaks are kept
   const paragraphs = args.message
     .split(/\r?\n\s*\r?\n/)
@@ -607,7 +613,13 @@ export function vendorMessageEmail(args: {
   return layout(
     args.subject,
     args.subject,
-    [p(`Hi ${firstName(vendor.name)},`), ...paragraphs, ...(args.includeDetails ? [details(yours)] : [])],
+    [
+      ...(args.images?.top ?? []).map(image),
+      p(`Hi ${firstName(vendor.name)},`),
+      ...paragraphs,
+      ...(args.images?.bottom ?? []).map(image),
+      ...(args.includeDetails ? [details(yours)] : []),
+    ],
     `You're receiving this because you're a vendor at ${event.name}. Reply to this email to reach ${sender.name}.`,
   );
 }

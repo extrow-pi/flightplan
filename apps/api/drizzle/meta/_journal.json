@@ -113,6 +113,13 @@
       "when": 1791269370393,
       "tag": "0015_unassigned_vendors",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792440385200,
+      "tag": "0016_email_attachments",
+      "breakpoints": true
     }
   ]
 }

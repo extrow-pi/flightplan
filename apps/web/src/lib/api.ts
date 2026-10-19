@@ -38,6 +38,7 @@ import type {
   Vendor,
   VendorImportInput,
   VendorMessageInput,
+  MessageAttachment,
   VendorMessageResult,
   VendorImportResult,
   VendorBookingInput,
@@ -623,6 +624,19 @@ export function useDeleteDiscountCode() {
 }
 
 // ── Email log ────────────────────────────────────────────────────────────
+
+/** Upload a file (PDF or image) to send with a message to a show's vendors. */
+export function useUploadAttachment(eventId: string) {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<{ attachment: MessageAttachment }>(`/events/${eventId}/message/attachments`, { method: "POST", body: form }).then(
+        (r) => r.attachment,
+      );
+    },
+  });
+}
 
 /** Email the vendors at a show (or a test copy to yourself). */
 export function useMessageVendors(eventId: string) {

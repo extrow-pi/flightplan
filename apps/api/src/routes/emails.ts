@@ -6,6 +6,7 @@ import { accessibleEvents, editableEvents } from "../access.js";
 import { db, schema } from "../db/index.js";
 import { emailDeliveryEnabled, retryFailed } from "../email/outbox.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
+import { readAttachment } from "../uploads.js";
 
 const { emails, events } = schema;
 
@@ -33,6 +34,7 @@ export const emailRoutes = new Hono<AuthEnv>()
         createdAt: emails.createdAt,
         sentAt: emails.sentAt,
         lastError: emails.lastError,
+        attachments: emails.attachments,
       })
       .from(emails)
       .leftJoin(events, eq(events.id, emails.eventId))
@@ -42,6 +44,7 @@ export const emailRoutes = new Hono<AuthEnv>()
 
     const list: EmailLogEntry[] = rows.map((r) => ({
       ...r,
+      attachments: r.attachments.map((a) => a.filename),
       createdAt: r.createdAt.toISOString(),
       sentAt: r.sentAt?.toISOString() ?? null,
     }));
@@ -53,12 +56,18 @@ export const emailRoutes = new Hono<AuthEnv>()
     const id = c.req.param("id");
     if (!z.uuid().safeParse(id).success) return c.json(notFound, 404);
     const [row] = await db
-      .select({ html: emails.html })
+      .select({ html: emails.html, attachments: emails.attachments })
       .from(emails)
       .where(and(eq(emails.id, id), visibleEmails(c.var.user.id, accessibleEvents(c.var.user.id))));
     if (!row) return c.json(notFound, 404);
+    // Images shown in the email are referenced as cid:…; swap in the file itself so the preview shows them
+    let html = row.html;
+    for (const a of row.attachments.filter((x) => x.contentId)) {
+      const bytes = await readAttachment(a.file);
+      if (bytes) html = html.replaceAll(`cid:${a.contentId}`, `data:${a.contentType};base64,${bytes.toString("base64")}`);
+    }
     // Shown in a sandboxed iframe; block scripts and outside resources just in case
-    return c.html(row.html, 200, {
+    return c.html(html, 200, {
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
     });
   })

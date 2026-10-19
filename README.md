@@ -107,6 +107,8 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 
 **Emailing a show's vendors:** **Email vendors** (in the Vendor list card) sends one message to everyone at the show in the groups picked: Paid, Awaiting payment (including overdue), Needs approval, No table yet. Each vendor gets their own copy starting "Hi [first name],", optionally followed by their tables and status, with replies going to the organizer who sent it. **Send me a test** sends one copy to yourself first. Sending the same subject to the same show again within 2 minutes is blocked. Messages show in the Email log.
 
+**Attachments:** up to 5 files per message (PDF, PNG, JPEG, WebP or GIF; 5 MB each, 10 MB together), checked by their contents rather than their names. Images can be shown in the email (**Top of email**, for a banner or logo, or **Below message**) or just attached; PDFs are always attached. Files are stored once in the uploads folder (`attachments/`, not publicly served) and read when each copy is sent; the Email log lists them and its preview shows the in-email images.
+
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
 
 ### Public organizer page
@@ -291,7 +293,8 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
 | POST | `/api/vendors/import` | Import vendor rows read from a CSV: `{ rows, overwrite: [emails] or "all", preview }` |
 | POST | `/api/events/:id/import` | Same, and adds the vendors to the show without a table |
-| POST | `/api/events/:id/message` | Email the show's vendors: `{ subject, message, audience: ["paid", "awaiting_payment", "pending", "unassigned"], includeDetails, test }` |
+| POST | `/api/events/:id/message/attachments` | Upload a file for a message (multipart `file`) |
+| POST | `/api/events/:id/message` | Email the show's vendors: `{ subject, message, audience: ["paid", "awaiting_payment", "pending", "unassigned"], includeDetails, test, attachments: [{ id, placement: "top" | "bottom" | "attached" }] }` |
 | PATCH | `/api/vendors/:id` | Edit details, `favourite`, `banned` + `banReason`, `groupIds` |
 | GET | `/api/vendors/:id/requests` | A vendor's request history across the organizer's shows |
 | GET / POST | `/api/vendor-groups` | The organizer's vendor groups / create one: `{ name }` |

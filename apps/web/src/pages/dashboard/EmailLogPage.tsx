@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import type { EmailLogEntry, EmailStatus } from "@flightplan/shared";
-import { CloseIcon, MailIcon } from "../../components/Icons";
+import { CloseIcon, MailIcon, PaperclipIcon } from "../../components/Icons";
 import { useEmailHtml, useEmailLog, useRetryEmail } from "../../lib/api";
 import { ErrorCard, LoadingCards, PageHeader } from "./ui";
 
@@ -96,6 +96,12 @@ function EmailRow({ email: e, onOpen }: { email: EmailLogEntry; onOpen: () => vo
           {kindLabels[e.kind] ?? e.kind} · {toOrganizer ? "to you" : `to ${e.to}`}
           {e.eventName && ` · ${e.eventName}`}
         </p>
+        {e.attachments.length > 0 && (
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-muted" title={e.attachments.join(", ")}>
+            <PaperclipIcon className="size-3.5 shrink-0" aria-label="Attachments" role="img" />
+            <span className="truncate">{e.attachments.join(", ")}</span>
+          </p>
+        )}
         {e.status === "failed" && e.lastError && (
           <p className="mt-1 truncate text-xs font-semibold text-coral-ink" title={e.lastError}>
             {e.lastError}

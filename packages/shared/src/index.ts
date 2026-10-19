@@ -491,6 +491,19 @@ export const vendorAudienceLabels: Record<VendorAudience, string> = {
   unassigned: "No table yet",
 };
 
+// Files sent with a message: PDFs are attached; images can also be shown in the email (for branding)
+export const ATTACHMENT_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"] as const;
+export const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
+/** All of a message's files together; each vendor's copy carries them all */
+export const ATTACHMENTS_TOTAL_MAX_BYTES = 10 * 1024 * 1024;
+export const MAX_ATTACHMENTS = 5;
+/** Where an image goes: above the greeting (a banner or logo), below the message, or just attached */
+export const ATTACHMENT_PLACEMENTS = ["top", "bottom", "attached"] as const;
+export type AttachmentPlacement = (typeof ATTACHMENT_PLACEMENTS)[number];
+
+/** A file uploaded for a message, before it's sent. */
+export type MessageAttachment = { id: string; filename: string; contentType: string; size: number };
+
 export const vendorMessageSchema = z.object({
   subject: z.string().trim().min(1, "Add a subject").max(150, "Keep the subject under 150 characters"),
   message: z.string().trim().min(1, "Write a message").max(5000, "Keep the message under 5,000 characters"),
@@ -502,6 +515,13 @@ export const vendorMessageSchema = z.object({
   includeDetails: z.boolean().optional().default(true),
   /** Send one copy to the signed-in organizer instead of the vendors */
   test: z.boolean().optional().default(false),
+  /** Uploaded files, in order. Only images can be placed in the email; PDFs are always attached. */
+  attachments: z
+    .array(z.object({ id: z.uuid(), placement: z.enum(ATTACHMENT_PLACEMENTS).optional().default("attached") }))
+    .max(MAX_ATTACHMENTS, `Up to ${MAX_ATTACHMENTS} files`)
+    .refine((a) => new Set(a.map((x) => x.id)).size === a.length, "Each file can only be added once")
+    .optional()
+    .default([]),
 });
 export type VendorMessageInput = z.input<typeof vendorMessageSchema>;
 export type VendorMessageResult = { sent: number; test: boolean };
@@ -747,6 +767,8 @@ export type EmailLogEntry = {
   createdAt: string;
   sentAt: string | null;
   lastError: string | null;
+  /** Names of attached files (images shown in the email included) */
+  attachments: string[];
 };
 
 // ── Date helpers (YYYY-MM-DD strings, no timezones) ─────────────────────────

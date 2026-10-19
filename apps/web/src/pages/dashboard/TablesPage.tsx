@@ -13,6 +13,11 @@ import {
   type PaymentMethod,
   type UnassignedVendor,
   type VendorAudience,
+  type AttachmentPlacement,
+  type MessageAttachment,
+  ATTACHMENT_MAX_BYTES,
+  ATTACHMENTS_TOTAL_MAX_BYTES,
+  MAX_ATTACHMENTS,
   VENDOR_AUDIENCES,
   vendorAudienceLabels,
   type Vendor,
@@ -33,7 +38,7 @@ import {
 import { canEdit, EventTabs, isPast, SharedBadge } from "../../components/events";
 import BannedBadge from "../../components/BannedBadge";
 import CopyButton from "../../components/CopyButton";
-import { ArrowLeftIcon, CheckIcon, CloseIcon, DownloadIcon, MailIcon, SearchIcon, StarIcon, UploadIcon } from "../../components/Icons";
+import { ArrowLeftIcon, CheckIcon, CloseIcon, DownloadIcon, MailIcon, PaperclipIcon, SearchIcon, StarIcon, UploadIcon } from "../../components/Icons";
 import VendorImportDialog from "../../components/VendorImportDialog";
 import {
   ApiRequestError,
@@ -41,6 +46,7 @@ import {
   useAddEventVendor,
   useAssignQuote,
   useMessageVendors,
+  useUploadAttachment,
   useAssignTable,
   useRemoveEventVendor,
   useCreateInvite,
@@ -693,6 +699,26 @@ function EmailVendorsDialog({
   const [includeDetails, setIncludeDetails] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [testSent, setTestSent] = useState(false);
+  const [files, setFiles] = useState<(MessageAttachment & { placement: AttachmentPlacement })[]>([]);
+  const upload = useUploadAttachment(event.id);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const totalBytes = files.reduce((n, f) => n + f.size, 0);
+
+  async function addFiles(list: FileList | null) {
+    setUploadError(null);
+    let count = files.length;
+    for (const file of [...(list ?? [])]) {
+      if (count >= MAX_ATTACHMENTS) return setUploadError(`Up to ${MAX_ATTACHMENTS} files per message.`);
+      count++;
+      if (file.size > ATTACHMENT_MAX_BYTES) return setUploadError(`${file.name} is over ${ATTACHMENT_MAX_BYTES / 1024 / 1024} MB.`);
+      try {
+        const a = await upload.mutateAsync(file);
+        setFiles((fs) => [...fs, { ...a, placement: "attached" }]);
+      } catch (err) {
+        return setUploadError(err instanceof Error ? err.message : "Couldn't upload that file");
+      }
+    }
+  }
   const [sent, setSent] = useState<number | null>(null);
   const firstRef = useDialog(onClose);
 
@@ -708,9 +734,9 @@ function EmailVendorsDialog({
     setConfirming(false);
     setAudience((list) => (list.includes(a) ? list.filter((x) => x !== a) : [...list, a]));
   };
-  const input = { subject, message, audience, includeDetails };
+  const input = { subject, message, audience, includeDetails, attachments: files.map((f) => ({ id: f.id, placement: f.placement })) };
   const fieldErrors = send.error instanceof ApiRequestError ? send.error.body.fieldErrors : undefined;
-  const ready = subject.trim() && message.trim() && recipients > 0;
+  const ready = subject.trim() && message.trim() && recipients > 0 && !upload.isPending && totalBytes <= ATTACHMENTS_TOTAL_MAX_BYTES;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -746,7 +772,7 @@ function EmailVendorsDialog({
       onSubmit={onSubmit}
     >
       <div ref={firstRef} tabIndex={-1} className="focus:outline-none">
-        <fieldset className="mt-5">
+        <fieldset className="mt-5 min-w-0">
           <legend className="text-sm font-bold">Send to</legend>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {VENDOR_AUDIENCES.map((a) => {
@@ -799,6 +825,77 @@ function EmailVendorsDialog({
         <span className="mt-1 block text-xs font-normal text-ink-muted">Starts with “Hi [first name],”. Leave a blank line between paragraphs.</span>
         {fieldErrors?.message && <span className="mt-1 block text-xs text-coral-ink">{fieldErrors.message[0]}</span>}
       </label>
+      <fieldset className="mt-4 min-w-0">
+        <legend className="text-sm font-bold">
+          Attachments <span className="font-normal text-ink-muted">(optional)</span>
+        </legend>
+        {files.length > 0 && (
+          <ul className="mt-2 space-y-1.5">
+            {files.map((f) => (
+              <li key={f.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-cream-50 px-3 py-2 text-sm ring-1 ring-ink/5">
+                <PaperclipIcon className="size-4 shrink-0 text-ink-muted" />
+                <span className="min-w-40 flex-1 truncate font-semibold" title={f.filename}>
+                  {f.filename}
+                </span>
+                <span className="text-xs text-ink-muted">{formatBytes(f.size)}</span>
+                {f.contentType.startsWith("image/") ? (
+                  <select
+                    aria-label={`Where ${f.filename} goes`}
+                    value={f.placement}
+                    onChange={(e) =>
+                      setFiles((fs) => fs.map((x) => (x.id === f.id ? { ...x, placement: e.target.value as AttachmentPlacement } : x)))
+                    }
+                    className="rounded-full border-2 border-cream bg-white px-2 py-0.5 text-base font-semibold sm:text-xs"
+                  >
+                    <option value="top">Top of email</option>
+                    <option value="bottom">Below message</option>
+                    <option value="attached">Attached only</option>
+                  </select>
+                ) : (
+                  <span className="text-xs text-ink-muted">Attached</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setFiles((fs) => fs.filter((x) => x.id !== f.id))}
+                  className="rounded-full p-1 text-ink-soft hover:bg-peach hover:text-coral-ink"
+                  aria-label={`Remove ${f.filename}`}
+                >
+                  <CloseIcon className="size-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          {files.length < MAX_ATTACHMENTS && (
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate focus-within:ring-4 focus-within:ring-coral/30">
+              <PaperclipIcon className="size-4" /> {upload.isPending ? "Uploading…" : "Add PDF or image"}
+              <input
+                type="file"
+                multiple
+                accept=".pdf,application/pdf,image/png,image/jpeg,image/webp,image/gif"
+                className="sr-only"
+                disabled={upload.isPending}
+                onChange={(e) => {
+                  void addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+          <span className={`text-xs ${totalBytes > ATTACHMENTS_TOTAL_MAX_BYTES ? "font-bold text-coral-ink" : "text-ink-muted"}`}>
+            {files.length
+              ? `${formatBytes(totalBytes)} of ${ATTACHMENTS_TOTAL_MAX_BYTES / 1024 / 1024} MB`
+              : `Up to ${MAX_ATTACHMENTS} files, ${ATTACHMENT_MAX_BYTES / 1024 / 1024} MB each. Images can go in the email for branding.`}
+          </span>
+        </div>
+        {uploadError && (
+          <p className="mt-1 text-xs font-semibold text-coral-ink" role="alert">
+            {uploadError}
+          </p>
+        )}
+      </fieldset>
+
       <label className="mt-4 flex items-start gap-2 text-sm font-semibold">
         <input type="checkbox" className="mt-0.5 size-4 accent-coral" checked={includeDetails} onChange={(e) => setIncludeDetails(e.target.checked)} />
         <span>
@@ -1874,6 +1971,10 @@ function AssignDialog({
       </div>
     </Dialog>
   );
+}
+
+function formatBytes(n: number) {
+  return n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
 const smallInput =

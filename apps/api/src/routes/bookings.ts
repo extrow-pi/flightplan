@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { and, asc, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -13,6 +14,9 @@ import {
   setPaymentMethodSchema,
   vendorImportSchema,
   vendorMessageSchema,
+  ATTACHMENT_MAX_BYTES,
+  ATTACHMENTS_TOTAL_MAX_BYTES,
+  type MessageAttachment,
   vendorAudienceLabels,
   type VendorAudience,
   type VendorMessageResult,
@@ -49,6 +53,8 @@ import {
   vendorMessageEmail,
 } from "../email/notifications.js";
 import { enqueueEmails } from "../email/outbox.js";
+import type { EmailAttachmentRef } from "../db/schema.js";
+import { saveAttachment, UploadError } from "../uploads.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import {
   accessibleEvents,
@@ -61,7 +67,7 @@ import {
   type Access,
 } from "../access.js";
 
-const { bookings, emails, eventCollaborators, eventDays, events, eventTables, eventVendors, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
+const { bookings, emailAttachments, emails, eventCollaborators, eventDays, events, eventTables, eventVendors, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
 
 const idSchema = z.uuid();
 const notFound = (what = "Event") => ({ error: `${what} not found` }) satisfies ApiError;
@@ -421,6 +427,28 @@ eventBookingRoutes.post("/:id/import", async (c) => {
   );
 });
 
+// Upload a file (PDF or image) for a message to this show's vendors. multipart/form-data with a "file" field.
+eventBookingRoutes.post("/:id/message/attachments", bodyLimit({ maxSize: ATTACHMENT_MAX_BYTES + 64 * 1024 }), async (c) => {
+  const event = await findEvent(c.req.param("id"), c.var.user.id);
+  if (!event || event.status === "template") return c.json(notFound(), 404);
+  if (!canEdit(event.access)) return c.json(forbidden("email vendors"), 403);
+  const body = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
+  const file = body["file"];
+  if (!(file instanceof File)) return c.json<ApiError>({ error: "Choose a file to attach" }, 400);
+  try {
+    const saved = await saveAttachment(file);
+    const [row] = await db
+      .insert(emailAttachments)
+      .values({ uploadedBy: c.var.user.id, ...saved })
+      .returning();
+    const attachment: MessageAttachment = { id: row.id, filename: row.filename, contentType: row.contentType, size: row.size };
+    return c.json({ attachment }, 201);
+  } catch (err) {
+    if (err instanceof UploadError) return c.json<ApiError>({ error: err.message }, 400);
+    throw err;
+  }
+});
+
 // Email the vendors at this show, picked by where their request stands. Each vendor gets their own
 // copy (no shared recipient list), with replies going to the organizer who sent it.
 eventBookingRoutes.post("/:id/message", async (c) => {
@@ -458,6 +486,27 @@ eventBookingRoutes.post("/:id/message", async (c) => {
     .from(vendors)
     .where(inArray(vendors.id, picked.map(([id]) => id)))
     .orderBy(asc(sql`lower(${vendors.name})`));
+  // Files: only ones this organizer uploaded; images can go in the email, PDFs are always attached
+  const files = input.attachments.length
+    ? await db
+        .select()
+        .from(emailAttachments)
+        .where(and(inArray(emailAttachments.id, input.attachments.map((a) => a.id)), eq(emailAttachments.uploadedBy, user.id)))
+    : [];
+  if (files.length !== input.attachments.length) return c.json<ApiError>({ error: "An attached file is missing. Remove it and add it again." }, 400);
+  if (files.reduce((n, f) => n + f.size, 0) > ATTACHMENTS_TOTAL_MAX_BYTES) {
+    return c.json<ApiError>({ error: `Attachments can add up to ${ATTACHMENTS_TOTAL_MAX_BYTES / 1024 / 1024} MB` }, 400);
+  }
+  const refs: EmailAttachmentRef[] = [];
+  const images = { top: [] as { cid: string; alt: string }[], bottom: [] as { cid: string; alt: string }[] };
+  input.attachments.forEach((a, i) => {
+    const f = files.find((x) => x.id === a.id)!;
+    const shown = a.placement !== "attached" && f.contentType.startsWith("image/");
+    const cid = shown ? `image${i + 1}` : undefined;
+    refs.push({ file: f.file, filename: f.filename, contentType: f.contentType, ...(cid && { contentId: cid }) });
+    if (cid) images[a.placement as "top" | "bottom"].push({ cid, alt: f.filename.replace(/\.[^.]+$/, "") });
+  });
+
   const statusOf = (s: { audiences: Set<VendorAudience> }) => [...s.audiences].map((a) => vendorAudienceLabels[a]).join(", ");
 
   const build = (vendor: { name: string; tables: string[]; status: string }, subject: string) =>
@@ -468,6 +517,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
       subject,
       message: input.message,
       includeDetails: input.includeDetails,
+      images,
     });
 
   if (input.test) {
@@ -478,6 +528,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
       {
         kind: "organizer.message_test",
         to: user.email,
+        attachments: refs,
         organizerId: event.access.ownerId,
         eventId: event.id,
         ...build({ name: sample.name, tables: s.tables, status: statusOf(s) }, `[Test] ${input.subject}`),
@@ -507,6 +558,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
       return {
         kind: "vendor.message",
         to: v.email,
+        attachments: refs,
         replyTo: user.email,
         organizerId: event.access.ownerId,
         eventId: event.id,
