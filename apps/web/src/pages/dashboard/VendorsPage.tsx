@@ -3,7 +3,8 @@ import { Link } from "react-router";
 import { paymentMethodLabels, type BookingStatus, type VendorGroup, type VendorListItem } from "@flightplan/shared";
 import BannedBadge from "../../components/BannedBadge";
 import { closedLabel } from "../../components/bookings";
-import { BanIcon, CloseIcon, DownloadIcon, PencilIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon } from "../../components/Icons";
+import { BanIcon, CloseIcon, DownloadIcon, PencilIcon, PlusIcon, SearchIcon, StarIcon, TrashIcon, UploadIcon } from "../../components/Icons";
+import VendorImportDialog from "../../components/VendorImportDialog";
 import {
   ApiRequestError,
   useCreateVendor,
@@ -15,6 +16,7 @@ import {
   useVendorList,
   useVendorRequests,
 } from "../../lib/api";
+import { downloadCsv, slug } from "../../lib/csv";
 import { formatDate } from "../../lib/format";
 import { ErrorCard, LoadingCards, PageHeader } from "./ui";
 
@@ -23,7 +25,7 @@ type Filter = { kind: "all" } | { kind: "favourites" } | { kind: "banned" } | { 
 const inputClass =
   "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";
 
-/** The organizer's vendor list: favourites, groups, ban list, history, CSV export. */
+/** The organizer's vendor list: favourites, groups, ban list, history, CSV export and import. */
 export default function VendorsPage() {
   const vendors = useVendorList();
   const groups = useVendorGroups();
@@ -31,6 +33,7 @@ export default function VendorsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const all = vendors.data ?? [];
   const groupList = groups.data ?? [];
@@ -54,6 +57,8 @@ export default function VendorsPage() {
   const activeFilter = filter.kind === "group" && !groupName.has(filter.id) ? { kind: "all" as const } : filter;
   const editingVendor = all.find((v) => v.id === editing);
 
+  // Export follows the filter and search; with neither, it's the full list
+  const filtered = activeFilter.kind !== "all" || Boolean(q);
   const filterLabel =
     activeFilter.kind === "group" ? groupName.get(activeFilter.id)! : activeFilter.kind === "all" ? "all" : activeFilter.kind;
 
@@ -64,14 +69,22 @@ export default function VendorsPage() {
         title="Your vendors"
         subtitle="Everyone who has booked a table at your shows, plus vendors you add yourself. Star your regulars, sort them into groups and keep a ban list."
         action={
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <button
               type="button"
               onClick={() => exportCsv(shown, groupName, filterLabel)}
               disabled={!shown.length}
+              title={filtered ? "Exports the vendors shown. Pick All vendors and clear the search to export everyone." : undefined}
               className="inline-flex items-center gap-2 rounded-full border-2 border-slate/30 px-4 py-2.5 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
             >
-              <DownloadIcon className="size-4" /> Export CSV
+              <DownloadIcon className="size-4" /> {filtered ? `Export ${shown.length} shown` : "Export all"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setImporting(true)}
+              className="inline-flex items-center gap-2 rounded-full border-2 border-slate/30 px-4 py-2.5 text-sm font-bold text-slate transition hover:border-slate"
+            >
+              <UploadIcon className="size-4" /> Import
             </button>
             <button
               type="button"
@@ -176,6 +189,7 @@ export default function VendorsPage() {
         </aside>
       </div>
 
+      {importing && <VendorImportDialog onClose={() => setImporting(false)} />}
       {adding && <AddVendorDialog onClose={() => setAdding(false)} onAdded={(id) => setEditing(id)} />}
       {editingVendor && <VendorDialog vendor={editingVendor} groups={groupList} onClose={() => setEditing(null)} />}
     </>
@@ -635,12 +649,6 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
 // ── CSV export ───────────────────────────────────────────────────────────
 
 function exportCsv(list: VendorListItem[], groupName: Map<string, string>, label: string) {
-  const cell = (v: string | number) => {
-    const s = String(v);
-    // Quote everything; neutralize spreadsheet formulas in user-entered text
-    const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
-    return `"${safe.replace(/"/g, '""')}"`;
-  };
   const header = ["Name", "Business", "Email", "Phone", "Favourite", "Banned", "Groups", "Requests", "Shows", "Notes"];
   const rows = list.map((v) => [
     v.name,
@@ -654,13 +662,5 @@ function exportCsv(list: VendorListItem[], groupName: Map<string, string>, label
     v.showCount,
     v.notes,
   ]);
-  const csv = [header, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
-  // BOM so Excel reads accents (é) correctly
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `vendors-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "all"}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsv(`vendors-${slug(label) || "all"}.csv`, [header, ...rows]);
 }

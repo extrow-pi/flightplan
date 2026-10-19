@@ -30,7 +30,8 @@ import {
 import { canEdit, EventTabs, isPast, SharedBadge } from "../../components/events";
 import BannedBadge from "../../components/BannedBadge";
 import CopyButton from "../../components/CopyButton";
-import { ArrowLeftIcon, CheckIcon, CloseIcon, SearchIcon, StarIcon } from "../../components/Icons";
+import { ArrowLeftIcon, CheckIcon, CloseIcon, DownloadIcon, SearchIcon, StarIcon, UploadIcon } from "../../components/Icons";
+import VendorImportDialog from "../../components/VendorImportDialog";
 import {
   ApiRequestError,
   eventToInput,
@@ -47,6 +48,7 @@ import {
   useSaveEvent,
   useVendorGroups,
 } from "../../lib/api";
+import { downloadCsv, slug } from "../../lib/csv";
 import { formatMoney } from "../../lib/format";
 
 type Filter = "all" | "unassigned" | ReturnType<typeof tableState>;
@@ -381,6 +383,7 @@ export default function TablesPage() {
                 You have view-only access. Ask {event.access.ownerName} to make you an editor to manage bookings.
               </p>
             )}
+            <VendorFileCard event={event} requests={requests} unassigned={unassigned} editable={editable} />
             <BookingLinkCard event={event} editable={editable} />
             <InvitesCard event={event} invites={tables.data.invites} editable={editable} />
             <FloorMapCard event={event} />
@@ -666,6 +669,91 @@ function TableRow({
 }
 
 // ── Side cards ───────────────────────────────────────────────────────────
+
+const exportSources: Record<Booking["source"], string> = {
+  public_link: "Booking link",
+  invite: "Invite",
+  organizer: "Assigned by organizer",
+};
+
+/** Export everyone at the show (with their tables) as CSV, or import a vendor list onto it. */
+function VendorFileCard({
+  event,
+  requests,
+  unassigned,
+  editable,
+}: {
+  event: EventRecord;
+  requests: VendorRequest[];
+  unassigned: UnassignedVendor[];
+  editable: boolean;
+}) {
+  const [importing, setImporting] = useState(false);
+  const count = requests.length + unassigned.length;
+  const date = (iso: string) => iso.slice(0, 10);
+
+  function exportCsv() {
+    const header = ["Name", "Business", "Email", "Phone", "Status", "Tables", "Total", "Discount", "Paid via", "Source", "Requested", "Note"];
+    // One row per request (a vendor with two separate requests gets two rows), in floor order
+    const booked = [...requests]
+      .sort((a, b) => a.tables[0].table.number - b.tables[0].table.number)
+      .map((r) => {
+        const b = r.booking;
+        return [
+          b.name,
+          b.businessName,
+          b.email,
+          b.phone,
+          tableStateLabel(r.state),
+          r.tables.map((t) => t.table.label).join(", "),
+          (r.tables.reduce((n, t) => n + t.booking.priceCents, 0) / 100).toFixed(2),
+          b.discountLabel,
+          b.paymentMethod ? paymentMethodLabels[b.paymentMethod] : "",
+          exportSources[b.source],
+          date(b.createdAt),
+          b.message,
+        ];
+      });
+    const waiting = unassigned.map((u) => [u.name, u.businessName, u.email, u.phone, "No table yet", "", "", "", "", "Added by organizer", date(u.addedAt), u.note]);
+    downloadCsv(`${slug(event.name) || "event"}-vendors.csv`, [header, ...booked, ...waiting]);
+  }
+
+  return (
+    <Card title="Vendor list">
+      <p className="text-sm text-ink-soft">
+        Download everyone at this show with their tables, status and payment as a spreadsheet
+        {editable ? ", or add vendors from a CSV file" : ""}.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={!count}
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+        >
+          <DownloadIcon className="size-4" /> Export CSV
+        </button>
+        {editable && (
+          <button
+            type="button"
+            onClick={() => setImporting(true)}
+            disabled={isPast(event)}
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+          >
+            <UploadIcon className="size-4" /> Import CSV
+          </button>
+        )}
+      </div>
+      {importing && (
+        <VendorImportDialog
+          event={{ id: event.id, name: event.name }}
+          canOverwrite={event.access.role === "owner"}
+          onClose={() => setImporting(false)}
+        />
+      )}
+    </Card>
+  );
+}
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (

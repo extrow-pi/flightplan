@@ -11,6 +11,7 @@ import {
   markPaidSchema,
   quoteRequestSchema,
   setPaymentMethodSchema,
+  vendorImportSchema,
   releaseBookingSchema,
   type ApiError,
   type BookingAlert,
@@ -32,6 +33,7 @@ import {
 } from "../bookings.js";
 import { db, schema } from "../db/index.js";
 import { quote } from "../discounts.js";
+import { importVendors } from "../vendorImport.js";
 import {
   notifyApproved,
   notifyKept,
@@ -392,6 +394,24 @@ eventBookingRoutes.post("/:id/quote", async (c) => {
   if (!parsed.success) return c.json(invalid(parsed.error), 400);
   return c.json(
     await quote({ event, tableCount: parsed.data.tableCount, codeText: parsed.data.discountCode, email: parsed.data.email }),
+  );
+});
+
+// Import vendors from a CSV file into the owner's list and onto this show without a table.
+// Only the owner can overwrite existing vendor records.
+eventBookingRoutes.post("/:id/import", async (c) => {
+  const event = await findEvent(c.req.param("id"), c.var.user.id);
+  if (!event || event.status === "template") return c.json(notFound(), 404);
+  if (!canEdit(event.access)) return c.json(forbidden("import vendors"), 403);
+  const parsed = vendorImportSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json(invalid(parsed.error), 400);
+  return c.json(
+    await importVendors({
+      organizerId: event.access.ownerId,
+      input: parsed.data,
+      eventId: event.id,
+      canOverwrite: event.access.role === "owner",
+    }),
   );
 });
 
