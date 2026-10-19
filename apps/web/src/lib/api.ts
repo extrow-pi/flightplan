@@ -36,6 +36,8 @@ import type {
   PublicBookingResult,
   PublicRequestStatus,
   Vendor,
+  VendorImportInput,
+  VendorImportResult,
   VendorBookingInput,
 } from "@flightplan/shared";
 
@@ -374,6 +376,20 @@ const vendorPageKeys = {
   groups: ["vendor-groups"] as const,
   requests: (id: string) => ["vendor-list", id, "requests"] as const,
 };
+
+/** Import vendors from a CSV file into the vendor list, or into a show (and the owner's list). */
+export function useImportVendors(eventId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: VendorImportInput) =>
+      request<VendorImportResult>(eventId ? `/events/${eventId}/import` : "/vendors/import", { method: "POST", body: input }),
+    onSuccess: (result) => {
+      if (result.preview) return;
+      void qc.invalidateQueries({ queryKey: vendorPageKeys.list });
+      void invalidateBookings(qc, eventId);
+    },
+  });
+}
 
 /** The organizer's own vendor list, with groups and stats */
 export function useVendorList() {

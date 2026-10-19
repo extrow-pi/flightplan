@@ -6,6 +6,7 @@ import {
   MAX_VENDOR_GROUPS,
   updateVendorSchema,
   vendorGroupSchema,
+  vendorImportSchema,
   type ApiError,
   type BookingStatus,
   type VendorGroup,
@@ -15,6 +16,7 @@ import {
 import { toVendor } from "../bookings.js";
 import { db, schema } from "../db/index.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
+import { importVendors } from "../vendorImport.js";
 
 // The organizer's own vendor list (the Vendors page). Vendors are added automatically when they book
 // one of the organizer's shows, or by hand here. Collaborators manage the owner's vendors from each
@@ -116,6 +118,14 @@ export const vendorRoutes = new Hono<AuthEnv>()
     }
     const [vendor] = await listVendors(c.var.user.id, row.id);
     return c.json({ vendor }, 201);
+  })
+
+  // Import vendors from a CSV file (read in the browser). Never deletes; existing vendors keep their
+  // details unless the organizer chose to overwrite them. With preview: true, nothing is saved.
+  .post("/import", async (c) => {
+    const parsed = vendorImportSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json(invalid(parsed.error), 400);
+    return c.json(await importVendors({ organizerId: c.var.user.id, input: parsed.data }));
   })
 
   // Edit details, favourite, ban and groups

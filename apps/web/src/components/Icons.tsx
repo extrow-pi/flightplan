@@ -204,3 +204,9 @@ export const DownloadIcon = (p: IconProps) => (
     <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" />
   </Icon>
 );
+
+export const UploadIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 15V4m0 0-4 4m4-4 4 4M5 20h14" />
+  </Icon>
+);

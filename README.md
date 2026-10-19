@@ -123,7 +123,9 @@ Each organizer can have a public page at `/o/<handle>`, set up in **Settings** a
 - **Favourites:** shown first, and starred in the Assign dialog.
 - **Groups:** the organizer names them (e.g. "Pokémon", "Food trucks"), and a vendor can be in several. Use them to filter the list, or to send everyone in a group a personal booking link from a show's **Tables & vendors** tab (*Invite a group*, owner only). Bulk invites skip banned vendors, vendors already holding tables, and vendors with an unused invite.
 - **Ban list:** banned vendors can still send requests, but these always wait for approval and are flagged with a **Banned** badge on the Tables page and dashboard. Organizer emails about them include the ban reason. The vendor isn't told.
-- **Export CSV:** downloads whatever is currently filtered.
+- **Export:** **Export all** downloads the whole list as CSV; with a filter or search on, it downloads just the vendors shown.
+- **Import:** reads a CSV file (Name and Email required; Business, Phone and Notes optional; an export works as-is, and a template is offered). A preview shows new vendors, rows that can't be read, and existing vendors (matched by email) whose details differ. Each of those can be ticked to overwrite, or all at once. Nothing is ever deleted, and blank cells never clear saved details.
+- **Per show:** the **Vendor list** card on a show's Tables & vendors tab exports everyone at the show (tables, status, total, discount, payment method) and imports a CSV onto the show: vendors go into the owner's list and onto the show without a table. Only the owner can overwrite existing vendor records from a show import.
 
 Vendors belong to the event owner. Collaborators see owner vendors' favourite and banned flags on shared shows, but not the owner's groups or Vendors page.
 
@@ -285,6 +287,8 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST / DELETE | `/api/profile/logo` | Upload (multipart `file`) or remove the page logo |
 | GET | `/api/public/organizers/:handle` | A published organizer page: profile, upcoming and past shows (no sign-in) |
 | GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
+| POST | `/api/vendors/import` | Import vendor rows read from a CSV: `{ rows, overwrite: [emails] or "all", preview }` |
+| POST | `/api/events/:id/import` | Same, and adds the vendors to the show without a table |
 | PATCH | `/api/vendors/:id` | Edit details, `favourite`, `banned` + `banReason`, `groupIds` |
 | GET | `/api/vendors/:id/requests` | A vendor's request history across the organizer's shows |
 | GET / POST | `/api/vendor-groups` | The organizer's vendor groups / create one: `{ name }` |

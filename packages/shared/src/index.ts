@@ -479,6 +479,66 @@ export const updateVendorSchema = z.object({
 });
 export type UpdateVendorInput = z.input<typeof updateVendorSchema>;
 
+// ── Vendor import (CSV) ─────────────────────────────────────────────────────
+
+export const MAX_IMPORT_ROWS = 2000;
+
+/** The vendor details an import can set. Email is the key that matches existing vendors. */
+export const VENDOR_IMPORT_FIELDS = ["name", "businessName", "phone", "notes"] as const;
+export type VendorImportField = (typeof VENDOR_IMPORT_FIELDS)[number];
+
+/** One vendor read from a CSV file. `line` is its line in the file, for error messages. */
+export const vendorImportRowSchema = z.object({
+  line: z.number().int().min(1),
+  name: z.string().trim().min(2, "Name is missing or too short").max(100, "Name is too long"),
+  businessName: z.string().trim().max(120, "Business name is too long").optional().default(""),
+  email: z.email("Email is missing or not valid").trim().toLowerCase().max(254),
+  phone: z.string().trim().max(40, "Phone is too long").optional().default(""),
+  notes: z.string().trim().max(2000, "Notes are too long").optional().default(""),
+});
+
+export const vendorImportSchema = z.object({
+  // Rows are checked one by one on the server so a bad row doesn't block the rest
+  rows: z
+    .array(z.record(z.string(), z.unknown()))
+    .min(1, "The file has no vendors")
+    .max(MAX_IMPORT_ROWS, `Up to ${MAX_IMPORT_ROWS} vendors at a time`),
+  /** Existing vendors (by email) whose details the file should replace, or "all" of them */
+  overwrite: z.union([z.literal("all"), z.array(z.string().trim().toLowerCase()).max(MAX_IMPORT_ROWS)]).optional().default([]),
+  /** Work out what would happen without saving anything */
+  preview: z.boolean().optional().default(false),
+});
+export type VendorImportInput = z.input<typeof vendorImportSchema>;
+
+/** An existing vendor whose details differ from the file's. */
+export type VendorImportConflict = {
+  email: string;
+  line: number;
+  /** Fields that differ (the file's blank cells never count) */
+  fields: VendorImportField[];
+  current: Record<VendorImportField, string>;
+  incoming: Record<VendorImportField, string>;
+};
+
+export type VendorImportResult = {
+  preview: boolean;
+  /** Rows read from the file */
+  total: number;
+  /** Rows that can't be imported, by line in the file */
+  invalid: { line: number; error: string }[];
+  /** New vendors added to the list */
+  created: number;
+  /** Existing vendors whose details were replaced */
+  updated: number;
+  /** Existing vendors left as they were (same details, or not overwritten) */
+  unchanged: number;
+  /** Existing vendors whose details differ. In a preview, all of them; after importing, the ones left as they were. */
+  conflicts: VendorImportConflict[];
+  /** Importing into a show: vendors added to it without a table, and vendors already on it */
+  addedToShow?: number;
+  alreadyAtShow?: number;
+};
+
 /** One of a vendor's requests, for their history on the Vendors page. */
 export type VendorRequestHistory = {
   requestId: string;
