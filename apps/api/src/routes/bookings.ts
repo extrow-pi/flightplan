@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   ACTIVE_BOOKING_STATUSES,
@@ -12,6 +12,10 @@ import {
   quoteRequestSchema,
   setPaymentMethodSchema,
   vendorImportSchema,
+  vendorMessageSchema,
+  vendorAudienceLabels,
+  type VendorAudience,
+  type VendorMessageResult,
   releaseBookingSchema,
   type ApiError,
   type BookingAlert,
@@ -42,7 +46,9 @@ import {
   notifyReleased,
   notifyRequestCreated,
   sendVendorInvites,
+  vendorMessageEmail,
 } from "../email/notifications.js";
+import { enqueueEmails } from "../email/outbox.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import {
   accessibleEvents,
@@ -55,7 +61,7 @@ import {
   type Access,
 } from "../access.js";
 
-const { bookings, eventCollaborators, eventDays, events, eventTables, eventVendors, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
+const { bookings, emails, eventCollaborators, eventDays, events, eventTables, eventVendors, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
 
 const idSchema = z.uuid();
 const notFound = (what = "Event") => ({ error: `${what} not found` }) satisfies ApiError;
@@ -413,6 +419,102 @@ eventBookingRoutes.post("/:id/import", async (c) => {
       canOverwrite: event.access.role === "owner",
     }),
   );
+});
+
+// Email the vendors at this show, picked by where their request stands. Each vendor gets their own
+// copy (no shared recipient list), with replies going to the organizer who sent it.
+eventBookingRoutes.post("/:id/message", async (c) => {
+  const event = await findEvent(c.req.param("id"), c.var.user.id);
+  if (!event || event.status === "template") return c.json(notFound(), 404);
+  if (!canEdit(event.access)) return c.json(forbidden("email vendors"), 403);
+  const parsed = vendorMessageSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json(invalid(parsed.error), 400);
+  const input = parsed.data;
+  const user = c.var.user;
+
+  // Where each vendor stands: the tables they hold (in floor order) and their requests' statuses
+  const [held, waiting, [details]] = await Promise.all([
+    db
+      .select({ vendorId: bookings.vendorId, status: bookings.status, label: eventTables.label })
+      .from(bookings)
+      .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
+      .where(and(eq(bookings.eventId, event.id), inArray(bookings.status, active)))
+      .orderBy(asc(eventTables.number)),
+    db.select({ vendorId: eventVendors.vendorId }).from(eventVendors).where(eq(eventVendors.eventId, event.id)),
+    db.select({ name: events.name }).from(events).where(eq(events.id, event.id)),
+  ]);
+  const standing = new Map<string, { tables: string[]; audiences: Set<VendorAudience> }>();
+  const at = (id: string) => standing.get(id) ?? standing.set(id, { tables: [], audiences: new Set() }).get(id)!;
+  for (const b of held) {
+    at(b.vendorId).tables.push(b.label);
+    at(b.vendorId).audiences.add(b.status as VendorAudience);
+  }
+  for (const w of waiting) at(w.vendorId).audiences.add("unassigned");
+
+  const picked = [...standing].filter(([, s]) => input.audience.some((a) => s.audiences.has(a)));
+  if (!picked.length) return c.json<ApiError>({ error: "No vendors at this show match who you picked" }, 400);
+  const contacts = await db
+    .select({ id: vendors.id, name: vendors.name, email: vendors.email })
+    .from(vendors)
+    .where(inArray(vendors.id, picked.map(([id]) => id)))
+    .orderBy(asc(sql`lower(${vendors.name})`));
+  const statusOf = (s: { audiences: Set<VendorAudience> }) => [...s.audiences].map((a) => vendorAudienceLabels[a]).join(", ");
+
+  const build = (vendor: { name: string; tables: string[]; status: string }, subject: string) =>
+    vendorMessageEmail({
+      event: { name: details.name },
+      sender: { name: user.name },
+      vendor,
+      subject,
+      message: input.message,
+      includeDetails: input.includeDetails,
+    });
+
+  if (input.test) {
+    // A preview copy to the sender, filled in with the first recipient's details
+    const sample = contacts[0];
+    const s = standing.get(sample.id)!;
+    await enqueueEmails([
+      {
+        kind: "organizer.message_test",
+        to: user.email,
+        organizerId: event.access.ownerId,
+        eventId: event.id,
+        ...build({ name: sample.name, tables: s.tables, status: statusOf(s) }, `[Test] ${input.subject}`),
+      },
+    ]);
+    return c.json<VendorMessageResult>({ sent: 1, test: true });
+  }
+
+  // Guard against sending the same message twice (double clicks, retries)
+  const [recent] = await db
+    .select({ id: emails.id })
+    .from(emails)
+    .where(
+      and(
+        eq(emails.eventId, event.id),
+        eq(emails.kind, "vendor.message"),
+        eq(emails.subject, input.subject),
+        gt(emails.createdAt, new Date(Date.now() - 2 * 60_000)),
+      ),
+    )
+    .limit(1);
+  if (recent) return c.json<ApiError>({ error: "This message was just sent. Wait a couple of minutes to send it again." }, 409);
+
+  await enqueueEmails(
+    contacts.map((v) => {
+      const s = standing.get(v.id)!;
+      return {
+        kind: "vendor.message",
+        to: v.email,
+        replyTo: user.email,
+        organizerId: event.access.ownerId,
+        eventId: event.id,
+        ...build({ name: v.name, tables: s.tables, status: statusOf(s) }, input.subject),
+      };
+    }),
+  );
+  return c.json<VendorMessageResult>({ sent: contacts.length, test: false });
 });
 
 // Take an unassigned vendor off the show

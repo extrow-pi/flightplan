@@ -479,6 +479,33 @@ export const updateVendorSchema = z.object({
 });
 export type UpdateVendorInput = z.input<typeof updateVendorSchema>;
 
+// ── Emailing a show's vendors ───────────────────────────────────────────────
+
+/** Who at a show can be emailed, by where their request stands (overdue counts as awaiting payment). */
+export const VENDOR_AUDIENCES = ["paid", "awaiting_payment", "pending", "unassigned"] as const;
+export type VendorAudience = (typeof VENDOR_AUDIENCES)[number];
+export const vendorAudienceLabels: Record<VendorAudience, string> = {
+  paid: "Paid",
+  awaiting_payment: "Awaiting payment",
+  pending: "Needs approval",
+  unassigned: "No table yet",
+};
+
+export const vendorMessageSchema = z.object({
+  subject: z.string().trim().min(1, "Add a subject").max(150, "Keep the subject under 150 characters"),
+  message: z.string().trim().min(1, "Write a message").max(5000, "Keep the message under 5,000 characters"),
+  audience: z
+    .array(z.enum(VENDOR_AUDIENCES))
+    .min(1, "Pick who to email")
+    .refine((a) => new Set(a).size === a.length, "Each group can only be picked once"),
+  /** Add each vendor's own tables and status under the message */
+  includeDetails: z.boolean().optional().default(true),
+  /** Send one copy to the signed-in organizer instead of the vendors */
+  test: z.boolean().optional().default(false),
+});
+export type VendorMessageInput = z.input<typeof vendorMessageSchema>;
+export type VendorMessageResult = { sent: number; test: boolean };
+
 // ── Vendor import (CSV) ─────────────────────────────────────────────────────
 
 export const MAX_IMPORT_ROWS = 2000;
