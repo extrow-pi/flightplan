@@ -12,7 +12,7 @@ import {
 import Logo from "../components/Logo";
 import { CheckIcon, ClockIcon, MapPinIcon } from "../components/Icons";
 import { ApiRequestError, useBookingQuote, usePublicBooking, useSubmitBooking, type BookingLinkKind } from "../lib/api";
-import { formatDate, formatDateRange, formatMoney, timeRange } from "../lib/format";
+import { formatDate, formatDateRange, formatMoney, formatTime, timeRange } from "../lib/format";
 
 // Vendors don't have accounts, so their details are remembered in this browser for next time
 const REMEMBER_KEY = "flightplan.vendorDetails";
@@ -92,6 +92,7 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
           <li key={d.dayOffset} className="rounded-lg bg-cream-50 px-2.5 py-1 text-sm ring-1 ring-ink/5">
             <span className="font-bold">{formatDate(addDays(event.startDate, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}</span>{" "}
             · {timeRange(d.startTime, d.endTime)}
+            {d.setupTime && <span className="text-ink-soft"> · vendor setup from {formatTime(d.setupTime)}</span>}
           </li>
         ))}
       </ul>

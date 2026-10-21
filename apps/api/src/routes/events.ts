@@ -42,6 +42,7 @@ async function withDays<T extends { id: string; floorMapFile: string | null }>(
     .select({
       eventId: eventDays.eventId,
       dayOffset: eventDays.dayOffset,
+      setupTime: eventDays.setupTime,
       startTime: eventDays.startTime,
       endTime: eventDays.endTime,
     })

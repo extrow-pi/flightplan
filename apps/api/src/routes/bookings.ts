@@ -17,7 +17,6 @@ import {
   ATTACHMENT_MAX_BYTES,
   ATTACHMENTS_TOTAL_MAX_BYTES,
   type MessageAttachment,
-  vendorAudienceLabels,
   type VendorAudience,
   type VendorMessageResult,
   releaseBookingSchema,
@@ -339,7 +338,7 @@ eventBookingRoutes.post("/:id/invites/bulk", async (c) => {
       .from(events)
       .where(eq(events.id, event.id));
     const days = await db
-      .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
       .from(eventDays)
       .where(eq(eventDays.eventId, event.id))
       .orderBy(asc(eventDays.dayOffset));
@@ -461,7 +460,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
   const user = c.var.user;
 
   // Where each vendor stands: the tables they hold (in floor order) and their requests' statuses
-  const [held, waiting, [details]] = await Promise.all([
+  const [held, waiting, [details], days] = await Promise.all([
     db
       .select({ vendorId: bookings.vendorId, status: bookings.status, label: eventTables.label })
       .from(bookings)
@@ -469,7 +468,15 @@ eventBookingRoutes.post("/:id/message", async (c) => {
       .where(and(eq(bookings.eventId, event.id), inArray(bookings.status, active)))
       .orderBy(asc(eventTables.number)),
     db.select({ vendorId: eventVendors.vendorId }).from(eventVendors).where(eq(eventVendors.eventId, event.id)),
-    db.select({ name: events.name }).from(events).where(eq(events.id, event.id)),
+    db
+      .select({ name: events.name, startDate: events.startDate, venueName: events.venueName, address: events.address, city: events.city })
+      .from(events)
+      .where(eq(events.id, event.id)),
+    db
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .from(eventDays)
+      .where(eq(eventDays.eventId, event.id))
+      .orderBy(asc(eventDays.dayOffset)),
   ]);
   const standing = new Map<string, { tables: string[]; audiences: Set<VendorAudience> }>();
   const at = (id: string) => standing.get(id) ?? standing.set(id, { tables: [], audiences: new Set() }).get(id)!;
@@ -507,11 +514,10 @@ eventBookingRoutes.post("/:id/message", async (c) => {
     if (cid) images[a.placement as "top" | "bottom"].push({ cid, alt: f.filename.replace(/\.[^.]+$/, "") });
   });
 
-  const statusOf = (s: { audiences: Set<VendorAudience> }) => [...s.audiences].map((a) => vendorAudienceLabels[a]).join(", ");
 
-  const build = (vendor: { name: string; tables: string[]; status: string }, subject: string) =>
+  const build = (vendor: { name: string; tables: string[] }, subject: string) =>
     vendorMessageEmail({
-      event: { name: details.name },
+      event: { ...details, days },
       sender: { name: user.name },
       vendor,
       subject,
@@ -531,7 +537,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
         attachments: refs,
         organizerId: event.access.ownerId,
         eventId: event.id,
-        ...build({ name: sample.name, tables: s.tables, status: statusOf(s) }, `[Test] ${input.subject}`),
+        ...build({ name: sample.name, tables: s.tables }, `[Test] ${input.subject}`),
       },
     ]);
     return c.json<VendorMessageResult>({ sent: 1, test: true });
@@ -562,7 +568,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
         replyTo: user.email,
         organizerId: event.access.ownerId,
         eventId: event.id,
-        ...build({ name: v.name, tables: s.tables, status: statusOf(s) }, input.subject),
+        ...build({ name: v.name, tables: s.tables }, input.subject),
       };
     }),
   );
