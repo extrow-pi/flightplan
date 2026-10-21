@@ -22,6 +22,8 @@ import {
   isTable,
   isWall,
   moveItem,
+  moveLayer,
+  type LayerMove,
   newId,
   nextTableLabel,
   renumberTables,
@@ -225,6 +227,10 @@ export default function FloorplanEditor({
       }),
     );
   }
+  function layer(move: LayerMove) {
+    if (!selected.length) return;
+    updateItems((items) => moveLayer(items, selected, move));
+  }
   function nudge(dx: number, dy: number) {
     updateItems((items) => items.map((i) => (selected.includes(i.id) ? moveItem(i, dx, dy) : i)));
   }
@@ -400,6 +406,10 @@ export default function FloorplanEditor({
       } else if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+      } else if (mod && (e.code === "BracketRight" || e.code === "BracketLeft")) {
+        e.preventDefault();
+        const up = e.code === "BracketRight";
+        layer(e.shiftKey ? (up ? "front" : "back") : up ? "forward" : "backward");
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         duplicateSelected();
@@ -441,7 +451,6 @@ export default function FloorplanEditor({
     landmarks: draft.items.filter(isLandmark).length,
   };
   const handle = 7 * perPx;
-  const walls = wallPreview ? [...draft.items.filter(isWall), wallPreview] : draft.items.filter(isWall);
 
   return (
     <div className="space-y-3">
@@ -535,30 +544,30 @@ export default function FloorplanEditor({
             fontFamily="inherit"
           >
             <Room plan={draft} dimensions />
-            {draft.items.filter(isLandmark).map((l) => (
-              <Landmark key={l.id} landmark={l} onPointerDown={(e) => onItemDown(e, l)} className={tool === "select" ? "cursor-move" : undefined} />
-            ))}
-            {walls.map((w) => (
-              <g key={w.id}>
-                <Wall wall={w} />
-                {/* Wider invisible line so thin walls are easy to grab */}
-                {w.id !== "preview" && (
-                  <line
-                    x1={w.x1}
-                    y1={w.y1}
-                    x2={w.x2}
-                    y2={w.y2}
-                    stroke="transparent"
-                    strokeWidth={Math.max(w.thickness, 12 * perPx)}
-                    onPointerDown={(e) => onItemDown(e, w)}
-                    className={tool === "select" ? "cursor-move" : undefined}
-                  />
-                )}
-              </g>
-            ))}
-            {draft.items.filter(isTable).map((t) => (
-              <Table key={t.id} table={t} onPointerDown={(e) => onItemDown(e, t)} className={tool === "select" ? "cursor-move" : undefined} />
-            ))}
+            {/* Items in plan order: later ones sit on top (see the Layer buttons) */}
+            {[...draft.items, ...(wallPreview ? [wallPreview] : [])].map((i) => {
+              const grab = tool === "select" ? "cursor-move" : undefined;
+              if (isTable(i)) return <Table key={i.id} table={i} onPointerDown={(e) => onItemDown(e, i)} className={grab} />;
+              if (isLandmark(i)) return <Landmark key={i.id} landmark={i} onPointerDown={(e) => onItemDown(e, i)} className={grab} />;
+              return (
+                <g key={i.id}>
+                  <Wall wall={i} />
+                  {/* Wider invisible line so thin walls are easy to grab */}
+                  {i.id !== "preview" && (
+                    <line
+                      x1={i.x1}
+                      y1={i.y1}
+                      x2={i.x2}
+                      y2={i.y2}
+                      stroke="transparent"
+                      strokeWidth={Math.max(i.thickness, 12 * perPx)}
+                      onPointerDown={(e) => onItemDown(e, i)}
+                      className={grab}
+                    />
+                  )}
+                </g>
+              );
+            })}
 
             {/* Selection outlines and handles */}
             {selectedItems.map((i) => (
@@ -622,6 +631,7 @@ export default function FloorplanEditor({
               onDelete={deleteSelected}
               onDuplicate={duplicateSelected}
               onRotate={() => rotateSelected(90)}
+              layerButtons={<LayerButtons items={draft.items} ids={selected} onMove={layer} />}
             />
           ) : selectedItems.length > 1 ? (
             <Panel title={`${selectedItems.length} items selected`}>
@@ -637,6 +647,7 @@ export default function FloorplanEditor({
                   Delete
                 </button>
               </div>
+              <LayerButtons items={draft.items} ids={selected} onMove={layer} />
             </Panel>
           ) : (
             <PlanPanel draft={draft} counts={counts} onChange={(d) => commit(d)} onFit={() => setView(fitView(draft))} />
@@ -651,6 +662,9 @@ export default function FloorplanEditor({
               </li>
               <li>
                 <Kbd>Ctrl</Kbd>+<Kbd>D</Kbd> duplicate · <Kbd>Del</Kbd> delete
+              </li>
+              <li>
+                <Kbd>Ctrl</Kbd>+<Kbd>]</Kbd> / <Kbd>[</Kbd> forward / backward (Shift: front / back)
               </li>
               <li>
                 <Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> undo · <Kbd>Ctrl</Kbd>+<Kbd>S</Kbd> save
@@ -738,6 +752,32 @@ function ShapeHandles({
 }
 
 // ── Panels ───────────────────────────────────────────────────────────────
+
+/** Front / forward / backward / back, greyed out when there's nothing to move past. */
+function LayerButtons({ items, ids, onMove }: { items: FloorplanItem[]; ids: string[]; onMove: (m: LayerMove) => void }) {
+  const same = (next: FloorplanItem[]) => next.every((i, n) => i === items[n]);
+  const can = (m: LayerMove) => !same(moveLayer(items, ids, m));
+  const layerBtn = `${btn} justify-center bg-white px-2 text-slate ring-1 ring-ink/10 hover:ring-slate`;
+  return (
+    <div className="mt-4">
+      <span className="text-xs font-bold text-ink-soft">Layer</span>
+      <div className="mt-1 grid grid-cols-2 gap-1.5" role="group" aria-label="Layer">
+        <button type="button" className={layerBtn} disabled={!can("front")} onClick={() => onMove("front")} title="Bring to front (Ctrl+Shift+])">
+          To front
+        </button>
+        <button type="button" className={layerBtn} disabled={!can("back")} onClick={() => onMove("back")} title="Send to back (Ctrl+Shift+[)">
+          To back
+        </button>
+        <button type="button" className={layerBtn} disabled={!can("forward")} onClick={() => onMove("forward")} title="Bring forward, past the next item it overlaps (Ctrl+])">
+          Forward
+        </button>
+        <button type="button" className={layerBtn} disabled={!can("backward")} onClick={() => onMove("backward")} title="Send backward, behind the next item it overlaps (Ctrl+[)">
+          Backward
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -891,6 +931,7 @@ function ItemPanel({
   onDelete,
   onDuplicate,
   onRotate,
+  layerButtons,
 }: {
   item: FloorplanItem;
   units: FloorplanUnits;
@@ -899,8 +940,11 @@ function ItemPanel({
   onDelete: () => void;
   onDuplicate: () => void;
   onRotate: () => void;
+  layerButtons: ReactNode;
 }) {
   const actions = (
+    <>
+    {layerButtons}
     <div className="mt-4 flex flex-wrap gap-2 border-t border-ink/5 pt-3">
       {!(isTable(item) && item.shape === "round") && (
         <button type="button" className={btnPlain} onClick={onRotate}>
@@ -914,6 +958,7 @@ function ItemPanel({
         Delete
       </button>
     </div>
+    </>
   );
 
   if (isWall(item)) {

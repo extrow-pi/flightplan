@@ -94,6 +94,44 @@ export function moveItem<T extends FloorplanItem>(i: T, dx: number, dy: number):
   return { ...shaped, x: Math.round(shaped.x + dx), y: Math.round(shaped.y + dy) } as T;
 }
 
+const overlaps = (a: FloorplanItem, b: FloorplanItem) => {
+  const x = itemBounds(a), y = itemBounds(b);
+  return x.minX < y.maxX && y.minX < x.maxX && x.minY < y.maxY && y.minY < x.maxY;
+};
+
+export type LayerMove = "front" | "back" | "forward" | "backward";
+
+/**
+ * Change which items sit on top. The items list is the drawing order (last is on top).
+ * "front"/"back" move the selection to the very top/bottom; "forward"/"backward" move each
+ * selected item past the next item it overlaps, so the change is always visible.
+ */
+export function moveLayer(items: FloorplanItem[], ids: string[], move: LayerMove): FloorplanItem[] {
+  const picked = new Set(ids);
+  if (move === "front") return [...items.filter((i) => !picked.has(i.id)), ...items.filter((i) => picked.has(i.id))];
+  if (move === "back") return [...items.filter((i) => picked.has(i.id)), ...items.filter((i) => !picked.has(i.id))];
+  const list = [...items];
+  const order = list.map((i, n) => [i, n] as const).filter(([i]) => picked.has(i.id));
+  // Move the item nearest the edge first so selected items don't jump over each other
+  if (move === "forward") order.reverse();
+  for (const [item] of order) {
+    const from = list.indexOf(item);
+    if (move === "forward") {
+      const past = list.findIndex((other, n) => n > from && !picked.has(other.id) && overlaps(item, other));
+      if (past < 0) continue;
+      list.splice(from, 1);
+      list.splice(past, 0, item);
+    } else {
+      let past = -1;
+      for (let n = from - 1; n >= 0; n--) if (!picked.has(list[n].id) && overlaps(item, list[n])) { past = n; break; }
+      if (past < 0) continue;
+      list.splice(from, 1);
+      list.splice(past, 0, item);
+    }
+  }
+  return list;
+}
+
 export const wallLength = (w: FloorplanWall) => Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
 
 /** Fill / ink colours for each kind of landmark */

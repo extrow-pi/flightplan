@@ -1,6 +1,6 @@
 import type { ReactNode, SVGProps } from "react";
 import { landmarkLabels, type FloorplanItem, type FloorplanLandmark, type FloorplanTable, type FloorplanUnits } from "@flightplan/shared";
-import { formatLength, gridStep, isLandmark, isTable, isWall, landmarkColors } from "../../lib/floorplan";
+import { formatLength, gridStep, isTable, isWall, landmarkColors } from "../../lib/floorplan";
 
 // Drawing a floorplan as SVG, in millimetres. Shared by the editor, thumbnails and the maps.
 
@@ -180,24 +180,22 @@ export function FloorplanView({
       fontFamily="inherit"
     >
       <Room plan={plan} grid={grid} dimensions={dimensions} />
-      {plan.items.filter(isLandmark).map((l) => (
-        <Landmark key={l.id} landmark={l} />
-      ))}
-      {plan.items.filter(isWall).map((w) => (
-        <Wall key={w.id} wall={w} />
-      ))}
-      {plan.items.filter(isTable).map((t) => {
-        const style = tableStyle?.(t);
-        return (
+      {/* Items are drawn in plan order: later items sit on top */}
+      {plan.items.map((i) =>
+        isTable(i) ? (
           <Table
-            key={t.id}
-            table={t}
-            style={style}
-            onClick={onTableClick ? () => onTableClick(t) : undefined}
+            key={i.id}
+            table={i}
+            style={tableStyle?.(i)}
+            onClick={onTableClick ? () => onTableClick(i) : undefined}
             className={onTableClick ? "cursor-pointer" : undefined}
           />
-        );
-      })}
+        ) : isWall(i) ? (
+          <Wall key={i.id} wall={i} />
+        ) : (
+          <Landmark key={i.id} landmark={i} />
+        ),
+      )}
     </svg>
   );
 }
