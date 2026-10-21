@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { floorplanInputSchema, savePlanToLibrarySchema, useLibraryPlanSchema, type ApiError } from "@flightplan/shared";
+import { floorplanInputSchema, publicMapSchema, savePlanToLibrarySchema, useLibraryPlanSchema, type ApiError } from "@flightplan/shared";
 import { canEdit, eventAccess, forbidden } from "../access.js";
 import { db, schema } from "../db/index.js";
 import { PlanTablesInUseError, removeEventPlan, saveEventPlan, TooManyTablesError } from "../eventPlans.js";
@@ -11,7 +11,7 @@ import { toFloorplan } from "./floorplans.js";
 // An event's or event template's own floorplan: /api/events/:id/floorplan…
 // Anyone on the event can see it; owners and editors change it.
 
-const { floorplans } = schema;
+const { events, floorplans } = schema;
 
 const notFound = { error: "Event not found" } satisfies ApiError;
 
@@ -105,6 +105,18 @@ export const eventFloorplanRoutes = new Hono<AuthEnv>()
       })
       .returning();
     return c.json({ floorplan: toFloorplan(row) }, 201);
+  })
+
+  // Who appears on the public visitor map (off / paid vendors / everyone with a table)
+  .put("/:id/public-map", async (c) => {
+    const id = c.req.param("id");
+    const a = await access(id, c.var.user.id);
+    if (!a) return c.json(notFound, 404);
+    if (!canEdit(a)) return c.json(forbidden("change the visitor map"), 403);
+    const parsed = publicMapSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json(invalid(parsed.error), 400);
+    await db.update(events).set({ publicMap: parsed.data.publicMap }).where(eq(events.id, id));
+    return c.json({ publicMap: parsed.data.publicMap });
   })
 
   // Take the plan off the event; its tables stay as numbered tables

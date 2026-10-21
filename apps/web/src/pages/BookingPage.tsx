@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
+import MapViewer from "../components/floorplan/MapViewer";
 import {
   addDays,
   discountLabel,
@@ -154,6 +155,8 @@ function BookingForm({
 
   // Selected tables in floor order; drop any that were taken since (availability refreshes after a clash)
   const selected = page.tables.filter((t) => picked.includes(t.id) && t.available);
+  // Tables by their place on the floorplan
+  const byItem = new Map(page.tables.filter((t) => t.planItemId).map((t) => [t.planItemId!, t]));
   const availableCount = page.tables.filter((t) => t.available).length;
   const fieldErrors = submit.error instanceof ApiRequestError ? submit.error.body.fieldErrors : undefined;
   const labels = selected.map((t) => t.label).join(", ");
@@ -214,7 +217,27 @@ function BookingForm({
               {availableCount} of {page.tables.length} tables available.{" "}
               {max > 1 ? `You can pick up to ${max}.` : ""} Use the map to find the spot you want.
             </p>
-            {page.event.floorMapUrl && (
+            {page.floorplan ? (
+              <div className="mt-4">
+                <MapViewer
+                  plan={page.floorplan}
+                  className="max-h-[60dvh] min-h-56"
+                  label="Floorplan: tap an open table to pick it"
+                  tableStyle={(item) => {
+                    const t = byItem.get(item.id);
+                    if (!t || !t.available) return { fill: "#efe8dc", stroke: "#c9bba5", ink: "#9a8070", title: t ? `Table ${t.label}: taken` : undefined };
+                    return selected.some((x) => x.id === t.id)
+                      ? { fill: "#e8856a", stroke: "#c0442a", ink: "#ffffff", title: `Table ${t.label}: your pick` }
+                      : { fill: "#ffffff", stroke: "#5c6b8a", ink: "#4b5875", title: `Table ${t.label}: available` };
+                  }}
+                  onTableClick={(item) => {
+                    const t = byItem.get(item.id);
+                    if (t?.available) toggle(t.id);
+                  }}
+                />
+                <p className="mt-2 text-xs text-ink-muted">Tap a table to pick it. Drag to move around; pinch or use + and − to zoom.</p>
+              </div>
+            ) : page.event.floorMapUrl && (
               <a
                 href={page.event.floorMapUrl}
                 target="_blank"

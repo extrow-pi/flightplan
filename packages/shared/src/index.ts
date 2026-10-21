@@ -223,6 +223,8 @@ export type EventRecord = z.output<typeof eventInputSchema> & {
   access: EventAccess;
   /** The event's own floorplan, if it has one. Its tables are the event's bookable tables. */
   floorplan: { tableCount: number; updatedAt: string } | null;
+  /** Who appears on the public visitor map (/map/:id) */
+  publicMap: PublicMapMode;
 };
 
 // ── Collaborators ───────────────────────────────────────────────────────────
@@ -644,6 +646,8 @@ export type EventTable = {
   id: string;
   number: number;
   label: string;
+  /** The table on the event's floorplan, if it has one */
+  planItemId: string | null;
   /** The table's active booking, if any */
   booking: Booking | null;
 };
@@ -704,7 +708,9 @@ export type PublicBookingPage = {
     /** Whether the organizer has any discount codes that could apply (shows the code field) */
     acceptsCodes: boolean;
   };
-  tables: { id: string; label: string; available: boolean }[];
+  tables: { id: string; label: string; available: boolean; planItemId: string | null }[];
+  /** The show's floorplan, for picking tables on a map (no vendor names) */
+  floorplan: PublicFloorplan | null;
   /** For invite links: who it was sent to, and whether it's been used */
   invite: { name: string; email: string; used: boolean } | null;
   /** Why booking isn't possible right now, if it isn't */
@@ -862,6 +868,8 @@ export type PublicShow = {
   tablePriceCents: number;
   /** Set while the show's public booking link is open: the booking page path and open tables */
   booking: { url: string; tablesLeft: number } | null;
+  /** The show's public vendor map, when the organizer has turned it on */
+  mapUrl: string | null;
 };
 
 export type PublicOrganizerPage = {
@@ -1083,3 +1091,36 @@ export const useLibraryPlanSchema = z.object({ floorplanId: z.uuid() });
 
 /** Copy an event's plan into the organizer's library. */
 export const savePlanToLibrarySchema = z.object({ name: z.string().trim().min(1, "Give the plan a name").max(80) });
+
+// ── Maps people use: booking, and the public visitor map ─────────────────────
+
+/** A plan's layout without anything private, for the booking page and the visitor map */
+export type PublicFloorplan = { units: FloorplanUnits; widthMm: number; depthMm: number; items: FloorplanItem[] };
+
+/** The public visitor map: off, paid vendors only, or everyone holding a table */
+export const PUBLIC_MAP_MODES = ["off", "paid", "all"] as const;
+export type PublicMapMode = (typeof PUBLIC_MAP_MODES)[number];
+export const publicMapLabels: Record<PublicMapMode, string> = {
+  off: "Off",
+  paid: "Paid vendors only",
+  all: "Everyone with a table",
+};
+export const publicMapSchema = z.object({ publicMap: z.enum(PUBLIC_MAP_MODES) });
+
+/** /map/:eventId: where each vendor is at a show */
+export type PublicEventMap = {
+  event: {
+    name: string;
+    startDate: string;
+    days: EventDay[];
+    venueName: string;
+    address: string;
+    city: string;
+    organizerName: string;
+    /** The organizer's public page, if they have one */
+    organizerUrl: string | null;
+  };
+  floorplan: PublicFloorplan;
+  /** One entry per vendor, with every table they hold */
+  vendors: { name: string; tables: { planItemId: string; label: string }[] }[];
+};

@@ -3,6 +3,8 @@ import type {
   AddEventVendorInput,
   ApiError,
   Floorplan,
+  PublicEventMap,
+  PublicMapMode,
   FloorplanInput,
   AssignTableInput,
   Booking,
@@ -794,5 +796,29 @@ export function useRemoveEventFloorplan(eventId: string) {
   return useMutation({
     mutationFn: () => request(`/events/${eventId}/floorplan`, { method: "DELETE" }),
     onSuccess: () => planChanged(qc, eventId, null),
+  });
+}
+
+/** The public vendor map for a show (no sign-in) */
+export function usePublicEventMap(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["public", "map", eventId],
+    queryFn: () => request<PublicEventMap>(`/public/map/${eventId}`),
+    enabled: Boolean(eventId),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+    // Vendors get added while the show is on
+    refetchInterval: 60_000,
+  });
+}
+
+/** Who appears on a show's public visitor map */
+export function useSetPublicMap(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (publicMap: PublicMapMode) => request(`/events/${eventId}/public-map`, { method: "PUT", body: { publicMap } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: eventKeys.detail(eventId), exact: true });
+      void qc.invalidateQueries({ queryKey: eventKeys.all, exact: true });
+    },
   });
 }

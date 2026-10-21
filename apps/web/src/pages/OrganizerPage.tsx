@@ -176,6 +176,11 @@ function ShowCard({ show: s }: { show: PublicShow }) {
         <span className="rounded-full bg-cream px-3 py-1 text-sm font-bold text-ink-soft">
           {s.ticketPriceCents > 0 ? `Admission ${formatMoney(s.ticketPriceCents)}` : "Free admission"}
         </span>
+        {s.mapUrl && (
+          <Link to={s.mapUrl} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate hover:underline">
+            <MapPinIcon className="size-4" /> Vendor map
+          </Link>
+        )}
         {s.booking ? (
           <>
             <span className="flex items-center gap-1.5 text-sm text-ink-soft">
