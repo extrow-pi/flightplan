@@ -111,6 +111,17 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
 
+### Floorplans (in development on `dev`)
+
+`/dashboard/floorplans` is the organizer's floorplan library: venue layouts designed once and reused.
+
+- **A plan** is one room: its width and depth, plus tables (rectangular or round, each with a label, size and rotation), walls, and landmarks (entrance, exit, washrooms, stairs, elevator, stage, food & drink, info desk, ATM, first aid, storage, pillar, other).
+- **Units:** each plan shows feet or metres. Every length is stored as whole millimetres, so switching units never changes the plan.
+- **Editor:** an SVG canvas. Click to select, Shift+click for several; drag to move; drag the corner handle to resize and the top handle to rotate (15° steps, Shift for any angle); drag the floor to pan and scroll to zoom. Walls are drawn by dragging (Shift keeps them straight) and their ends can be dragged. **Row of tables** adds several tables at once, and **Renumber tables** labels them 1…N row by row. Things snap to 6 inches (or 10 cm) unless Snap is off. Undo/redo, keyboard shortcuts (T, W, R, arrows, Ctrl+D/Z/S, Delete), and a warning before leaving with unsaved changes.
+- **Rules:** table labels are unique per plan; up to 1,000 items; rooms 1–300 m on a side.
+
+Coming next: attaching plans to events and event templates (where the plan's tables become the bookable tables), a map view for organizers, picking tables on the map when booking, and a public visitor map.
+
 ### Public organizer page
 
 Each organizer can have a public page at `/o/<handle>`, set up in **Settings** and hidden until switched on.
@@ -283,6 +294,9 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
 | GET / POST | `/api/discount-codes` | The organizer's codes (with uses and status) / create one |
+| GET / POST | `/api/floorplans` | The organizer's floorplan library / create a plan |
+| GET / PUT / DELETE | `/api/floorplans/:id` | One library plan: read, save, delete |
+| POST | `/api/floorplans/:id/duplicate` | Copy a library plan |
 | PUT / DELETE | `/api/discount-codes/:id` | Update or delete a code (past bookings keep their discount) |
 | GET | `/api/discount-codes/:id/uses` | Requests that used a code |
 | POST | `/api/public/book/:token/quote` · `/api/public/invite/:token/quote` | Price preview: `{ tableCount, discountCode?, email? }` gives the subtotal, discount, total, and any code error (no sign-in) |

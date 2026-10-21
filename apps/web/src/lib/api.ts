@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AddEventVendorInput,
   ApiError,
+  Floorplan,
+  FloorplanInput,
   AssignTableInput,
   Booking,
   BookingAlert,
@@ -686,5 +688,56 @@ export function useRequestStatus(requestId: string | undefined) {
     queryFn: () => request<PublicRequestStatus>(`/public/request/${requestId}`),
     enabled: Boolean(requestId),
     retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+  });
+}
+
+// ── Floorplans ───────────────────────────────────────────────────────────
+
+const planKeys = { list: ["floorplans"] as const, detail: (id: string) => ["floorplans", id] as const };
+
+/** The organizer's floorplan library */
+export function useFloorplans() {
+  return useQuery({
+    queryKey: planKeys.list,
+    queryFn: () => request<{ floorplans: Floorplan[] }>("/floorplans").then((r) => r.floorplans),
+  });
+}
+
+export function useFloorplan(id: string | undefined) {
+  return useQuery({
+    queryKey: planKeys.detail(id ?? ""),
+    queryFn: () => request<{ floorplan: Floorplan }>(`/floorplans/${id}`).then((r) => r.floorplan),
+    enabled: Boolean(id),
+  });
+}
+
+/** Create (no id) or save a library plan */
+export function useSaveFloorplan(id?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: FloorplanInput) =>
+      request<{ floorplan: Floorplan }>(id ? `/floorplans/${id}` : "/floorplans", { method: id ? "PUT" : "POST", body: input }).then(
+        (r) => r.floorplan,
+      ),
+    onSuccess: (plan) => {
+      qc.setQueryData(planKeys.detail(plan.id), plan);
+      void qc.invalidateQueries({ queryKey: planKeys.list, exact: true });
+    },
+  });
+}
+
+export function useDuplicateFloorplan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<{ floorplan: Floorplan }>(`/floorplans/${id}/duplicate`, { method: "POST" }).then((r) => r.floorplan),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
+  });
+}
+
+export function useDeleteFloorplan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request(`/floorplans/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
   });
 }
