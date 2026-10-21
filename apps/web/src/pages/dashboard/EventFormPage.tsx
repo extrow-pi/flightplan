@@ -453,19 +453,35 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         </Section>
 
         <Section title="Vendors & tickets">
-          <Field label="Vendor tables" id="vendorTables" error={errors.vendorTables}>
+          <Field
+            label="Vendor tables"
+            id="vendorTables"
+            error={errors.vendorTables}
+            hint={event?.floorplan ? "Set by the floorplan" : undefined}
+          >
             <input
               id="vendorTables"
               type="number"
               inputMode="numeric"
               min={0}
               step={1}
-              className={inputClass}
+              className={`${inputClass} disabled:bg-cream-50 disabled:text-ink-soft`}
               placeholder="48"
-              value={form.vendorTables}
+              value={event?.floorplan ? String(event.floorplan.tableCount) : form.vendorTables}
+              disabled={Boolean(event?.floorplan)}
               aria-invalid={!!errors.vendorTables}
+              aria-describedby={event?.floorplan ? "vendorTables-plan" : undefined}
               onChange={(e) => update("vendorTables", e.target.value)}
             />
+            {event?.floorplan && (
+              <span id="vendorTables-plan" className="mt-1 block text-xs text-ink-muted">
+                Tables come from the{" "}
+                <Link to={`${listPath}/${event.id}/floorplan`} className="font-bold text-coral-ink hover:underline">
+                  floorplan
+                </Link>
+                .
+              </span>
+            )}
           </Field>
           <Field label="Price per table" id="tablePrice" error={errors.tablePrice} hint="For the whole show">
             <MoneyInput

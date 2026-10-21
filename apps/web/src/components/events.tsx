@@ -173,6 +173,7 @@ export function EventTabs({ event }: { event: EventRecord }) {
   const tabs = [
     { to: base, label: "Details", end: true },
     ...(isTemplate(event) ? [] : [{ to: `${base}/tables`, label: "Tables & vendors", end: false }]),
+    { to: `${base}/floorplan`, label: "Floorplan", end: false },
     { to: `${base}/team`, label: "Team", end: false },
   ];
   return (

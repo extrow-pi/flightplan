@@ -741,3 +741,58 @@ export function useDeleteFloorplan() {
     onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
   });
 }
+
+// ── An event's own floorplan ─────────────────────────────────────────────
+
+const eventPlanKey = (eventId: string) => ["events", eventId, "floorplan"] as const;
+
+export function useEventFloorplan(eventId: string | undefined) {
+  return useQuery({
+    queryKey: eventPlanKey(eventId ?? ""),
+    queryFn: () => request<{ floorplan: Floorplan | null }>(`/events/${eventId}/floorplan`).then((r) => r.floorplan),
+    enabled: Boolean(eventId),
+  });
+}
+
+/** After a plan change: the plan, the event (its table count and plan summary) and its tables */
+function planChanged(qc: ReturnType<typeof useQueryClient>, eventId: string, plan: Floorplan | null) {
+  qc.setQueryData(eventPlanKey(eventId), plan);
+  void qc.invalidateQueries({ queryKey: eventKeys.detail(eventId), exact: true });
+  void qc.invalidateQueries({ queryKey: eventKeys.all, exact: true });
+  void qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) });
+}
+
+export function useSaveEventFloorplan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: FloorplanInput) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan`, { method: "PUT", body: input }).then((r) => r.floorplan),
+    onSuccess: (plan) => planChanged(qc, eventId, plan),
+  });
+}
+
+export function useUseLibraryPlan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (floorplanId: string) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan/from-library`, { method: "POST", body: { floorplanId } }).then((r) => r.floorplan),
+    onSuccess: (plan) => planChanged(qc, eventId, plan),
+  });
+}
+
+export function useSavePlanToLibrary(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan/to-library`, { method: "POST", body: { name } }).then((r) => r.floorplan),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
+  });
+}
+
+export function useRemoveEventFloorplan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request(`/events/${eventId}/floorplan`, { method: "DELETE" }),
+    onSuccess: () => planChanged(qc, eventId, null),
+  });
+}

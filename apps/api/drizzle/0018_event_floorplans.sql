@@ -1,0 +1,1 @@
+ALTER TABLE "event_tables" ADD COLUMN "plan_item_id" text;

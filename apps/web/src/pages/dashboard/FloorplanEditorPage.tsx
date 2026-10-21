@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import { Link, useBlocker, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import FloorplanEditor, { type Draft } from "../../components/floorplan/FloorplanEditor";
+import UnsavedGuard from "../../components/floorplan/UnsavedGuard";
 import { ArrowLeftIcon } from "../../components/Icons";
 import { ApiRequestError, useFloorplan, useSaveFloorplan } from "../../lib/api";
 import { formatSize } from "../../lib/floorplan";
@@ -26,7 +26,7 @@ export default function FloorplanEditorPage() {
   }
 
   const p = plan.data;
-  const initial: Draft = { name: p.name, units: p.units, widthMm: p.widthMm, depthMm: p.depthMm, items: p.items };
+  const initial: Draft = { name: p.name, units: p.units, widthMm: p.widthMm, depthMm: p.depthMm, items: p.items, groups: p.groups };
 
   return (
     <FloorplanEditor
@@ -49,21 +49,4 @@ export default function FloorplanEditorPage() {
       )}
     />
   );
-}
-
-/** Ask before leaving the editor with unsaved changes (in-app navigation and closing the tab). */
-function UnsavedGuard({ dirty }: { dirty: boolean }) {
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
-  useEffect(() => {
-    if (blocker.state !== "blocked") return;
-    if (window.confirm("You have unsaved changes to this floorplan. Leave without saving?")) blocker.proceed();
-    else blocker.reset();
-  }, [blocker]);
-  useEffect(() => {
-    if (!dirty) return;
-    const onUnload = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", onUnload);
-    return () => window.removeEventListener("beforeunload", onUnload);
-  }, [dirty]);
-  return null;
 }
