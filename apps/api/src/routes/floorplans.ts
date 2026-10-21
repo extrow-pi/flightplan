@@ -26,6 +26,7 @@ export function toFloorplan(row: typeof floorplans.$inferSelect): Floorplan {
     widthMm: row.widthMm,
     depthMm: row.depthMm,
     items: row.items,
+    groups: row.groups,
     tableCount: row.items.filter((i) => i.kind === "table").length,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -90,6 +91,7 @@ export const floorplanRoutes = new Hono<AuthEnv>()
         widthMm: existing.widthMm,
         depthMm: existing.depthMm,
         items: existing.items,
+        groups: existing.groups,
       })
       .returning();
     return c.json({ floorplan: toFloorplan(row) }, 201);

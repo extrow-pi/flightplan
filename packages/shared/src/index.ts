@@ -221,6 +221,8 @@ export type EventRecord = z.output<typeof eventInputSchema> & {
   updatedAt: string;
   /** What the signed-in organizer can do with this event, and whose it is */
   access: EventAccess;
+  /** The event's own floorplan, if it has one. Its tables are the event's bookable tables. */
+  floorplan: { tableCount: number; updatedAt: string } | null;
 };
 
 // ── Collaborators ───────────────────────────────────────────────────────────
@@ -987,6 +989,8 @@ export const floorplanTableSchema = z.object({
   w: size,
   h: size,
   rotation,
+  /** The table group it belongs to, if any */
+  group: z.string().min(1).max(40).optional(),
 });
 /** A wall from one point to another. */
 export const floorplanWallSchema = z.object({
@@ -1016,6 +1020,22 @@ export type FloorplanWall = z.infer<typeof floorplanWallSchema>;
 export type FloorplanLandmark = z.infer<typeof floorplanLandmarkSchema>;
 export type FloorplanItem = z.infer<typeof floorplanItemSchema>;
 
+export const MAX_TABLE_GROUPS = 100;
+/**
+ * Tables that belong together (an island, a row) and are numbered as one block. With a prefix, the
+ * group's tables are labelled prefix + 1…N (e.g. A1–A10) instead of taking the main numbers.
+ */
+export const floorplanGroupSchema = z.object({
+  id: itemId,
+  name: z.string().trim().min(1, "Give the group a name").max(40, "Group names can be up to 40 characters"),
+  prefix: z
+    .string()
+    .trim()
+    .max(4, "Prefixes can be up to 4 characters")
+    .regex(/^([A-Za-z][A-Za-z0-9-]*)?$/, "Start the prefix with a letter (e.g. A or Hall-)"),
+});
+export type FloorplanGroup = z.infer<typeof floorplanGroupSchema>;
+
 export const floorplanInputSchema = z
   .object({
     name: z.string().trim().min(1, "Give the plan a name").max(80),
@@ -1023,11 +1043,17 @@ export const floorplanInputSchema = z
     widthMm: z.number().int().min(FLOORPLAN_MIN_MM, "The room is too small").max(FLOORPLAN_MAX_MM, "The room is too big"),
     depthMm: z.number().int().min(FLOORPLAN_MIN_MM, "The room is too small").max(FLOORPLAN_MAX_MM, "The room is too big"),
     items: z.array(floorplanItemSchema).max(MAX_FLOORPLAN_ITEMS, `Up to ${MAX_FLOORPLAN_ITEMS} items per plan`),
+    groups: z.array(floorplanGroupSchema).max(MAX_TABLE_GROUPS, `Up to ${MAX_TABLE_GROUPS} table groups per plan`).optional().default([]),
   })
   .superRefine((plan, ctx) => {
     const ids = new Set<string>();
     const labels = new Map<string, string>();
+    const groupIds = new Set(plan.groups.map((g) => g.id));
+    if (groupIds.size !== plan.groups.length) ctx.addIssue({ code: "custom", path: ["groups"], message: "Two groups share an id" });
     for (const item of plan.items) {
+      if (item.kind === "table" && item.group && !groupIds.has(item.group)) {
+        ctx.addIssue({ code: "custom", path: ["items"], message: `Table ${item.label} is in a group that doesn't exist` });
+      }
       if (ids.has(item.id)) ctx.addIssue({ code: "custom", path: ["items"], message: "Two items share an id" });
       ids.add(item.id);
       if (item.kind === "table") {
@@ -1046,7 +1072,14 @@ export type Floorplan = {
   widthMm: number;
   depthMm: number;
   items: FloorplanItem[];
+  groups: FloorplanGroup[];
   tableCount: number;
   createdAt: string;
   updatedAt: string;
 };
+
+/** Use one of the organizer's library plans for an event (the event gets its own copy). */
+export const useLibraryPlanSchema = z.object({ floorplanId: z.uuid() });
+
+/** Copy an event's plan into the organizer's library. */
+export const savePlanToLibrarySchema = z.object({ name: z.string().trim().min(1, "Give the plan a name").max(80) });

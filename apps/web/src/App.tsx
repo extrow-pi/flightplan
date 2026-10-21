@@ -19,6 +19,7 @@ import DiscountsPage from "./pages/dashboard/DiscountsPage";
 import OrganizerPage from "./pages/OrganizerPage";
 import FloorplansPage from "./pages/dashboard/FloorplansPage";
 import FloorplanEditorPage from "./pages/dashboard/FloorplanEditorPage";
+import EventFloorplanPage from "./pages/dashboard/EventFloorplanPage";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: "events/:id", element: <EventFormPage /> },
       { path: "events/:id/tables", element: <TablesPage /> },
       { path: "events/:id/team", element: <TeamPage /> },
+      { path: "events/:id/floorplan", element: <EventFloorplanPage /> },
       { path: "templates", element: <TemplatesPage /> },
       { path: "emails", element: <EmailLogPage /> },
       { path: "vendors", element: <VendorsPage /> },
@@ -44,6 +46,7 @@ const router = createBrowserRouter([
       { path: "templates/new", element: <EventFormPage kind="template" /> },
       { path: "templates/:id", element: <EventFormPage kind="template" /> },
       { path: "templates/:id/team", element: <TeamPage /> },
+      { path: "templates/:id/floorplan", element: <EventFloorplanPage /> },
     ],
   },
   // Public vendor booking pages (no sign-in)

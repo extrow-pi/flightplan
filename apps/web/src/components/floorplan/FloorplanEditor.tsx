@@ -5,6 +5,7 @@ import {
   LANDMARK_TYPES,
   landmarkLabels,
   MAX_FLOORPLAN_ITEMS,
+  type FloorplanGroup,
   type FloorplanInput,
   type FloorplanItem,
   type FloorplanLandmark,
@@ -27,6 +28,9 @@ import {
   newId,
   nextTableLabel,
   renumberTables,
+  nextGroupName,
+  tidyGroups,
+  itemBounds,
   snap,
   snapStep,
   toUnits,
@@ -38,7 +42,7 @@ import { Landmark, planPadding, Room, Table, Wall } from "./FloorplanDrawing";
 // The floorplan editor: an SVG canvas in millimetres with a toolbar and a properties panel.
 // Used for library plans and (later) each event's own plan.
 
-export type Draft = FloorplanInput & { items: FloorplanItem[] };
+export type Draft = FloorplanInput & { items: FloorplanItem[]; groups: FloorplanGroup[] };
 type View = { x: number; y: number; w: number; h: number };
 type Drag =
   | { kind: "move"; start: Pt; base: Draft; ids: string[]; moved: boolean }
@@ -114,7 +118,9 @@ export default function FloorplanEditor({
 
   // ── History ──
   const commit = useCallback(
-    (next: Draft, base: Draft = draft) => {
+    (proposed: Draft, base: Draft = draft) => {
+      // Groups with no tables left go away
+      const next = { ...proposed, groups: tidyGroups(proposed.items, proposed.groups) };
       if (JSON.stringify(next) === JSON.stringify(base)) return;
       setPast((p) => [...p.slice(-99), base]);
       setFuture([]);
@@ -138,6 +144,17 @@ export default function FloorplanEditor({
 
   const selectedItems = draft.items.filter((i) => selected.includes(i.id));
   const single = selectedItems.length === 1 ? selectedItems[0] : null;
+  const membersOf = (groupId: string) => draft.items.filter((i) => isTable(i) && i.group === groupId).map((i) => i.id);
+  // The group the selection is, when exactly one group's tables (and nothing else) are selected
+  const selectedGroup = (() => {
+    const first = selectedItems[0];
+    if (!first || !isTable(first) || !first.group) return null;
+    const members = membersOf(first.group);
+    return members.length === selected.length && members.every((id) => selected.includes(id))
+      ? (draft.groups.find((g) => g.id === first.group) ?? null)
+      : null;
+  })();
+  const selectedTables = selectedItems.filter(isTable);
 
   // ── Coordinates ──
   const toPlan = (e: { clientX: number; clientY: number }): Pt => {
@@ -160,7 +177,7 @@ export default function FloorplanEditor({
     const rotation = ref?.rotation ?? 0;
     const a = (rotation * Math.PI) / 180;
     const at = ref ? { x: Math.round(ref.x + Math.cos(a) * w), y: Math.round(ref.y + Math.sin(a) * w) } : viewCenter();
-    const t: FloorplanTable = { id: newId(), kind: "table", label: nextTableLabel(draft.items), shape: ref?.shape ?? shape, w, h: (ref?.shape ?? shape) === "round" ? w : h, rotation, ...at };
+    const t: FloorplanTable = { id: newId(), kind: "table", label: nextTableLabel(draft.items), shape: ref?.shape ?? shape, w, h: (ref?.shape ?? shape) === "round" ? w : h, rotation, ...at, ...(ref?.group && { group: ref.group }) };
     updateItems((items) => [...items, t]);
     setSelected([t.id]);
   }
@@ -172,16 +189,26 @@ export default function FloorplanEditor({
     setSelected([l.id]);
     setTool("select");
   }
-  function addRow(count: number, direction: "right" | "down", gapMm: number) {
+  function addRow(count: number, direction: "right" | "down", gapMm: number, asGroup: boolean) {
     const size = defaultTableSize[units];
     const ref = single && isTable(single) ? single : null;
     const base = ref ?? { shape: "rect" as const, w: size.w, h: size.h, rotation: 0, ...viewCenter() };
     const stepX = direction === "right" ? base.w + gapMm : 0;
     const stepY = direction === "down" ? (base.shape === "round" ? base.w : base.h) + gapMm : 0;
     let items = draft.items;
+    let groups = draft.groups;
     const ids: string[] = [];
+    // Continue the selected table's group, or start a new one
+    let group = ref?.group;
+    if (!group && asGroup && count > 1) {
+      const g = { id: newId(), name: nextGroupName(groups), prefix: "" };
+      groups = [...groups, g];
+      group = g.id;
+      if (ref) items = items.map((i) => (i.id === ref.id ? { ...ref, group: g.id } : i));
+    }
     for (let i = 1; i <= count; i++) {
       const t: FloorplanTable = {
+        ...(group && { group }),
         id: newId(),
         kind: "table",
         label: nextTableLabel(items),
@@ -196,21 +223,58 @@ export default function FloorplanEditor({
       items = [...items, t];
       ids.push(t.id);
     }
-    commit({ ...draft, items: items.slice(0, MAX_FLOORPLAN_ITEMS) });
-    setSelected(ids);
+    commit({ ...draft, items: items.slice(0, MAX_FLOORPLAN_ITEMS), groups });
+    setSelected(group ? items.filter((i) => isTable(i) && i.group === group).map((i) => i.id) : ids);
+  }
+
+  // ── Groups ──
+  function groupSelected() {
+    if (selectedTables.length < 2) return;
+    const g: FloorplanGroup = { id: newId(), name: nextGroupName(draft.groups), prefix: "" };
+    const ids = new Set(selectedTables.map((t) => t.id));
+    commit({ ...draft, groups: [...draft.groups, g], items: draft.items.map((i) => (ids.has(i.id) && isTable(i) ? { ...i, group: g.id } : i)) });
+  }
+  function ungroup(groupId: string) {
+    commit({
+      ...draft,
+      groups: draft.groups.filter((g) => g.id !== groupId),
+      items: draft.items.map((i) => (isTable(i) && i.group === groupId ? (({ group: _g, ...rest }) => rest)(i) : i)),
+    });
+  }
+  function removeFromGroup(tableId: string) {
+    updateItems((items) => items.map((i) => (i.id === tableId && isTable(i) ? (({ group: _g, ...rest }) => rest)(i) : i)));
+  }
+  function updateGroup(next: FloorplanGroup) {
+    commit({ ...draft, groups: draft.groups.map((g) => (g.id === next.id ? next : g)) });
   }
   function duplicateSelected() {
     if (!selectedItems.length) return;
     const offset = snapStep[units] * 4;
     let items = draft.items;
+    let groups = draft.groups;
     const ids: string[] = [];
+    // Groups copied whole become new groups; tables copied from part of a group join no group
+    const newGroupFor = new Map<string, string>();
+    for (const g of draft.groups) {
+      const members = membersOf(g.id);
+      if (members.length && members.every((id) => selected.includes(id))) {
+        const copy = { id: newId(), name: nextGroupName(groups), prefix: "" };
+        groups = [...groups, copy];
+        newGroupFor.set(g.id, copy.id);
+      }
+    }
     for (const item of selectedItems) {
       const copy = { ...moveItem(item, offset, offset), id: newId() } as FloorplanItem;
-      if (isTable(copy)) copy.label = nextTableLabel(items);
+      if (isTable(copy)) {
+        copy.label = nextTableLabel(items);
+        const g = copy.group && newGroupFor.get(copy.group);
+        if (g) copy.group = g;
+        else delete copy.group;
+      }
       items = [...items, copy];
       ids.push(copy.id);
     }
-    commit({ ...draft, items });
+    commit({ ...draft, items, groups });
     setSelected(ids);
   }
   function deleteSelected() {
@@ -219,18 +283,24 @@ export default function FloorplanEditor({
     setSelected([]);
   }
   function rotateSelected(by: number) {
+    if (!selectedItems.length) return;
+    // Several items turn together around the middle of the selection (an island stays an island)
+    const b = selectedItems.map(itemBounds);
+    const cx = (Math.min(...b.map((x) => x.minX)) + Math.max(...b.map((x) => x.maxX))) / 2;
+    const cy = (Math.min(...b.map((x) => x.minY)) + Math.max(...b.map((x) => x.maxY))) / 2;
+    const a = (by * Math.PI) / 180;
+    const turn = (x: number, y: number) => ({
+      x: Math.round(cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a)),
+      y: Math.round(cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a)),
+    });
     updateItems((items) =>
       items.map((i) => {
         if (!selected.includes(i.id)) return i;
         if (isWall(i)) {
-          // Turn a wall around its middle
-          const cx = (i.x1 + i.x2) / 2, cy = (i.y1 + i.y2) / 2;
-          const a = (by * Math.PI) / 180;
-          const r = (x: number, y: number) => ({ x: Math.round(cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a)), y: Math.round(cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a)) });
-          const p1 = r(i.x1, i.y1), p2 = r(i.x2, i.y2);
+          const p1 = turn(i.x1, i.y1), p2 = turn(i.x2, i.y2);
           return { ...i, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
         }
-        return { ...i, rotation: (((i.rotation + by) % 360) + 360) % 360 };
+        return { ...i, ...turn(i.x, i.y), rotation: (((i.rotation + by) % 360) + 360) % 360 };
       }),
     );
   }
@@ -262,10 +332,11 @@ export default function FloorplanEditor({
     e.stopPropagation();
     svgRef.current?.setPointerCapture(e.pointerId);
     let ids = selected;
+    const unit = isTable(item) && item.group && !e.altKey ? membersOf(item.group) : [item.id];
     if (e.shiftKey) {
-      ids = selected.includes(item.id) ? selected.filter((x) => x !== item.id) : [...selected, item.id];
+      ids = selected.includes(item.id) ? selected.filter((x) => !unit.includes(x)) : [...new Set([...selected, ...unit])];
     } else if (!selected.includes(item.id)) {
-      ids = [item.id];
+      ids = unit;
     }
     setSelected(ids);
     if (ids.includes(item.id)) drag.current = { kind: "move", start: toPlan(e), base: draft, ids, moved: false };
@@ -420,6 +491,11 @@ export default function FloorplanEditor({
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         duplicateSelected();
+      } else if (mod && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          for (const g of new Set(selectedTables.map((t) => t.group).filter(Boolean))) ungroup(g!);
+        } else groupSelected();
       } else if (mod && e.key.toLowerCase() === "a") {
         e.preventDefault();
         setSelected(draft.items.map((i) => i.id));
@@ -582,6 +658,11 @@ export default function FloorplanEditor({
               );
             })}
 
+            {/* Table groups: a faint box with the group's name */}
+            {draft.groups.map((g) => (
+              <GroupOutline key={g.id} group={g} tables={draft.items.filter((i): i is FloorplanTable => isTable(i) && i.group === g.id)} perPx={perPx} active={selectedGroup?.id === g.id} />
+            ))}
+
             {/* Selection outlines and handles */}
             {selectedItems.map((i) => (
               <SelectionOutline key={i.id} item={i} perPx={perPx} />
@@ -645,10 +726,44 @@ export default function FloorplanEditor({
               onDuplicate={duplicateSelected}
               onRotate={() => rotateSelected(90)}
               layerButtons={<LayerButtons items={draft.items} ids={selected} onMove={layer} />}
+              group={isTable(single) && single.group ? draft.groups.find((g) => g.id === single.group) : undefined}
+              onSelectGroup={(id) => setSelected(membersOf(id))}
+              onLeaveGroup={() => removeFromGroup(single.id)}
+            />
+          ) : selectedGroup ? (
+            <GroupPanel
+              key={selectedGroup.id}
+              group={selectedGroup}
+              groups={draft.groups}
+              count={selected.length}
+              onChange={updateGroup}
+              onRenumber={() => commit({ ...draft, items: renumberTables(draft.items, draft.groups, selectedGroup.id) })}
+              onUngroup={() => ungroup(selectedGroup.id)}
+              actions={
+                <>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" className={btnPlain} onClick={() => rotateSelected(90)}>
+                      Rotate 90°
+                    </button>
+                    <button type="button" className={btnPlain} onClick={duplicateSelected}>
+                      Duplicate
+                    </button>
+                    <button type="button" className={`${btn} text-coral-ink hover:bg-peach`} onClick={deleteSelected}>
+                      Delete
+                    </button>
+                  </div>
+                  <LayerButtons items={draft.items} ids={selected} onMove={layer} />
+                </>
+              }
             />
           ) : selectedItems.length > 1 ? (
             <Panel title={`${selectedItems.length} items selected`}>
               <p className="text-sm text-ink-soft">Drag any of them to move them together, or use the arrow keys.</p>
+              {selectedTables.length > 1 && (
+                <button type="button" className={`${btnOn} mt-3`} onClick={groupSelected} title="Number these tables together (Ctrl+G)">
+                  Group {selectedTables.length} tables
+                </button>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" className={btnPlain} onClick={() => rotateSelected(90)}>
                   Rotate 90°
@@ -680,6 +795,9 @@ export default function FloorplanEditor({
                 <Kbd>Ctrl</Kbd>+<Kbd>]</Kbd> / <Kbd>[</Kbd> forward / backward (Shift: front / back)
               </li>
               <li>
+                <Kbd>Ctrl</Kbd>+<Kbd>G</Kbd> group tables (Shift: ungroup) · <Kbd>Alt</Kbd>+click one table in a group
+              </li>
+              <li>
                 <Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> undo · <Kbd>Ctrl</Kbd>+<Kbd>S</Kbd> save
               </li>
             </ul>
@@ -691,8 +809,9 @@ export default function FloorplanEditor({
         <RowDialog
           units={units}
           fromSelected={Boolean(single && isTable(single))}
-          onAdd={(count, direction, gap) => {
-            addRow(count, direction, gap);
+          inGroup={Boolean(single && isTable(single) && single.group)}
+          onAdd={(count, direction, gap, asGroup) => {
+            addRow(count, direction, gap, asGroup);
             setAddingRow(false);
           }}
           onClose={() => setAddingRow(false)}
@@ -703,6 +822,24 @@ export default function FloorplanEditor({
 }
 
 // ── Canvas overlays ──────────────────────────────────────────────────────
+
+function GroupOutline({ group, tables, perPx, active }: { group: FloorplanGroup; tables: FloorplanTable[]; perPx: number; active: boolean }) {
+  if (!tables.length) return null;
+  const b = tables.map(itemBounds);
+  const pad = 8 * perPx;
+  const x = Math.min(...b.map((v) => v.minX)) - pad, y = Math.min(...b.map((v) => v.minY)) - pad;
+  const w = Math.max(...b.map((v) => v.maxX)) + pad - x, h = Math.max(...b.map((v) => v.maxY)) + pad - y;
+  const font = 11 * perPx;
+  return (
+    <g pointerEvents="none">
+      <rect x={x} y={y} width={w} height={h} rx={pad} fill="none" stroke={active ? "#e8856a" : "#9ecad4"} strokeWidth={1.5} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+      <text x={x + pad / 2} y={y - font * 0.4} fontSize={font} fontWeight={700} fill={active ? "#c0442a" : "#5c6b8a"}>
+        {group.name}
+        {group.prefix ? ` · ${group.prefix}` : ""}
+      </text>
+    </g>
+  );
+}
 
 function SelectionOutline({ item, perPx }: { item: FloorplanItem; perPx: number }) {
   const pad = 4 * perPx;
@@ -765,6 +902,64 @@ function ShapeHandles({
 }
 
 // ── Panels ───────────────────────────────────────────────────────────────
+
+function GroupPanel({
+  group,
+  groups,
+  count,
+  onChange,
+  onRenumber,
+  onUngroup,
+  actions,
+}: {
+  group: FloorplanGroup;
+  groups: FloorplanGroup[];
+  count: number;
+  onChange: (g: FloorplanGroup) => void;
+  onRenumber: () => void;
+  onUngroup: () => void;
+  actions: ReactNode;
+}) {
+  return (
+    <Panel title={group.name}>
+      <p className="text-sm text-ink-soft">
+        Table group · {count} {count === 1 ? "table" : "tables"}. Its tables are numbered together and move as one; Alt+click picks a single table.
+      </p>
+      <div className="mt-3 space-y-3">
+        <TextField
+          label="Group name"
+          value={group.name}
+          maxLength={40}
+          validate={(v) => (!v ? "Give the group a name" : null)}
+          onCommit={(name) => onChange({ ...group, name })}
+        />
+        <TextField
+          label="Label prefix (optional)"
+          value={group.prefix}
+          maxLength={4}
+          placeholder="e.g. A → A1, A2…"
+          validate={(v) =>
+            v && !/^[A-Za-z][A-Za-z0-9-]*$/.test(v)
+              ? "Start with a letter (e.g. A or B-)"
+              : v && groups.some((g) => g.id !== group.id && g.prefix.toLowerCase() === v.toLowerCase())
+                ? "Another group uses this prefix"
+                : null
+          }
+          onCommit={(prefix) => onChange({ ...group, prefix })}
+        />
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={btnPlain} onClick={onRenumber} title={group.prefix ? `Label these ${group.prefix}1, ${group.prefix}2…` : "Put this group's numbers in order, row by row"}>
+            Renumber group
+          </button>
+          <button type="button" className={btnPlain} onClick={onUngroup} title="Keep the tables, drop the group (Ctrl+Shift+G)">
+            Ungroup
+          </button>
+        </div>
+      </div>
+      {actions}
+    </Panel>
+  );
+}
 
 /** Front / forward / backward / back, greyed out when there's nothing to move past. */
 function LayerButtons({ items, ids, onMove }: { items: FloorplanItem[]; ids: string[]; onMove: (m: LayerMove) => void }) {
@@ -926,7 +1121,12 @@ function PlanPanel({
           {counts.landmarks === 1 ? "landmark" : "landmarks"}
         </p>
         {counts.tables > 1 && (
-          <button type="button" className={btnPlain} onClick={() => onChange({ ...draft, items: renumberTables(draft.items) })} title="Number tables 1, 2, 3… row by row from the top left">
+          <button
+            type="button"
+            className={btnPlain}
+            onClick={() => onChange({ ...draft, items: renumberTables(draft.items, draft.groups) })}
+            title="Number tables 1, 2, 3… row by row from the top left. Each table group is numbered as one block."
+          >
             Renumber tables
           </button>
         )}
@@ -945,7 +1145,13 @@ function ItemPanel({
   onDuplicate,
   onRotate,
   layerButtons,
+  group,
+  onSelectGroup,
+  onLeaveGroup,
 }: {
+  group?: FloorplanGroup;
+  onSelectGroup: (id: string) => void;
+  onLeaveGroup: () => void;
   item: FloorplanItem;
   units: FloorplanUnits;
   items: FloorplanItem[];
@@ -1047,6 +1253,19 @@ function ItemPanel({
           )}
           {!round && rotationField}
           <p className="text-xs text-ink-muted">{round ? formatLength(item.w, units) + " round" : formatSize(item.w, item.h, units)}</p>
+          {group && (
+            <div className="rounded-xl bg-cream-50 px-3 py-2 text-sm ring-1 ring-ink/5">
+              In <strong>{group.name}</strong>
+              <div className="mt-1 flex flex-wrap gap-x-3 text-xs font-bold">
+                <button type="button" className="text-slate hover:underline" onClick={() => onSelectGroup(group.id)}>
+                  Select group
+                </button>
+                <button type="button" className="text-coral-ink hover:underline" onClick={onLeaveGroup}>
+                  Remove from group
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         {actions}
       </Panel>
@@ -1081,15 +1300,19 @@ function ItemPanel({
 function RowDialog({
   units,
   fromSelected,
+  inGroup,
   onAdd,
   onClose,
 }: {
   units: FloorplanUnits;
   fromSelected: boolean;
-  onAdd: (count: number, direction: "right" | "down", gapMm: number) => void;
+  /** The selected table is in a group, which the new tables join */
+  inGroup: boolean;
+  onAdd: (count: number, direction: "right" | "down", gapMm: number, asGroup: boolean) => void;
   onClose: () => void;
 }) {
   const [count, setCount] = useState("5");
+  const [asGroup, setAsGroup] = useState(true);
   const [direction, setDirection] = useState<"right" | "down">("right");
   const [gap, setGap] = useState("0");
   useEffect(() => {
@@ -1106,7 +1329,7 @@ function RowDialog({
         className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl"
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) onAdd(n, direction, fromUnits(Number(gap), units));
+          if (valid) onAdd(n, direction, fromUnits(Number(gap), units), asGroup);
         }}
       >
         <h2 id="row-title" className="text-xl font-extrabold">
@@ -1139,6 +1362,14 @@ function RowDialog({
             </button>
           ))}
         </div>
+        {inGroup ? (
+          <p className="mt-3 text-xs text-ink-muted">The new tables join the selected table's group.</p>
+        ) : (
+          <label className="mt-3 flex items-center gap-2 text-sm font-semibold">
+            <input type="checkbox" className="size-4 accent-coral" checked={asGroup} onChange={(e) => setAsGroup(e.target.checked)} />
+            Make them a table group (numbered together)
+          </label>
+        )}
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-bold text-ink-soft hover:bg-cream">
             Cancel

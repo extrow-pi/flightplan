@@ -9,6 +9,7 @@ import {
   FLOORPLAN_UNITS,
   PAYMENT_METHODS,
   type BulkDiscountTier,
+  type FloorplanGroup,
   type FloorplanItem,
 } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
@@ -97,6 +98,8 @@ export const eventTables = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     number: integer("number").notNull(),
     label: text("label").notNull(),
+    // The table on the event's floorplan this is (null when the event has no plan)
+    planItemId: text("plan_item_id"),
   },
   (t) => [uniqueIndex("event_tables_event_number_idx").on(t.eventId, t.number)],
 );
@@ -421,6 +424,8 @@ export const floorplans = pgTable(
     widthMm: integer("width_mm").notNull(),
     depthMm: integer("depth_mm").notNull(),
     items: jsonb("items").$type<FloorplanItem[]>().notNull().default([]),
+    // Table groups (islands, rows) that are numbered together
+    groups: jsonb("groups").$type<FloorplanGroup[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
