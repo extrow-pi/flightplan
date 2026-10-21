@@ -919,3 +919,134 @@ export type DiscountCodeUse = {
   totalCents: number;
   createdAt: string;
 };
+
+// ── Floorplans ──────────────────────────────────────────────────────────────
+// A plan is one room: its size, and the tables, walls and landmarks placed in it. Every length is a
+// whole number of millimetres, so switching a plan between feet and metres never drifts.
+
+export const FLOORPLAN_UNITS = ["ft", "m"] as const;
+export type FloorplanUnits = (typeof FLOORPLAN_UNITS)[number];
+export const MM_PER_UNIT: Record<FloorplanUnits, number> = { ft: 304.8, m: 1000 };
+
+export const LANDMARK_TYPES = [
+  "walkway",
+  "shelf",
+  "entrance",
+  "exit",
+  "washroom",
+  "stairs",
+  "elevator",
+  "stage",
+  "food",
+  "info",
+  "atm",
+  "first_aid",
+  "storage",
+  "pillar",
+  "other",
+] as const;
+export type LandmarkType = (typeof LANDMARK_TYPES)[number];
+export const landmarkLabels: Record<LandmarkType, string> = {
+  walkway: "Walkway",
+  shelf: "Shelf",
+  entrance: "Entrance",
+  exit: "Exit",
+  washroom: "Washrooms",
+  stairs: "Stairs",
+  elevator: "Elevator",
+  stage: "Stage",
+  food: "Food & drink",
+  info: "Info desk",
+  atm: "ATM",
+  first_aid: "First aid",
+  storage: "Storage",
+  pillar: "Pillar",
+  other: "Other",
+};
+
+export const MAX_FLOORPLAN_ITEMS = 1000;
+/** Rooms from 1 m to 300 m on a side */
+export const FLOORPLAN_MIN_MM = 1000;
+export const FLOORPLAN_MAX_MM = 300_000;
+/** Smallest a table or landmark can be on a side */
+export const FLOORPLAN_ITEM_MIN_MM = 100;
+
+const coord = z.number().int().min(-FLOORPLAN_MAX_MM).max(2 * FLOORPLAN_MAX_MM);
+const size = z.number().int().min(FLOORPLAN_ITEM_MIN_MM).max(FLOORPLAN_MAX_MM);
+const rotation = z.number().int().min(0).max(359);
+const itemId = z.string().min(1).max(40);
+
+/** A table. x/y is its centre; w is its length and h its depth (a round table's diameter is w). */
+export const floorplanTableSchema = z.object({
+  id: itemId,
+  kind: z.literal("table"),
+  label: z.string().trim().min(1, "Every table needs a label").max(12, "Table labels can be up to 12 characters"),
+  shape: z.enum(["rect", "round"]),
+  x: coord,
+  y: coord,
+  w: size,
+  h: size,
+  rotation,
+});
+/** A wall from one point to another. */
+export const floorplanWallSchema = z.object({
+  id: itemId,
+  kind: z.literal("wall"),
+  x1: coord,
+  y1: coord,
+  x2: coord,
+  y2: coord,
+  thickness: z.number().int().min(20).max(2000),
+});
+/** A labelled area: entrance, washrooms, stairs… x/y is its centre. */
+export const floorplanLandmarkSchema = z.object({
+  id: itemId,
+  kind: z.literal("landmark"),
+  type: z.enum(LANDMARK_TYPES),
+  label: z.string().trim().max(40, "Landmark labels can be up to 40 characters"),
+  x: coord,
+  y: coord,
+  w: size,
+  h: size,
+  rotation,
+});
+export const floorplanItemSchema = z.discriminatedUnion("kind", [floorplanTableSchema, floorplanWallSchema, floorplanLandmarkSchema]);
+export type FloorplanTable = z.infer<typeof floorplanTableSchema>;
+export type FloorplanWall = z.infer<typeof floorplanWallSchema>;
+export type FloorplanLandmark = z.infer<typeof floorplanLandmarkSchema>;
+export type FloorplanItem = z.infer<typeof floorplanItemSchema>;
+
+export const floorplanInputSchema = z
+  .object({
+    name: z.string().trim().min(1, "Give the plan a name").max(80),
+    units: z.enum(FLOORPLAN_UNITS),
+    widthMm: z.number().int().min(FLOORPLAN_MIN_MM, "The room is too small").max(FLOORPLAN_MAX_MM, "The room is too big"),
+    depthMm: z.number().int().min(FLOORPLAN_MIN_MM, "The room is too small").max(FLOORPLAN_MAX_MM, "The room is too big"),
+    items: z.array(floorplanItemSchema).max(MAX_FLOORPLAN_ITEMS, `Up to ${MAX_FLOORPLAN_ITEMS} items per plan`),
+  })
+  .superRefine((plan, ctx) => {
+    const ids = new Set<string>();
+    const labels = new Map<string, string>();
+    for (const item of plan.items) {
+      if (ids.has(item.id)) ctx.addIssue({ code: "custom", path: ["items"], message: "Two items share an id" });
+      ids.add(item.id);
+      if (item.kind === "table") {
+        const key = item.label.toLowerCase();
+        if (labels.has(key)) ctx.addIssue({ code: "custom", path: ["items"], message: `Two tables are labelled “${item.label}”` });
+        labels.set(key, item.label);
+      }
+    }
+  });
+export type FloorplanInput = z.input<typeof floorplanInputSchema>;
+
+export type Floorplan = {
+  id: string;
+  name: string;
+  units: FloorplanUnits;
+  widthMm: number;
+  depthMm: number;
+  items: FloorplanItem[];
+  tableCount: number;
+  createdAt: string;
+  updatedAt: string;
+};

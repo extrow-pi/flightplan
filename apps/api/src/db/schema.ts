@@ -6,8 +6,10 @@ import {
   COLLABORATOR_ROLES,
   DISCOUNT_CODE_KINDS,
   EVENT_STATUSES,
+  FLOORPLAN_UNITS,
   PAYMENT_METHODS,
   type BulkDiscountTier,
+  type FloorplanItem,
 } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
 
@@ -401,4 +403,29 @@ export const emailAttachments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("email_attachments_uploader_idx").on(t.uploadedBy)],
+);
+
+// Floorplans: a room's size and the tables, walls and landmarks in it, all in millimetres.
+// Library plans (event_id null) belong to an organizer and are reused as templates; a plan with an
+// event_id is that event's (or event template's) own copy.
+export const floorplans = pgTable(
+  "floorplans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizerId: text("organizer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    units: text("units", { enum: FLOORPLAN_UNITS }).notNull().default("ft"),
+    widthMm: integer("width_mm").notNull(),
+    depthMm: integer("depth_mm").notNull(),
+    items: jsonb("items").$type<FloorplanItem[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("floorplans_organizer_idx").on(t.organizerId), uniqueIndex("floorplans_event_idx").on(t.eventId)],
 );

@@ -13,6 +13,7 @@ import {
   TicketIcon,
   UsersIcon,
   WalletIcon,
+  MapIcon,
 } from "../../components/Icons";
 import { signOut, useSession } from "../../lib/auth-client";
 
@@ -31,6 +32,7 @@ const nav: NavItem[] = [
   { to: "/dashboard/emails", label: "Email log", icon: MailIcon },
   { to: "/dashboard/vendors", label: "Vendors", icon: UsersIcon },
   { to: "/dashboard/discounts", label: "Discounts", icon: WalletIcon },
+  { to: "/dashboard/floorplans", label: "Floorplans", icon: MapIcon },
   { to: "/dashboard/tickets", label: "Tickets", icon: TicketIcon, soon: true },
   { to: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
 ];
