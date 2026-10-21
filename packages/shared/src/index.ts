@@ -929,6 +929,8 @@ export type FloorplanUnits = (typeof FLOORPLAN_UNITS)[number];
 export const MM_PER_UNIT: Record<FloorplanUnits, number> = { ft: 304.8, m: 1000 };
 
 export const LANDMARK_TYPES = [
+  "walkway",
+  "shelf",
   "entrance",
   "exit",
   "washroom",
@@ -945,6 +947,8 @@ export const LANDMARK_TYPES = [
 ] as const;
 export type LandmarkType = (typeof LANDMARK_TYPES)[number];
 export const landmarkLabels: Record<LandmarkType, string> = {
+  walkway: "Walkway",
+  shelf: "Shelf",
   entrance: "Entrance",
   exit: "Exit",
   washroom: "Washrooms",

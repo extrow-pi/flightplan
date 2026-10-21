@@ -51,6 +51,12 @@ type Pt = { x: number; y: number };
 
 const defaultWallThickness: Record<FloorplanUnits, number> = { ft: 152, m: 150 };
 const defaultLandmarkSize: Record<FloorplanUnits, { w: number; h: number }> = { ft: { w: 2438, h: 1829 }, m: { w: 2500, h: 2000 } };
+// Starting sizes for the types that differ from a generic landmark
+const landmarkSizes: Partial<Record<LandmarkType, Record<FloorplanUnits, { w: number; h: number }>>> = {
+  walkway: { ft: { w: 9144, h: 1829 }, m: { w: 9000, h: 1800 } }, // 30 × 6 ft
+  shelf: { ft: { w: 2438, h: 610 }, m: { w: 2400, h: 600 } }, // 8 × 2 ft
+  pillar: { ft: { w: 610, h: 610 }, m: { w: 600, h: 600 } },
+};
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap transition disabled:opacity-40";
@@ -159,9 +165,10 @@ export default function FloorplanEditor({
     setSelected([t.id]);
   }
   function addLandmark(type: LandmarkType) {
-    const s = type === "pillar" ? { w: fromUnits(units === "ft" ? 2 : 0.6, units), h: fromUnits(units === "ft" ? 2 : 0.6, units) } : defaultLandmarkSize[units];
+    const s = landmarkSizes[type]?.[units] ?? defaultLandmarkSize[units];
     const l: FloorplanLandmark = { id: newId(), kind: "landmark", type, label: "", rotation: 0, ...s, ...viewCenter() };
-    updateItems((items) => [...items, l]);
+    // Walkways go underneath everything else; other landmarks on top
+    updateItems((items) => (type === "walkway" ? [l, ...items] : [...items, l]));
     setSelected([l.id]);
     setTool("select");
   }
@@ -479,6 +486,12 @@ export default function FloorplanEditor({
           title="Draw walls: drag from one end to the other (W). Hold Shift for straight lines."
         >
           + Wall
+        </button>
+        <button type="button" className={btnPlain} onClick={() => addLandmark("walkway")} disabled={full} title="A walkway or aisle; resize it to any width and length">
+          + Walkway
+        </button>
+        <button type="button" className={btnPlain} onClick={() => addLandmark("shelf")} disabled={full}>
+          + Shelf
         </button>
         <label className="relative">
           <span className="sr-only">Add a landmark</span>
@@ -1055,8 +1068,8 @@ function ItemPanel({
         </label>
         <TextField label="Label (optional)" value={item.label} maxLength={40} placeholder={landmarkLabels[item.type]} onCommit={(label) => onChange({ ...item, label })} />
         <div className="grid grid-cols-2 gap-2">
-          <LengthField label="Width" mm={item.w} units={units} onCommit={(w) => onChange({ ...item, w })} />
-          <LengthField label="Depth" mm={item.h} units={units} onCommit={(h) => onChange({ ...item, h })} />
+          <LengthField label={item.type === "walkway" || item.type === "shelf" ? "Length" : "Width"} mm={item.w} units={units} onCommit={(w) => onChange({ ...item, w })} />
+          <LengthField label={item.type === "walkway" ? "Width" : "Depth"} mm={item.h} units={units} onCommit={(h) => onChange({ ...item, h })} />
         </div>
         {rotationField}
       </div>

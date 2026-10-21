@@ -71,16 +71,51 @@ export function Wall({ wall, ...rest }: { wall: Extract<FloorplanItem, { kind: "
 export function Landmark({ landmark: l, ...rest }: { landmark: FloorplanLandmark } & SVGProps<SVGGElement>) {
   const c = landmarkColors[l.type];
   const text = l.label || landmarkLabels[l.type];
-  // Fit the label inside the shape (upright, whatever the rotation)
-  const font = clamp(Math.min(l.h * 0.32, (l.w * 1.6) / Math.max(text.length, 3)), 80, 900);
+  // Run the label along the longer side (so a narrow walkway is still readable), never upside down
+  const long = Math.max(l.w, l.h), short = Math.min(l.w, l.h);
+  let angle = (l.rotation + (l.h > l.w ? 90 : 0)) % 360;
+  if (angle > 90 && angle <= 270) angle -= 180;
+  const font = clamp(Math.min(short * 0.32, (long * 1.3) / Math.max(text.length, 3)), 80, 900);
+  const walkway = l.type === "walkway";
   return (
     <g {...rest}>
       <g transform={`translate(${l.x} ${l.y}) rotate(${l.rotation})`}>
-        <rect x={-l.w / 2} y={-l.h / 2} width={l.w} height={l.h} rx={Math.min(l.w, l.h) * 0.08} fill={c.fill} stroke={c.ink} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        <rect
+          x={-l.w / 2}
+          y={-l.h / 2}
+          width={l.w}
+          height={l.h}
+          rx={walkway || l.type === "shelf" ? 0 : short * 0.08}
+          fill={c.fill}
+          stroke={c.ink}
+          strokeWidth={1.5}
+          strokeDasharray={walkway ? "8 6" : undefined}
+          vectorEffect="non-scaling-stroke"
+        />
         {l.type === "stairs" && <StairTreads w={l.w} h={l.h} ink={c.ink} />}
+        {l.type === "shelf" &&
+          (l.w >= l.h ? (
+            <line x1={-l.w / 2} y1={0} x2={l.w / 2} y2={0} stroke={c.ink} strokeOpacity={0.5} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          ) : (
+            <line x1={0} y1={-l.h / 2} x2={0} y2={l.h / 2} stroke={c.ink} strokeOpacity={0.5} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          ))}
       </g>
       {l.type !== "pillar" && (
-        <text x={l.x} y={l.y} textAnchor="middle" dominantBaseline="central" fontSize={font} fontWeight={700} fill={c.ink} style={{ pointerEvents: "none" }}>
+        <text
+          x={l.x}
+          y={l.y}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={font}
+          fontWeight={700}
+          fill={c.ink}
+          // Shelf labels sit on a light pill so the centre line doesn't run through them
+          paintOrder={l.type === "shelf" ? "stroke" : undefined}
+          stroke={l.type === "shelf" ? c.fill : undefined}
+          strokeWidth={l.type === "shelf" ? font * 0.35 : undefined}
+          transform={angle ? `rotate(${angle} ${l.x} ${l.y})` : undefined}
+          style={{ pointerEvents: "none" }}
+        >
           {text}
         </text>
       )}

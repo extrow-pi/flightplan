@@ -136,6 +136,8 @@ export const wallLength = (w: FloorplanWall) => Math.hypot(w.x2 - w.x1, w.y2 - w
 
 /** Fill / ink colours for each kind of landmark */
 export const landmarkColors: Record<LandmarkType, { fill: string; ink: string }> = {
+  walkway: { fill: "#f4f7f8", ink: "#6f8a92" },
+  shelf: { fill: "#eadcc4", ink: "#7a5a3a" },
   entrance: { fill: "#d9f2ec", ink: "#2d7a6a" },
   exit: { fill: "#d9f2ec", ink: "#2d7a6a" },
   washroom: { fill: "#dcecf2", ink: "#3d6b78" },
