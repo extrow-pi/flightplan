@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "public_map" text DEFAULT 'off' NOT NULL;

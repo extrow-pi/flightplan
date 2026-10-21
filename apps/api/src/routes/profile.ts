@@ -22,7 +22,7 @@ import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
 // An organizer's public page (/o/:handle): a profile and their published shows. Organizers set it up
 // in Settings; it's hidden until they switch it on.
 
-const { bookings, eventDays, events, eventTables, organizerProfiles } = schema;
+const { bookings, eventDays, events, eventTables, organizerProfiles, floorplans } = schema;
 
 const TIME_ZONE = process.env.APP_TIMEZONE ?? "America/Vancouver";
 /** How many past shows the public page lists */
@@ -192,6 +192,11 @@ export const publicOrganizerRoutes = new Hono().get("/:handle", async (c) => {
   const daysOf = new Map<string, EventDay[]>();
   for (const { eventId, ...d } of dayRows) daysOf.set(eventId, [...(daysOf.get(eventId) ?? []), d]);
   const tablesOf = new Map(tableCounts.map((t) => [t.eventId, t.n]));
+  const planned = new Set(
+    ids.length
+      ? (await db.select({ eventId: floorplans.eventId }).from(floorplans).where(inArray(floorplans.eventId, ids))).map((p) => p.eventId)
+      : [],
+  );
   const heldOf = new Map(heldCounts.map((h) => [h.eventId, h.n]));
 
   const now = today();
@@ -213,6 +218,7 @@ export const publicOrganizerRoutes = new Hono().get("/:handle", async (c) => {
       ticketPriceCents: e.ticketPriceCents,
       tablePriceCents: e.tablePriceCents,
       booking: isUpcoming && e.bookingOpen ? { url: `/book/${e.bookingToken}`, tablesLeft: Math.max(0, tablesLeft) } : null,
+      mapUrl: isUpcoming && e.publicMap !== "off" && planned.has(e.id) ? `/map/${e.id}` : null,
     };
     (isUpcoming ? upcoming : past).push(show);
   }

@@ -141,6 +141,13 @@
       "when": 1792568415286,
       "tag": "0019_table_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792569203188,
+      "tag": "0020_public_map",
+      "breakpoints": true
     }
   ]
 }

@@ -128,7 +128,11 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 - While a show has a plan, the Details tab's table count is locked to the plan.
 - New events from a template, and **Save as template**, copy the plan.
 
-Coming next: a map view for organizers, picking tables on the map when booking, and a public visitor map.
+**Maps:** one map viewer is shared by the three places plans are used. Drag to pan; pinch, Ctrl/⌘ + scroll or the +/− buttons to zoom (plain scrolling still scrolls the page); **Fit** shows the whole room. The map box takes the room's shape.
+
+- **Tables & vendors → Map** (shows with a plan): tables coloured by state (open, needs approval, awaiting payment, overdue, paid) with the vendor's name. Click an open table to assign it, or a booked one to jump to the vendor's card. Search and filters dim the other tables and zoom to the matches.
+- **Booking page:** vendors tap open tables on the map to pick them; taken tables are greyed out, and no vendor names are shown. The table chips stay as a fallback.
+- **Public visitor map** (`/map/:eventId`): set on the show's Floorplan tab: **Off** (default), **Paid vendors only**, or **Everyone with a table**. Only for published shows with a plan. Visitors search by vendor or table, and tap a vendor to highlight and zoom to their tables. Vendors are shown by business name (or name); no emails or phone numbers. Linked from the organizer's public page as **Vendor map**, and refreshes every minute.
 
 ### Public organizer page
 
@@ -308,6 +312,8 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET / PUT / DELETE | `/api/events/:id/floorplan` | An event's (or template's) own plan: read, save (syncs the event's tables), remove |
 | POST | `/api/events/:id/floorplan/from-library` | Use a copy of a library plan: `{ floorplanId }` |
 | POST | `/api/events/:id/floorplan/to-library` | Copy the event's plan into the library: `{ name }` |
+| PUT | `/api/events/:id/public-map` | Who's on the public visitor map: `{ publicMap: "off" | "paid" | "all" }` |
+| GET | `/api/public/map/:eventId` | Public: the show's plan and where each vendor is (published shows with the map turned on) |
 | PUT / DELETE | `/api/discount-codes/:id` | Update or delete a code (past bookings keep their discount) |
 | GET | `/api/discount-codes/:id/uses` | Requests that used a code |
 | POST | `/api/public/book/:token/quote` · `/api/public/invite/:token/quote` | Price preview: `{ tableCount, discountCode?, email? }` gives the subtotal, discount, total, and any code error (no sign-in) |

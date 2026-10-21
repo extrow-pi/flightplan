@@ -20,6 +20,7 @@ import OrganizerPage from "./pages/OrganizerPage";
 import FloorplansPage from "./pages/dashboard/FloorplansPage";
 import FloorplanEditorPage from "./pages/dashboard/FloorplanEditorPage";
 import EventFloorplanPage from "./pages/dashboard/EventFloorplanPage";
+import VisitorMapPage from "./pages/VisitorMapPage";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -55,6 +56,8 @@ const router = createBrowserRouter([
   { path: "/booking/:requestId", element: <RequestStatusPage /> },
   // Organizer public pages (no sign-in)
   { path: "/o/:handle", element: <OrganizerPage /> },
+  // A show's public vendor map
+  { path: "/map/:eventId", element: <VisitorMapPage /> },
   // Accept an invitation to collaborate on an event (asks to sign in first)
   { path: "/collaborate/:token", element: <AcceptInvitePage /> },
   { path: "/privacy", element: <PrivacyPage /> },

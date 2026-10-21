@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import type { EventRecord, Floorplan, FloorplanItem, FloorplanTable } from "@flightplan/shared";
+import { PUBLIC_MAP_MODES, publicMapLabels, type EventRecord, type Floorplan, type FloorplanItem, type FloorplanTable, type PublicMapMode } from "@flightplan/shared";
+import CopyButton from "../../components/CopyButton";
 import { canEdit, EventTabs, isTemplate, SharedBadge } from "../../components/events";
 import FloorplanEditor, { type Draft } from "../../components/floorplan/FloorplanEditor";
 import { FloorplanView } from "../../components/floorplan/FloorplanDrawing";
@@ -15,6 +16,7 @@ import {
   useRemoveEventFloorplan,
   useSaveEventFloorplan,
   useSavePlanToLibrary,
+  useSetPublicMap,
   useUseLibraryPlan,
 } from "../../lib/api";
 import { defaultTableSize, formatSize, fromUnits, newId } from "../../lib/floorplan";
@@ -154,6 +156,8 @@ function PlanBar({ event, plan, dirty, onReplaced }: { event: EventRecord; plan:
         </div>
       </div>
 
+      {!isTemplate(event) && <VisitorMapSetting event={event} />}
+
       {savedName && mode === "idle" && (
         <p className="mt-3 text-sm font-semibold text-[#2d7a6a]" role="status">
           Saved “{savedName}” to your{" "}
@@ -213,6 +217,45 @@ function PlanBar({ event, plan, dirty, onReplaced }: { event: EventRecord; plan:
           {remove.error && <span className="w-full text-sm font-semibold text-coral-ink">{remove.error.message}</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Who appears on the public visitor map, and its link. */
+function VisitorMapSetting({ event }: { event: EventRecord }) {
+  const set = useSetPublicMap(event.id);
+  const url = `${window.location.origin}/map/${event.id}`;
+  const live = event.publicMap !== "off" && event.status === "published";
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-ink/5 pt-3 text-sm">
+      <label className="flex items-center gap-2 font-semibold">
+        Visitor map
+        <select
+          value={event.publicMap}
+          disabled={set.isPending}
+          onChange={(e) => set.mutate(e.target.value as PublicMapMode)}
+          className="rounded-full border-2 border-cream bg-white px-2.5 py-1 text-base font-bold text-ink focus:border-coral focus:outline-none sm:text-sm"
+        >
+          {PUBLIC_MAP_MODES.map((m) => (
+            <option key={m} value={m}>
+              {publicMapLabels[m]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {event.publicMap === "off" ? (
+        <span className="text-ink-muted">A public page where visitors can look up where each vendor is.</span>
+      ) : live ? (
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <a href={url} target="_blank" rel="noreferrer" className="truncate font-bold text-coral-ink hover:underline">
+            {url.replace(/^https?:\/\//, "")}
+          </a>
+          <CopyButton text={url} />
+        </span>
+      ) : (
+        <span className="text-ink-muted">Goes live when the show is published.</span>
+      )}
+      {set.error && <span className="w-full font-semibold text-coral-ink">{set.error.message}</span>}
     </div>
   );
 }

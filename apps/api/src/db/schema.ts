@@ -7,6 +7,7 @@ import {
   DISCOUNT_CODE_KINDS,
   EVENT_STATUSES,
   FLOORPLAN_UNITS,
+  PUBLIC_MAP_MODES,
   PAYMENT_METHODS,
   type BulkDiscountTier,
   type FloorplanGroup,
@@ -47,6 +48,8 @@ export const events = pgTable(
     // First day of the show (local date). Null for templates.
     startDate: date("start_date", { mode: "string" }),
     vendorTables: integer("vendor_tables").notNull().default(0),
+    // Who appears on the public visitor map: off, paid vendors only, or everyone holding a table
+    publicMap: text("public_map", { enum: PUBLIC_MAP_MODES }).notNull().default("off"),
     tablePriceCents: integer("table_price_cents").notNull().default(0),
     ticketPriceCents: integer("ticket_price_cents").notNull().default(0),
     status: text("status", { enum: EVENT_STATUSES }).notNull().default("draft"),
