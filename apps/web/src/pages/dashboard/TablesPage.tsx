@@ -899,7 +899,7 @@ function EmailVendorsDialog({
       <label className="mt-4 flex items-start gap-2 text-sm font-semibold">
         <input type="checkbox" className="mt-0.5 size-4 accent-coral" checked={includeDetails} onChange={(e) => setIncludeDetails(e.target.checked)} />
         <span>
-          Add each vendor's tables and status under the message
+          Add each vendor's tables and the show details (setup time, show hours, venue address) under the message
         </span>
       </label>
 

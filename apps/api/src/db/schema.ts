@@ -79,6 +79,8 @@ export const eventDays = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
     dayOffset: integer("day_offset").notNull(),
+    // When vendors can start setting up, "HH:MM" ("" = not set)
+    setupTime: text("setup_time").notNull().default(""),
     startTime: text("start_time").notNull(),
     endTime: text("end_time").notNull(),
   },

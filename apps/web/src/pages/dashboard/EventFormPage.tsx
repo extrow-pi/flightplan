@@ -33,7 +33,7 @@ type Kind = "event" | "template";
 type TierRow = { key: number; minTables: string; kind: BulkDiscountKind; value: string };
 
 // One schedule row. Events use `date`; templates use `day` (1 = first day).
-type DayRow = { key: number; date: string; day: string; startTime: string; endTime: string };
+type DayRow = { key: number; date: string; day: string; setupTime: string; startTime: string; endTime: string };
 
 // The form edits strings; prices are dollars here and cents in the API
 type FormState = {
@@ -59,7 +59,7 @@ type FormState = {
 type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen" | "tiers">, string>> & {
   tiers?: string;
   days?: string;
-  rows?: Record<number, Partial<Record<"date" | "day" | "startTime" | "endTime", string>>>;
+  rows?: Record<number, Partial<Record<"date" | "day" | "setupTime" | "startTime" | "endTime", string>>>;
 };
 
 let nextKey = 1;
@@ -71,7 +71,7 @@ const emptyForm = (): FormState => ({
   venueName: "",
   address: "",
   city: "",
-  days: [row({ date: "", day: "1", startTime: "11:00", endTime: "16:00" })],
+  days: [row({ date: "", day: "1", setupTime: "", startTime: "11:00", endTime: "16:00" })],
   vendorTables: "",
   tablePrice: "",
   ticketPrice: "0",
@@ -95,6 +95,7 @@ function fromEvent(e: EventRecord): FormState {
       row({
         date: e.startDate ? addDays(e.startDate, d.dayOffset) : "",
         day: String(d.dayOffset + 1),
+        setupTime: d.setupTime,
         startTime: d.startTime,
         endTime: d.endTime,
       }),
@@ -140,7 +141,7 @@ function toInput(f: FormState, status: EventStatus, rowsAreDated: boolean): Even
     address: f.address,
     city: f.city,
     startDate: status === "template" ? null : startDate,
-    days: f.days.map((d, i) => ({ dayOffset: offsets[i], startTime: d.startTime, endTime: d.endTime })),
+    days: f.days.map((d, i) => ({ dayOffset: offsets[i], setupTime: d.setupTime, startTime: d.startTime, endTime: d.endTime })),
     vendorTables: toInt(f.vendorTables),
     tablePriceCents: toCents(f.tablePrice),
     ticketPriceCents: toCents(f.ticketPrice),
@@ -167,7 +168,7 @@ function toErrors(issues: z.core.$ZodIssue[]): Errors {
     if (field === "days" && typeof index === "number" && typeof sub === "string") {
       errors.rows ??= {};
       errors.rows[index] ??= {};
-      const key = sub === "dayOffset" ? "day" : (sub as "startTime" | "endTime");
+      const key = sub === "dayOffset" ? "day" : (sub as "setupTime" | "startTime" | "endTime");
       errors.rows[index][key] ??= issue.message;
     } else if (field === "bulkDiscounts") {
       errors.tiers ??= typeof index === "number" ? `Tier ${index + 1}: ${issue.message}` : issue.message;
@@ -260,6 +261,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
       row({
         date: latestDate ? addDays(latestDate, 1) : "",
         day: String(nextDay),
+        setupTime: last?.setupTime ?? "",
         startTime: last?.startTime ?? "10:00",
         endTime: last?.endTime ?? "17:00",
       }),
@@ -730,8 +732,11 @@ function ScheduleEditor({
         </p>
       </div>
 
-      <div className="mt-5 hidden grid-cols-[1.4fr_1fr_1fr_auto] gap-3 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+      <div className="mt-5 hidden grid-cols-[1.4fr_1fr_1fr_1fr_auto] gap-3 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
         <span>{dated ? "Date" : "Day"}</span>
+        <span title="When vendors can start setting up (optional)">
+          Setup <span className="font-semibold normal-case">(optional)</span>
+        </span>
         <span>Opens</span>
         <span>Closes</span>
         <span className="w-10" />
@@ -748,9 +753,9 @@ function ScheduleEditor({
           return (
             <li
               key={d.key}
-              className="grid grid-cols-2 gap-3 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
+              className="grid grid-cols-3 gap-3 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[1.4fr_1fr_1fr_1fr_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
             >
-              <div className="col-span-2 sm:col-span-1">
+              <div className="col-span-3 sm:col-span-1">
                 {dated ? (
                   <input
                     type="date"
@@ -780,6 +785,19 @@ function ScheduleEditor({
                 <RowError message={rowErrors.date ?? rowErrors.day} />
               </div>
               <div>
+                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Setup</span>
+                <input
+                  type="time"
+                  aria-label={`${label}: vendor setup starts (optional)`}
+                  className={inputClass}
+                  value={d.setupTime}
+                  aria-invalid={!!rowErrors.setupTime}
+                  onChange={(e) => onChange(d.key, { setupTime: e.target.value })}
+                />
+                <RowError message={rowErrors.setupTime} />
+              </div>
+              <div>
+                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Opens</span>
                 <input
                   type="time"
                   aria-label={`${label}: opens`}
@@ -791,6 +809,7 @@ function ScheduleEditor({
                 <RowError message={rowErrors.startTime} />
               </div>
               <div>
+                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Closes</span>
                 <input
                   type="time"
                   aria-label={`${label}: closes`}
@@ -805,7 +824,7 @@ function ScheduleEditor({
                 type="button"
                 onClick={() => onRemove(d.key)}
                 disabled={days.length === 1}
-                className="col-span-2 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-12 sm:py-0"
+                className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-12 sm:py-0"
                 aria-label={`Remove ${label}`}
                 title="Remove day"
               >

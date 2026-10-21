@@ -176,7 +176,7 @@ export const publicOrganizerRoutes = new Hono().get("/:handle", async (c) => {
   const [dayRows, tableCounts, heldCounts] = ids.length
     ? await Promise.all([
         db
-          .select({ eventId: eventDays.eventId, dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+          .select({ eventId: eventDays.eventId, dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
           .from(eventDays)
           .where(inArray(eventDays.eventId, ids))
           .orderBy(asc(eventDays.dayOffset)),

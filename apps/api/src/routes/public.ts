@@ -76,7 +76,7 @@ async function loadPage(kind: "event" | "invite", token: string) {
 
   const [days, tables, held, acceptsCodes] = await Promise.all([
     db
-      .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
       .from(eventDays)
       .where(eq(eventDays.eventId, event.id))
       .orderBy(asc(eventDays.dayOffset)),
@@ -241,7 +241,7 @@ const requestStatusRoutes = new Hono().get("/:requestId", async (c) => {
   const [event] = await db.select().from(events).where(eq(events.id, first.eventId));
   const [organizer] = await db.select({ name: user.name }).from(user).where(eq(user.id, event.organizerId));
   const days = await db
-    .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+    .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
     .from(eventDays)
     .where(eq(eventDays.eventId, event.id))
     .orderBy(asc(eventDays.dayOffset));

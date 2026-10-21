@@ -139,10 +139,13 @@ export function priceRequest(args: {
 export const eventDaySchema = z
   .object({
     dayOffset: z.number().int().min(0).max(60, "Keep a show within two months"),
+    /** When vendors can start setting up ("" = not set) */
+    setupTime: z.union([z.literal(""), time]).optional().default(""),
     startTime: time,
     endTime: time,
   })
-  .refine((d) => d.endTime > d.startTime, { message: "Must end after it starts", path: ["endTime"] });
+  .refine((d) => d.endTime > d.startTime, { message: "Must end after it starts", path: ["endTime"] })
+  .refine((d) => !d.setupTime || d.setupTime < d.startTime, { message: "Setup should start before opening", path: ["setupTime"] });
 
 export type EventDay = z.output<typeof eventDaySchema>;
 
