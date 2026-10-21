@@ -86,6 +86,7 @@ async function findEvent(id: string, userId: string) {
       status: events.status,
       requiresApproval: events.requiresApproval,
       tablePriceCents: events.tablePriceCents,
+      tableTypes: events.tableTypes,
       paymentDueDays: events.paymentDueDays,
       bulkDiscounts: events.bulkDiscounts,
     })
@@ -176,7 +177,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           .where(inArray(vendors.id, vendorIds))
       : [];
     const body: EventTablesResponse = {
-      tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, booking: activeByTable.get(t.id) ?? null })),
+      tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, typeId: t.typeId, booking: activeByTable.get(t.id) ?? null })),
       history: bookingRows.filter((b) => !active.includes(b.status as (typeof active)[number])).map(toBooking),
       invites: inviteRows.map(toInvite),
       unassigned: unassignedRows.map(({ createdAt, ...u }): UnassignedVendor => ({ ...u, addedAt: createdAt.toISOString() })),
@@ -404,7 +405,7 @@ eventBookingRoutes.post("/:id/quote", async (c) => {
   const parsed = quoteRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json(invalid(parsed.error), 400);
   return c.json(
-    await quote({ event, tableCount: parsed.data.tableCount, codeText: parsed.data.discountCode, email: parsed.data.email }),
+    await quote({ event, tableIds: parsed.data.tableIds, tableCount: parsed.data.tableCount, codeText: parsed.data.discountCode, email: parsed.data.email }),
   );
 });
 
@@ -635,7 +636,16 @@ export const bookingRoutes = new Hono<AuthEnv>()
     const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
     if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
-    const rows = await transitionRequest(found.booking.requestId, ["pending"], approvedFields(found.event));
+    // A request of free tables is paid as soon as it's approved
+    const [{ listed }] = await db
+      .select({ listed: sql<number>`coalesce(sum(${bookings.basePriceCents}), 0)::int` })
+      .from(bookings)
+      .where(eq(bookings.requestId, found.booking.requestId));
+    const rows = await transitionRequest(
+      found.booking.requestId,
+      ["pending"],
+      approvedFields({ free: listed === 0, paymentDueDays: found.event.paymentDueDays }),
+    );
     if (!rows.length) return c.json(cantDo("approve", found.booking.status), 409);
     void notifyApproved(found.booking.requestId);
     return c.json({ bookings: rows.map(toBooking) });

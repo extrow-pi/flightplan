@@ -95,19 +95,21 @@ export type PriceQuote = {
  * more (never both). The code must already be validated.
  */
 export function priceRequest(args: {
-  tablePriceCents: number;
-  tableCount: number;
+  /** Each table's list price (its table type's price), in table order */
+  prices: number[];
   tiers: BulkDiscountTier[];
   code?: { code: string; kind: DiscountCodeKind; value: number } | null;
 }): PriceQuote {
-  const { tablePriceCents: price, tableCount: n } = args;
-  const subtotal = price * n;
+  const { prices } = args;
+  const n = prices.length;
+  const subtotal = prices.reduce((sum, p) => sum + p, 0);
+  // Tiers count every table, whatever its type
   const tier = [...args.tiers].filter((t) => n >= t.minTables).sort((a, b) => b.minTables - a.minTables)[0];
   const tierOff = !tier
     ? 0
     : tier.kind === "percent"
       ? Math.round((subtotal * tier.value) / 100)
-      : Math.min(tier.value, price) * n;
+      : prices.reduce((sum, p) => sum + Math.min(tier.value, p), 0);
   const codeOff = !args.code
     ? 0
     : args.code.kind === "percent"
@@ -128,10 +130,16 @@ export function priceRequest(args: {
   }
   discount = Math.min(discount, subtotal);
   const total = subtotal - discount;
-  // Split the total across tables; leftover cents go to the first tables
-  const base = n ? Math.floor(total / n) : 0;
-  const extra = n ? total - base * n : 0;
-  const perTableCents = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+  // Each table's share of the total. "$ off each table" comes off each table; other discounts are
+  // shared in proportion to each table's price, with leftover cents going to the first tables.
+  let perTableCents: number[];
+  if (source === "tier" && tier?.kind === "per_table") {
+    perTableCents = prices.map((p) => p - Math.min(tier.value, p));
+  } else {
+    perTableCents = prices.map((p) => (subtotal ? Math.floor((p * total) / subtotal) : 0));
+    let left = total - perTableCents.reduce((sum, c) => sum + c, 0);
+    for (let i = 0; left > 0 && n; i = (i + 1) % n, left--) perTableCents[i]++;
+  }
   return { tableCount: n, subtotalCents: subtotal, discountCents: discount, totalCents: total, label, source, perTableCents };
 }
 
@@ -149,6 +157,43 @@ export const eventDaySchema = z
 
 export type EventDay = z.output<typeof eventDaySchema>;
 
+// ── Table types ──────────────────────────────────────────────────────────────
+
+export const MAX_TABLE_TYPES = 10;
+
+/**
+ * A kind of vendor table at a show, e.g. "6 ft table" at $60 × 20. Tables are numbered in one
+ * sequence, type by type; a type with a prefix is labelled prefix + 1…N instead (e.g. L1–L10).
+ */
+export const tableTypeSchema = z.object({
+  id: z.string().min(1).max(40),
+  name: z.string().trim().min(1, "Name this table type").max(40, "Keep the name under 40 characters"),
+  priceCents: cents,
+  count: z.number({ error: "Enter a number" }).int("Whole numbers only").min(0, "Can't be negative").max(MAX_TABLES),
+  prefix: z
+    .string()
+    .trim()
+    .max(4, "Prefixes can be up to 4 characters")
+    .regex(/^([A-Za-z][A-Za-z0-9-]*)?$/, "Start the prefix with a letter (e.g. L)")
+    .optional()
+    .default(""),
+});
+export type TableType = z.output<typeof tableTypeSchema>;
+export type TableTypeInput = z.input<typeof tableTypeSchema>;
+
+/** The single type an event has when it only sets a table count and price */
+export const STANDARD_TABLE_TYPE_ID = "standard";
+
+/** Every table's label and type, in order: one running number, except prefixed types (A1, A2…). */
+export function tableLabels(types: Pick<TableType, "id" | "count" | "prefix">[]) {
+  const out: { typeId: string; label: string }[] = [];
+  let next = 1;
+  for (const t of types) {
+    for (let i = 1; i <= t.count; i++) out.push({ typeId: t.id, label: t.prefix ? `${t.prefix}${i}` : String(next++) });
+  }
+  return out;
+}
+
 // Dates are local wall-clock values, stored as-is (no timezone conversion).
 export const eventInputSchema = z
   .object({
@@ -159,8 +204,11 @@ export const eventInputSchema = z
     city: z.string().trim().min(2, "Which city?").max(100),
     startDate: z.iso.date("Pick a date").nullable().optional().default(null),
     days: z.array(eventDaySchema).min(1, "Add at least one day").max(MAX_EVENT_DAYS, `Up to ${MAX_EVENT_DAYS} days`),
-    vendorTables: z.number({ error: "Enter a number" }).int("Whole numbers only").min(0, "Can't be negative").max(MAX_TABLES),
-    tablePriceCents: cents,
+    /** Table types (6 ft, 8 ft…). Without them, vendorTables and tablePriceCents make one "Table" type. */
+    tableTypes: z.array(tableTypeSchema).max(MAX_TABLE_TYPES, `Up to ${MAX_TABLE_TYPES} table types`).optional().default([]),
+    /** Worked out from the table types on save: the total number of tables, and the lowest price */
+    vendorTables: z.number({ error: "Enter a number" }).int("Whole numbers only").min(0, "Can't be negative").max(MAX_TABLES).optional(),
+    tablePriceCents: cents.optional(),
     ticketPriceCents: cents,
     status: z.enum(EVENT_STATUSES).optional().default("draft"),
     // Vendor booking settings
@@ -203,14 +251,38 @@ export const eventInputSchema = z
     if (new Set(mins).size !== mins.length) {
       ctx.addIssue({ code: "custom", path: ["bulkDiscounts"], message: "Each tier needs a different number of tables" });
     }
+    if (e.tableTypes.length) {
+      if (new Set(e.tableTypes.map((t) => t.id)).size !== e.tableTypes.length) {
+        ctx.addIssue({ code: "custom", path: ["tableTypes"], message: "Two table types share an id" });
+      }
+      const prefixes = e.tableTypes.map((t) => t.prefix.toLowerCase()).filter(Boolean);
+      if (new Set(prefixes).size !== prefixes.length) {
+        ctx.addIssue({ code: "custom", path: ["tableTypes"], message: "Each table type needs a different prefix" });
+      }
+      if (e.tableTypes.reduce((n, t) => n + t.count, 0) > MAX_TABLES) {
+        ctx.addIssue({ code: "custom", path: ["tableTypes"], message: `Up to ${MAX_TABLES} tables in all` });
+      }
+    } else {
+      if (e.vendorTables === undefined) ctx.addIssue({ code: "custom", path: ["vendorTables"], message: "Enter a number" });
+      if (e.tablePriceCents === undefined) ctx.addIssue({ code: "custom", path: ["tablePriceCents"], message: "Enter an amount" });
+    }
   })
   // Templates are undated; days are kept in order
-  .transform((e) => ({
+  .transform((e) => {
+    const tableTypes: TableType[] = e.tableTypes.length
+      ? e.tableTypes
+      : [{ id: STANDARD_TABLE_TYPE_ID, name: "Table", priceCents: e.tablePriceCents ?? 0, count: e.vendorTables ?? 0, prefix: "" }];
+    return {
     ...e,
+    tableTypes,
+    vendorTables: tableTypes.reduce((n, t) => n + t.count, 0),
+    // The lowest price, for "from $60" (all types count, even ones with no tables yet)
+    tablePriceCents: Math.min(...tableTypes.map((t) => t.priceCents)),
     startDate: e.status === "template" ? null : e.startDate,
     days: [...e.days].sort((a, b) => a.dayOffset - b.dayOffset),
     bulkDiscounts: [...e.bulkDiscounts].sort((a, b) => a.minTables - b.minTables),
-  }));
+    };
+  });
 
 export type EventInput = z.input<typeof eventInputSchema>;
 
@@ -335,6 +407,8 @@ export type VendorBookingInput = z.input<typeof vendorBookingSchema>;
 /** Price preview on the booking page, before submitting */
 export const quoteRequestSchema = z.object({
   tableCount: z.number().int().min(1).max(MAX_TABLES_PER_REQUEST),
+  /** The picked tables, so each is priced by its type (otherwise tableCount at the lowest price) */
+  tableIds: z.array(z.uuid()).max(MAX_TABLES_PER_REQUEST).optional().default([]),
   discountCode: z.string().trim().toUpperCase().max(40).optional().default(""),
   /** Lets "one use per vendor" codes be checked early */
   email: z.union([z.literal(""), z.email().trim().toLowerCase()]).optional().default(""),
@@ -645,6 +719,8 @@ export type EventTable = {
   id: string;
   number: number;
   label: string;
+  /** Which of the event's table types it is */
+  typeId: string;
   /** The table's active booking, if any */
   booking: Booking | null;
 };
@@ -701,11 +777,13 @@ export type PublicBookingPage = {
     paymentDueDays: number | null;
     floorMapUrl: string | null;
     maxTablesPerRequest: number;
+    /** The kinds of table and their prices */
+    tableTypes: { id: string; name: string; priceCents: number }[];
     bulkDiscounts: BulkDiscountTier[];
     /** Whether the organizer has any discount codes that could apply (shows the code field) */
     acceptsCodes: boolean;
   };
-  tables: { id: string; label: string; available: boolean }[];
+  tables: { id: string; label: string; available: boolean; typeId: string }[];
   /** For invite links: who it was sent to, and whether it's been used */
   invite: { name: string; email: string; used: boolean } | null;
   /** Why booking isn't possible right now, if it isn't */
@@ -860,7 +938,9 @@ export type PublicShow = {
   startDate: string;
   days: EventDay[];
   ticketPriceCents: number;
+  /** The cheapest and dearest table types ("from $60" when they differ) */
   tablePriceCents: number;
+  tablePriceMaxCents: number;
   /** Set while the show's public booking link is open: the booking page path and open tables */
   booking: { url: string; tablesLeft: number } | null;
 };

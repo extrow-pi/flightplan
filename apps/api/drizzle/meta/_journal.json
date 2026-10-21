@@ -127,6 +127,13 @@
       "when": 1792598423333,
       "tag": "0017_setup_time",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792603678070,
+      "tag": "0018_table_types",
+      "breakpoints": true
     }
   ]
 }

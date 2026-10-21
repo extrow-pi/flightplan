@@ -11,6 +11,8 @@ import {
   type VendorContactInput,
   vendorContactSchema,
   priceRequest,
+  tableLabels,
+  type TableType,
 } from "@flightplan/shared";
 import { db, schema } from "./db/index.js";
 import { validateCode } from "./discounts.js";
@@ -34,12 +36,22 @@ export class TableTakenError extends Error {
 }
 
 /** Thrown when reducing the table count would remove tables that are booked. */
+/** Changing table counts would renumber booked tables; pairs are [current label, new label] */
+export class TablesRenumberedError extends Error {
+  constructor(changes: [string, string][]) {
+    const list = changes.map(([from, to]) => `${from} → ${to}`).join(", ");
+    super(
+      `That would renumber ${changes.length === 1 ? "a booked table" : "booked tables"} (${list}). Add new tables to the last table type, or give the later types a prefix (e.g. L1, L2…) so their numbers don't move.`,
+    );
+  }
+}
+
 export class TablesInUseError extends Error {
   constructor(labels: string[]) {
     super(
       labels.length === 1
-        ? `Table ${labels[0]} has a booking. Release it before reducing the number of tables.`
-        : `Tables ${labels.join(", ")} have bookings. Release them before reducing the number of tables.`,
+        ? `Table ${labels[0]} has a booking. Release it before removing it.`
+        : `Tables ${labels.join(", ")} have bookings. Release them before removing them.`,
     );
   }
 }
@@ -86,15 +98,15 @@ function isUniqueViolation(err: unknown) {
  * Status and timestamps for a booking that's just been approved (or didn't need approval).
  * Free tables are paid straight away; otherwise the pay-by clock starts now.
  */
-export function approvedFields(event: { tablePriceCents: number; paymentDueDays: number | null }, now = new Date()) {
-  if (event.tablePriceCents === 0) {
+export function approvedFields(request: { free: boolean; paymentDueDays: number | null }, now = new Date()) {
+  if (request.free) {
     return { status: "paid" as const, approvedAt: now, paidAt: now, paymentDueAt: null };
   }
   return {
     status: "awaiting_payment" as const,
     approvedAt: now,
     paidAt: null,
-    paymentDueAt: event.paymentDueDays ? new Date(now.getTime() + event.paymentDueDays * DAY_MS) : null,
+    paymentDueAt: request.paymentDueDays ? new Date(now.getTime() + request.paymentDueDays * DAY_MS) : null,
   };
 }
 
@@ -137,10 +149,20 @@ type BookingEvent = {
   id: string;
   organizerId: string;
   requiresApproval: boolean;
-  tablePriceCents: number;
+  tableTypes: TableType[];
   paymentDueDays: number | null;
   bulkDiscounts: BulkDiscountTier[];
 };
+
+/** Each table's list price, from its table type, in the order given. */
+export async function tablePrices(ex: Tx | typeof db, event: { tableTypes: TableType[] }, tableIds: string[]) {
+  if (!tableIds.length) return [];
+  const rows = await ex.select({ id: eventTables.id, typeId: eventTables.typeId }).from(eventTables).where(inArray(eventTables.id, tableIds));
+  const typeOf = new Map(rows.map((r) => [r.id, r.typeId]));
+  const priceOf = new Map(event.tableTypes.map((t) => [t.id, t.priceCents]));
+  const fallback = Math.min(...event.tableTypes.map((t) => t.priceCents), Number.MAX_SAFE_INTEGER);
+  return tableIds.map((id) => priceOf.get(typeOf.get(id) ?? "") ?? (fallback === Number.MAX_SAFE_INTEGER ? 0 : fallback));
+}
 
 /** What a request's tables add up to: list price, discount, and what to pay (from the price snapshot). */
 export function requestTotals(rows: { basePriceCents: number; priceCents: number; discountLabel: string }[]) {
@@ -197,9 +219,10 @@ export async function createBookings(
     if (checked.error) throw new DiscountCodeError(checked.error);
     code = checked.code;
   }
-  const quote = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: tableIds.length, tiers: event.bulkDiscounts, code });
+  // Each table at its own type's price
+  const prices = await tablePrices(tx, event, tableIds);
+  const quote = priceRequest({ prices, tiers: event.bulkDiscounts, code });
   const pricing = {
-    basePriceCents: event.tablePriceCents,
     discountLabel: quote.label,
     // A code only counts as used when it's the discount that applied
     discountCodeId: quote.source === "code" && code ? code.id : null,
@@ -211,7 +234,7 @@ export async function createBookings(
       ? { status: "pending" as const, approvedAt: null, paidAt: null, paymentDueAt: null }
       : args.paid
         ? { status: "paid" as const, approvedAt: now, paidAt: now, paymentDueAt: null, paymentMethod: args.paymentMethod ?? null }
-        : approvedFields(event, now);
+        : approvedFields({ free: quote.subtotalCents === 0, paymentDueDays: event.paymentDueDays }, now);
 
   const requestId = randomUUID();
   let rows: BookingRow[];
@@ -231,6 +254,7 @@ export async function createBookings(
             message: args.message ?? "",
             ...fields,
             ...pricing,
+            basePriceCents: prices[i],
             priceCents: quote.perTableCents[i],
           })),
         )
@@ -246,46 +270,63 @@ export async function createBookings(
 }
 
 /**
- * Make an event's tables match its table count: add numbered tables at the end, or remove
- * tables from the end. Tables with active bookings can't be removed.
+ * Make an event's tables match its table types: each type's count, numbered in one sequence type by
+ * type (or prefix + 1…N for prefixed types). Tables are kept per type in order; extra ones come off
+ * the end of their type. Booked tables can't be removed, and can't be renumbered either (their vendor
+ * was told "table 21"), so changes that would do either are refused with a message saying why.
  */
-export async function syncTables(tx: Tx, eventId: string, count: number) {
+export async function syncTables(tx: Tx, eventId: string, types: TableType[]) {
   const existing = await tx
-    .select({ id: eventTables.id, number: eventTables.number, label: eventTables.label })
+    .select({ id: eventTables.id, number: eventTables.number, label: eventTables.label, typeId: eventTables.typeId })
     .from(eventTables)
     .where(eq(eventTables.eventId, eventId))
     .orderBy(asc(eventTables.number));
+  const bookedIds = new Set(
+    existing.length
+      ? (
+          await tx
+            .select({ tableId: bookings.tableId })
+            .from(bookings)
+            .where(and(inArray(bookings.tableId, existing.map((t) => t.id)), inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES])))
+        ).map((r) => r.tableId)
+      : [],
+  );
 
-  if (existing.length < count) {
-    const start = (existing.at(-1)?.number ?? 0) + 1;
-    const toAdd = Array.from({ length: count - existing.length }, (_, i) => start + i);
-    await tx.insert(eventTables).values(toAdd.map((n) => ({ eventId, number: n, label: String(n) })));
-  } else if (existing.length > count) {
-    const extra = existing.slice(count);
-    const held = await tx
-      .select({ tableId: bookings.tableId })
-      .from(bookings)
-      .where(
-        and(
-          inArray(
-            bookings.tableId,
-            extra.map((t) => t.id),
-          ),
-          inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES]),
-        ),
-      );
-    if (held.length) {
-      const heldIds = new Set(held.map((h) => h.tableId));
-      throw new TablesInUseError(extra.filter((t) => heldIds.has(t.id)).map((t) => t.label));
-    }
-    // Past (closed) bookings on removed tables are removed with them
-    await tx.delete(eventTables).where(
-      inArray(
-        eventTables.id,
-        extra.map((t) => t.id),
-      ),
-    );
+  // Which existing table becomes each wanted table; anything left over is removed
+  const wanted = tableLabels(types);
+  const kept = new Map<number, (typeof existing)[number]>();
+  const removed: typeof existing = [];
+  for (const type of types) {
+    const ofType = existing.filter((t) => t.typeId === type.id);
+    const slots = wanted.flatMap((w, i) => (w.typeId === type.id ? [i] : []));
+    ofType.forEach((t, n) => (n < slots.length ? kept.set(slots[n], t) : removed.push(t)));
   }
+  const typeIds = new Set(types.map((t) => t.id));
+  removed.push(...existing.filter((t) => !typeIds.has(t.typeId)));
+
+  const removedBooked = removed.filter((t) => bookedIds.has(t.id));
+  if (removedBooked.length) throw new TablesInUseError(removedBooked.map((t) => t.label));
+  const relabelled = [...kept].filter(([i, t]) => bookedIds.has(t.id) && t.label !== wanted[i].label);
+  if (relabelled.length) throw new TablesRenumberedError(relabelled.map(([i, t]) => [t.label, wanted[i].label]));
+
+  if (removed.length) {
+    // Past (closed) bookings on removed tables go with them
+    await tx.delete(eventTables).where(inArray(eventTables.id, removed.map((t) => t.id)));
+  }
+  // Park kept tables on negative numbers so the unique (event, number) index never clashes mid-way
+  if (kept.size) {
+    await tx
+      .update(eventTables)
+      .set({ number: sql`-${eventTables.number} - 1000000` })
+      .where(inArray(eventTables.id, [...kept.values()].map((t) => t.id)));
+  }
+  const inserts: (typeof eventTables.$inferInsert)[] = [];
+  for (const [i, w] of wanted.entries()) {
+    const row = kept.get(i);
+    if (row) await tx.update(eventTables).set({ number: i + 1, label: w.label, typeId: w.typeId }).where(eq(eventTables.id, row.id));
+    else inserts.push({ eventId, number: i + 1, label: w.label, typeId: w.typeId });
+  }
+  if (inserts.length) await tx.insert(eventTables).values(inserts);
 }
 
 /** SQL condition: booking is awaiting payment and past its deadline. */

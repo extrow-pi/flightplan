@@ -212,6 +212,7 @@ export const publicOrganizerRoutes = new Hono().get("/:handle", async (c) => {
       days,
       ticketPriceCents: e.ticketPriceCents,
       tablePriceCents: e.tablePriceCents,
+      tablePriceMaxCents: Math.max(e.tablePriceCents, ...e.tableTypes.map((t) => t.priceCents)),
       booking: isUpcoming && e.bookingOpen ? { url: `/book/${e.bookingToken}`, tablesLeft: Math.max(0, tablesLeft) } : null,
     };
     (isUpcoming ? upcoming : past).push(show);

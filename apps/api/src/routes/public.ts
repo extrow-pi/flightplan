@@ -81,7 +81,7 @@ async function loadPage(kind: "event" | "invite", token: string) {
       .where(eq(eventDays.eventId, event.id))
       .orderBy(asc(eventDays.dayOffset)),
     db
-      .select({ id: eventTables.id, label: eventTables.label })
+      .select({ id: eventTables.id, label: eventTables.label, typeId: eventTables.typeId })
       .from(eventTables)
       .where(eq(eventTables.eventId, event.id))
       .orderBy(asc(eventTables.number)),
@@ -109,10 +109,11 @@ async function loadPage(kind: "event" | "invite", token: string) {
       paymentDueDays: event.paymentDueDays,
       floorMapUrl: uploadUrl(event.floorMapFile),
       maxTablesPerRequest: event.maxTablesPerRequest,
+      tableTypes: event.tableTypes.map(({ id, name, priceCents }) => ({ id, name, priceCents })),
       bulkDiscounts: event.bulkDiscounts,
       acceptsCodes,
     },
-    tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id) })),
+    tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id), typeId: t.typeId })),
     invite: invite ? { name: invite.name, email: invite.email, used: invite.bookingId !== null } : null,
     closedReason: closedReason(event, endDate, invite),
   };
@@ -137,6 +138,8 @@ function bookingHandlers(kind: "event" | "invite") {
       return c.json(
         await quote({
           event: loaded.event,
+          // Only this show's tables count
+          tableIds: parsed.data.tableIds.filter((id) => loaded.tables.some((t) => t.id === id)),
           tableCount: parsed.data.tableCount,
           codeText: parsed.data.discountCode,
           email: parsed.data.email,

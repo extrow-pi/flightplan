@@ -67,6 +67,9 @@ export default function BookingPage({ kind }: { kind: BookingLinkKind }) {
   );
 }
 
+/** Whether any table at the show costs something */
+const paidShow = (event: PublicBookingPage["event"]) => event.tableTypes.some((t) => t.priceCents > 0);
+
 function EventHeader({ page }: { page: PublicBookingPage }) {
   const { event } = page;
   const end = addDays(event.startDate, Math.max(...event.days.map((d) => d.dayOffset)));
@@ -98,10 +101,18 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
       </ul>
       {event.description && <p className="mt-4 text-ink-soft">{event.description}</p>}
       <div className="mt-5 flex flex-wrap gap-3 text-sm">
-        <span className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
-          {event.tablePriceCents ? `${formatMoney(event.tablePriceCents)} per table` : "Free tables"}
-        </span>
-        {event.tablePriceCents > 0 &&
+        {event.tableTypes.length > 1 ? (
+          event.tableTypes.map((t) => (
+            <span key={t.id} className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
+              {t.name} · {t.priceCents ? formatMoney(t.priceCents) : "free"}
+            </span>
+          ))
+        ) : (
+          <span className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
+            {event.tablePriceCents ? `${formatMoney(event.tablePriceCents)} per table` : "Free tables"}
+          </span>
+        )}
+        {paidShow(event) &&
           // Tiers above the per-request limit can never apply here
           event.bulkDiscounts.filter((t) => t.minTables <= event.maxTablesPerRequest).map((t) => (
             <span key={t.minTables} className="rounded-full bg-[#e8f8f5] px-3 py-1.5 font-bold text-[#2d7a6a]">
@@ -111,7 +122,7 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
         {event.requiresApproval && (
           <span className="rounded-full bg-[#fff4cc] px-3 py-1.5 font-bold text-gold-ink">Organizer approves each request</span>
         )}
-        {event.tablePriceCents > 0 && event.paymentDueDays && (
+        {paidShow(event) && event.paymentDueDays && (
           <span className="rounded-full bg-cream px-3 py-1.5 font-bold text-ink-soft">
             Pay within {event.paymentDueDays} day{event.paymentDueDays > 1 ? "s" : ""}
             {event.requiresApproval ? " of approval" : " of booking"}
@@ -158,15 +169,21 @@ function BookingForm({
   const availableCount = page.tables.filter((t) => t.available).length;
   const fieldErrors = submit.error instanceof ApiRequestError ? submit.error.body.fieldErrors : undefined;
   const labels = selected.map((t) => t.label).join(", ");
-  const paid = page.event.tablePriceCents > 0;
+  const paid = paidShow(page.event);
+  const priceOf = new Map(page.event.tableTypes.map((t) => [t.id, t.priceCents]));
 
-  // Price: multi-table tiers are worked out right here; with a code, the server checks it and
-  // picks whichever discount saves more (the same rule it uses when booking)
-  const tierOnly = priceRequest({ tablePriceCents: page.event.tablePriceCents, tableCount: selected.length, tiers: page.event.bulkDiscounts });
+  // Price: multi-table tiers are worked out right here, each table at its type's price; with a code,
+  // the server checks it and picks whichever discount saves more (the same rule it uses when booking)
+  const tierOnly = priceRequest({ prices: selected.map((t) => priceOf.get(t.typeId) ?? 0), tiers: page.event.bulkDiscounts });
   const quote = useBookingQuote(
     kind,
     token,
-    { tableCount: Math.max(1, selected.length), discountCode: appliedCode, email: details.email.includes("@") ? details.email : "" },
+    {
+      tableCount: Math.max(1, selected.length),
+      tableIds: selected.map((t) => t.id),
+      discountCode: appliedCode,
+      email: details.email.includes("@") ? details.email : "",
+    },
     Boolean(appliedCode) && selected.length > 0 && paid,
   );
   const price: PriceQuote = appliedCode && quote.data && selected.length ? { ...quote.data, tableCount: selected.length } : tierOnly;
@@ -226,8 +243,23 @@ function BookingForm({
                 <img src={page.event.floorMapUrl} alt="Floor map with table numbers" className="w-full bg-cream-50 object-contain" />
               </a>
             )}
-            <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-2" role="group" aria-label="Tables">
-              {page.tables.map((t) => {
+            {/* Grouped by table type when there's more than one */}
+            {(page.event.tableTypes.length > 1 ? page.event.tableTypes : [null]).map((type) => {
+              const ofType = type ? page.tables.filter((t) => t.typeId === type.id) : page.tables;
+              if (!ofType.length) return null;
+              return (
+                <div key={type?.id ?? "all"} className="mt-4">
+                  {type && (
+                    <p className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm">
+                      <span className="font-extrabold">{type.name}</span>
+                      <span className="font-bold text-coral-ink">{type.priceCents ? formatMoney(type.priceCents) : "Free"}</span>
+                      <span className="text-ink-muted">
+                        {ofType.filter((t) => t.available).length} of {ofType.length} available
+                      </span>
+                    </p>
+                  )}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-2" role="group" aria-label={type ? `${type.name} tables` : "Tables"}>
+              {ofType.map((t) => {
                 const isSelected = selected.some((s) => s.id === t.id);
                 return (
                   <button
@@ -250,6 +282,9 @@ function BookingForm({
                 );
               })}
             </div>
+                </div>
+              );
+            })}
             <div className="mt-3 flex gap-4 text-xs text-ink-soft">
               <span className="flex items-center gap-1.5">
                 <span className="size-3 rounded bg-white ring-2 ring-ink/10" /> Available

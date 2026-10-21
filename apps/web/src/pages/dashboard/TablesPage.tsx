@@ -636,6 +636,9 @@ function TableRow({
         ) : (
           <p className="font-semibold text-ink-muted">Open table</p>
         )}
+        {event.tableTypes.length > 1 && (
+          <p className="truncate text-xs text-ink-muted">{event.tableTypes.find((t) => t.id === table.typeId)?.name}</p>
+        )}
       </div>
       <TableStateBadge state={tableState(b)} />
       <div className="flex min-w-24 flex-wrap items-center justify-end gap-2">
@@ -1701,7 +1704,8 @@ function AssignDialog({
   const mode = chosenMode ?? (vendors.data?.length ? "existing" : "new");
   const [vendorId, setVendorId] = useState(initialVendorId ?? "");
   const [contact, setContact] = useState(emptyContact);
-  const [paid, setPaid] = useState(event.tablePriceCents === 0);
+  // Free shows are paid straight away
+  const [paid, setPaid] = useState(event.tableTypes.every((t) => t.priceCents === 0));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [discountCode, setDiscountCode] = useState("");
   const firstRef = useDialog(onClose);
@@ -1734,7 +1738,12 @@ function AssignDialog({
   const toggle = (id: string) =>
     setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
   const count = tableIds.length;
-  const charged = event.tablePriceCents > 0;
+  const charged = event.tableTypes.some((t) => t.priceCents > 0);
+  const typeById = new Map(event.tableTypes.map((t) => [t.id, t]));
+  const multiType = event.tableTypes.length > 1;
+  // The picked tables in floor order, each at its type's price
+  const picked = open.filter((t) => tableIds.includes(t.id));
+  const prices = picked.map((t) => typeById.get(t.typeId)?.priceCents ?? 0);
 
   // Without a code the price is worked out here; with one, the server checks the code (debounced)
   const [code, setCode] = useState("");
@@ -1745,10 +1754,15 @@ function AssignDialog({
   const vendorEmail = chosen?.email ?? (mode === "new" ? contact.email.trim().toLowerCase() : "");
   const quote = useAssignQuote(
     event.id,
-    { tableCount: Math.max(count, 1), discountCode: code, email: /^\S+@\S+\.\S+$/.test(vendorEmail) ? vendorEmail : "" },
+    {
+      tableCount: Math.max(count, 1),
+      tableIds: picked.map((t) => t.id),
+      discountCode: code,
+      email: /^\S+@\S+\.\S+$/.test(vendorEmail) ? vendorEmail : "",
+    },
     charged && Boolean(code),
   );
-  const tierPrice = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: count, tiers: event.bulkDiscounts });
+  const tierPrice = priceRequest({ prices, tiers: event.bulkDiscounts });
   const price = code && quote.data && quote.data.tableCount === count ? quote.data : tierPrice;
   // Tiers this request could reach, and the next one up
   const tiers = event.bulkDiscounts.filter((t) => t.minTables <= MAX_TABLES_PER_REQUEST);
@@ -1803,7 +1817,17 @@ function AssignDialog({
         aria-labelledby="assign-tables-label"
         className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-2xl bg-cream-50 p-2 ring-1 ring-ink/5"
       >
-        {shown.map((t) => {
+        {(multiType ? event.tableTypes : [null]).map((type) => {
+          const ofType = type ? shown.filter((t) => t.typeId === type.id) : shown;
+          if (!ofType.length) return null;
+          return (
+            <div key={type?.id ?? "all"} className="flex basis-full flex-wrap gap-1.5">
+              {type && (
+                <span className="basis-full px-1 text-xs font-bold text-ink-soft">
+                  {type.name} · {type.priceCents ? formatMoney(type.priceCents) : "free"}
+                </span>
+              )}
+        {ofType.map((t) => {
           if (t.booking) {
             // One of the chosen vendor's tables: shown for context, not pickable
             return (
@@ -1832,6 +1856,9 @@ function AssignDialog({
             >
               {t.label}
             </button>
+          );
+        })}
+            </div>
           );
         })}
       </div>
@@ -1878,7 +1905,11 @@ function AssignDialog({
             <div className="mt-3 space-y-1.5 rounded-2xl bg-cream-50 px-4 py-3 text-sm ring-1 ring-ink/5" aria-live="polite">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-semibold text-ink-soft">
-                  {count} × {formatMoney(event.tablePriceCents)}
+                  {/* "2 × $60 + 1 × $80" */}
+                  {[...new Set(prices)]
+                    .sort((a, b) => a - b)
+                    .map((p) => `${prices.filter((x) => x === p).length} × ${formatMoney(p)}`)
+                    .join(" + ")}
                 </span>
                 <span className={price.discountCents ? "text-ink-muted line-through" : "font-extrabold"}>
                   {formatMoney(price.subtotalCents)}
@@ -1933,7 +1964,7 @@ function AssignDialog({
         <input type="checkbox" className="size-4 accent-coral" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
         Already paid
       </label>
-      {paid && event.tablePriceCents > 0 && (
+      {paid && charged && (
         <label className="mt-2 block text-sm font-semibold">
           How did they pay?
           <select
