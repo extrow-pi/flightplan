@@ -8,6 +8,7 @@ import {
   EVENT_STATUSES,
   PAYMENT_METHODS,
   type BulkDiscountTier,
+  type ShowPageSettings,
   type TableType,
 } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
@@ -60,6 +61,11 @@ export const events = pgTable(
     maxTablesPerRequest: integer("max_tables_per_request").notNull().default(4),
     // Multi-table discount tiers, validated by bulkDiscountTierSchema
     bulkDiscounts: jsonb("bulk_discounts").$type<BulkDiscountTier[]>().notNull().default([]),
+    // The show's public page (/o/:handle/:slug): its address (null = the event id), cover image and
+    // the organizer's content and ticket widget. Settings are validated by showPageSchema.
+    pageSlug: text("page_slug"),
+    coverFile: text("cover_file"),
+    pageSettings: jsonb("page_settings").$type<Partial<ShowPageSettings>>().notNull().default({}),
     // Secret for the public booking link /book/:token
     bookingToken: text("booking_token")
       .notNull()
@@ -71,7 +77,10 @@ export const events = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [index("events_organizer_start_date_idx").on(t.organizerId, t.startDate)],
+  (t) => [
+    index("events_organizer_start_date_idx").on(t.organizerId, t.startDate),
+    uniqueIndex("events_organizer_page_slug_idx").on(t.organizerId, t.pageSlug),
+  ],
 );
 
 // One row per show day. The date is events.start_date + day_offset; times are local wall-clock.

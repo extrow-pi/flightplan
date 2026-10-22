@@ -16,11 +16,18 @@ import { syncTables, TablesInUseError, TablesRenumberedError, type Tx } from "..
 import { db, schema } from "../db/index.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
+import { ensureShowSlug } from "./showPages.js";
 
 const { events, eventDays, eventCollaborators, user } = schema;
 
-// Everything except organizer_id is returned to the client
-const { organizerId: _organizerId, ...publicColumns } = getTableColumns(events);
+// Everything except organizer_id and the show page (its own routes, showPages.ts) is returned to the client
+const {
+  organizerId: _organizerId,
+  pageSlug: _pageSlug,
+  coverFile: _coverFile,
+  pageSettings: _pageSettings,
+  ...publicColumns
+} = getTableColumns(events);
 
 const idSchema = z.uuid();
 const statusSchema = z.object({ status: z.enum(["draft", "published"]) });
@@ -142,6 +149,7 @@ export const eventRoutes = new Hono<AuthEnv>()
     }
 
     const id = await db.transaction((tx) => insertEvent(tx, c.var.user.id, parsed.data, floorMapFile));
+    await ensureShowSlug(id);
     return c.json({ event: await findAccessible(id, c.var.user.id) }, 201);
   })
 
@@ -181,6 +189,7 @@ export const eventRoutes = new Hono<AuthEnv>()
       if (conflict) return c.json(conflict, 409);
       throw err;
     }
+    await ensureShowSlug(id);
     return c.json({ event: await findAccessible(id, c.var.user.id) });
   })
 
@@ -200,6 +209,7 @@ export const eventRoutes = new Hono<AuthEnv>()
       .where(and(eq(events.id, id), sql`${events.status} <> 'template'`))
       .returning({ id: events.id });
     if (!updated) return c.json(notFound, 404);
+    await ensureShowSlug(id);
     return c.json({ event: await findAccessible(id, c.var.user.id) });
   })
 
@@ -242,6 +252,7 @@ export const eventRoutes = new Hono<AuthEnv>()
       if (members.length) await tx.insert(eventCollaborators).values(members);
       return newId;
     });
+    await ensureShowSlug(newId);
     return c.json({ event: await findAccessible(newId, me) }, 201);
   })
 
@@ -257,9 +268,10 @@ export const eventRoutes = new Hono<AuthEnv>()
     const deleted = await db
       .delete(events)
       .where(eq(events.id, id))
-      .returning({ id: events.id, floorMapFile: events.floorMapFile });
+      .returning({ id: events.id, floorMapFile: events.floorMapFile, coverFile: events.coverFile });
     if (!deleted.length) return c.json(notFound, 404);
     await deleteFloorMapIfUnused(deleted[0].floorMapFile);
+    if (deleted[0].coverFile) await deleteUpload(deleted[0].coverFile);
     return c.body(null, 204);
   })
 

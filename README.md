@@ -123,6 +123,18 @@ Each organizer can have a public page at `/o/<handle>`, set up in **Settings** a
 - **Booking:** while a show's public booking link is open, its card shows tables left and a **Book a vendor table** button. Shows are listed as "upcoming" through their last day, in `APP_TIMEZONE`.
 - **Handles:** 3–30 lowercase letters, numbers and single hyphens, and unique across organizers. Settings suggests a free one based on the organizer's name.
 
+### Show pages and tickets
+
+Each published show has its own landing page for attendees at `/o/<handle>/<show-address>`, linked from the organizer page (title, **Show details** and **Get tickets**). Organizers customize it on the event's **Show page** tab:
+
+- **Address:** made from the show's name when it's first saved (`spring-card-show`, then `spring-card-show-2`…), and editable. It stays the same if the show is renamed. The event id works as an address too.
+- **Look:** a cover image (about 3:1), a tagline and an accent colour for buttons and highlights. Button text switches between white and dark to stay readable.
+- **Sections:** up to 8 of the organizer's own titled sections ("What to expect", "Parking", "FAQ"), in the order they choose.
+- **Tickets (TicketsCandy):** paste the widget code from TicketsCandy (*Sell Online → Website Widget → Embed on Page*) or a TicketsCandy link. Only the `https://…ticketscandy.com` address is kept, and the page embeds it in its own sandboxed iframe at the height the organizer sets, so no pasted HTML or script runs on Flightplan. A link below opens the tickets in a new tab. Ticket sales and attendee data stay in TicketsCandy (it has no public API). The widget is hidden once the show is over.
+- **Vendors:** a switch for whether the page shows **Book a vendor table** (still only while the booking link is open).
+
+The page is visible when the organizer page is switched on and the show is published. The tab says why if it isn't.
+
 ### Vendors page
 
 `/dashboard/vendors` lists the organizer's own vendors: everyone who has booked one of their shows, plus vendors added by hand. Each vendor has notes, booking history and request/show counts.
@@ -274,6 +286,8 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET / PUT / DELETE | `/api/events/:id` | Read / update (including the day schedule) / delete one of the organizer's events or templates |
 | POST | `/api/events/:id/spawn` | Create a draft from a template: body `{ "startDate": "2026-11-13" }` |
 | POST / DELETE | `/api/events/:id/floor-map` | Upload (multipart `file`) or remove the floor map |
+| GET / PUT | `/api/events/:id/page` | A show's public page settings: address, tagline, accent, sections, vendor button and TicketsCandy widget |
+| POST / DELETE | `/api/events/:id/page/cover` | Upload (multipart `file`) or remove the show page's cover image |
 | GET | `/api/events/:id/tables` | Tables with their active bookings, past bookings, invites and vendors without a table |
 | POST | `/api/events/:id/unassigned` | Add a vendor to the show without a table: `{ vendorId }` or `{ contact }`, optional `note` (409 if they already hold a table there) |
 | DELETE | `/api/events/:id/unassigned/:vendorId` | Take a vendor without a table off the show |
@@ -293,6 +307,7 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET | `/api/profile/handle-available?handle=` | Whether a handle is valid and free |
 | POST / DELETE | `/api/profile/logo` | Upload (multipart `file`) or remove the page logo |
 | GET | `/api/public/organizers/:handle` | A published organizer page: profile, upcoming and past shows (no sign-in) |
+| GET | `/api/public/organizers/:handle/shows/:slug` | A published show's page: details, the organizer's sections and the ticket widget (no sign-in) |
 | GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
 | POST | `/api/vendors/import` | Import vendor rows read from a CSV: `{ rows, overwrite: [emails] or "all", preview }` |
 | POST | `/api/events/:id/import` | Same, and adds the vendors to the show without a table |

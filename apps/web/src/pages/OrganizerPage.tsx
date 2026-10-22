@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link, useParams } from "react-router";
 import { eventEndDate, type PublicOrganizerPage, type PublicShow } from "@flightplan/shared";
 import { DateTile, Schedule } from "../components/events";
-import { ClockIcon, MailIcon, MapPinIcon, TableIcon } from "../components/Icons";
+import { ArrowRightIcon, ClockIcon, MailIcon, MapPinIcon, TableIcon, TicketIcon } from "../components/Icons";
 import Logo from "../components/Logo";
 import { ApiRequestError, usePublicOrganizer } from "../lib/api";
 import { formatDate, formatDateRange, formatMoney, timeRange } from "../lib/format";
@@ -108,7 +108,7 @@ function Page({ data }: { data: PublicOrganizerPage }) {
         {upcoming.length ? (
           <ul className="mt-4 space-y-4">
             {upcoming.map((s) => (
-              <ShowCard key={`${s.name}-${s.startDate}`} show={s} />
+              <ShowCard key={s.url} show={s} />
             ))}
           </ul>
         ) : (
@@ -125,8 +125,10 @@ function Page({ data }: { data: PublicOrganizerPage }) {
           </h2>
           <ul className="mt-4 divide-y divide-ink/5 rounded-3xl bg-white/70 ring-1 ring-ink/5">
             {past.map((s) => (
-              <li key={`${s.name}-${s.startDate}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-5 py-3">
-                <span className="font-bold">{s.name}</span>
+              <li key={s.url} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-5 py-3">
+                <Link to={s.url} className="font-bold hover:text-coral-ink hover:underline">
+                  {s.name}
+                </Link>
                 <span className="text-sm text-ink-soft">
                   {dateLabel(s)} · {s.venueName}, {s.city}
                 </span>
@@ -149,11 +151,22 @@ function dateLabel(s: PublicShow) {
 function ShowCard({ show: s }: { show: PublicShow }) {
   const single = s.days.length === 1;
   return (
-    <li className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5 sm:p-6">
+    <li className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
+      {s.coverUrl && (
+        <Link to={s.url} tabIndex={-1} aria-hidden="true">
+          <img src={s.coverUrl} alt="" className="aspect-[3/1] w-full object-cover" />
+        </Link>
+      )}
+      <div className="p-5 sm:p-6">
       <div className="flex gap-4">
         <DateTile event={s} size="lg" />
         <div className="min-w-0 flex-1">
-          <h3 className="text-xl font-extrabold">{s.name}</h3>
+          <h3 className="text-xl font-extrabold">
+            <Link to={s.url} className="hover:text-coral-ink hover:underline">
+              {s.name}
+            </Link>
+          </h3>
+          {s.tagline && <p className="text-ink-soft">{s.tagline}</p>}
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-soft">
             <span className="flex items-center gap-1.5">
               <ClockIcon className="size-4 text-ink-muted" />
@@ -176,6 +189,9 @@ function ShowCard({ show: s }: { show: PublicShow }) {
         <span className="rounded-full bg-cream px-3 py-1 text-sm font-bold text-ink-soft">
           {s.ticketPriceCents > 0 ? `Admission ${formatMoney(s.ticketPriceCents)}` : "Free admission"}
         </span>
+        <Link to={s.url} className="inline-flex items-center gap-1.5 text-sm font-bold text-coral-ink hover:underline">
+          Show details <ArrowRightIcon className="size-4" />
+        </Link>
         {s.booking ? (
           <>
             <span className="flex items-center gap-1.5 text-sm text-ink-soft">
@@ -196,6 +212,19 @@ function ShowCard({ show: s }: { show: PublicShow }) {
             )}
           </>
         ) : null}
+        {s.hasTickets && (
+          <Link
+            to={`${s.url}#tickets`}
+            className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 ${
+              s.booking && s.booking.tablesLeft > 0
+                ? "border-2 border-coral text-coral-ink"
+                : "ml-auto bg-gradient-to-r from-coral to-coral-deep text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)]"
+            }`}
+          >
+            <TicketIcon className="size-4" /> Get tickets
+          </Link>
+        )}
+      </div>
       </div>
     </li>
   );

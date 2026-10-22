@@ -882,14 +882,14 @@ export function eventEndDate(event: { startDate: string | null; days: EventDay[]
 export const HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,29}$/;
 
 /** Turn a name into a handle suggestion, e.g. "Jetlagged Cards!" → "jetlagged-cards" */
-export function suggestHandle(name: string) {
+export function suggestHandle(name: string, maxLength = 30) {
   return name
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 30)
+    .slice(0, maxLength)
     .replace(/-+$/, "");
 }
 
@@ -928,8 +928,110 @@ export type OrganizerProfile = z.output<typeof organizerProfileSchema> & {
   logoUrl: string | null;
 };
 
+// ── Show pages (/o/:handle/:slug) ───────────────────────────────────────────
+
+/** Lowercase letters, digits and single hyphens, up to 60 characters, e.g. "spring-card-show-2026" */
+export const SHOW_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,59}$/;
+export const MAX_SHOW_PAGE_SECTIONS = 8;
+
+/** A show name as a page address, e.g. "Red-eye Night Market!" → "red-eye-night-market" */
+export function suggestShowSlug(name: string) {
+  return suggestHandle(name, 60);
+}
+
+const isTicketsCandyHost = (host: string) => host === "ticketscandy.com" || host.endsWith(".ticketscandy.com");
+
+/**
+ * The TicketsCandy address in what an organizer pasted: the widget's embed code (we take its iframe's
+ * src) or a plain link. Only https addresses on ticketscandy.com are accepted; null otherwise.
+ * We embed this address ourselves rather than the pasted HTML, so no outside script runs on our pages.
+ */
+export function ticketsCandyUrl(pasted: string): string | null {
+  const text = pasted.trim().replace(/&amp;/g, "&");
+  if (!text) return null;
+  const iframeSrc = text.match(/<iframe\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']/i)?.[1];
+  const candidates = [iframeSrc, ...(text.match(/https:\/\/[^\s"'<>]+/gi) ?? [])].filter(Boolean) as string[];
+  for (const c of candidates) {
+    try {
+      const url = new URL(c);
+      if (url.protocol === "https:" && isTicketsCandyHost(url.hostname.toLowerCase())) return url.href;
+    } catch {
+      // not a URL; keep looking
+    }
+  }
+  return null;
+}
+
+export const showPageSectionSchema = z.object({
+  title: z.string().trim().min(1, "Give this section a title").max(80, "Up to 80 characters"),
+  body: z.string().trim().min(1, "Add some text").max(5000, "Up to 5000 characters"),
+});
+
+/** What an organizer can change on a show's public page. */
+export const showPageSchema = z.object({
+  /** The page address after /o/:handle/; empty uses the show's name */
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.union([z.literal(""), z.string().regex(SHOW_SLUG_PATTERN, "Lowercase letters, numbers and hyphens (e.g. spring-show-2026)")]))
+    .optional()
+    .default(""),
+  tagline: z.string().trim().max(160, "Up to 160 characters").optional().default(""),
+  /** Buttons and highlights, e.g. "#e8856a"; empty = Flightplan's coral */
+  accentColor: z
+    .string()
+    .trim()
+    .pipe(z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour")]))
+    .optional()
+    .default(""),
+  sections: z.array(showPageSectionSchema).max(MAX_SHOW_PAGE_SECTIONS, `Up to ${MAX_SHOW_PAGE_SECTIONS} sections`).optional().default([]),
+  /** Show the "Book a vendor table" button while the booking link is open */
+  showVendorBooking: z.boolean().optional().default(true),
+  /** The TicketsCandy widget's embed code, or its link; stored as the address only */
+  tickets: z
+    .string()
+    .max(10_000, "That's too long for a widget code")
+    .optional()
+    .default("")
+    .superRefine((s, ctx) => {
+      if (s.trim() && !ticketsCandyUrl(s)) {
+        ctx.addIssue({ code: "custom", message: "Paste the widget code from TicketsCandy (Sell Online → Website Widget → Embed on Page)" });
+      }
+    })
+    .transform((s) => ticketsCandyUrl(s) ?? ""),
+  /** Height of the embedded ticket widget, in pixels */
+  ticketsHeight: z
+    .number({ error: "Enter a height" })
+    .int("Whole pixels only")
+    .min(300, "At least 300 px")
+    .max(3000, "Up to 3000 px")
+    .optional()
+    .default(700),
+});
+export type ShowPageInput = z.input<typeof showPageSchema>;
+/** As stored: `tickets` is the TicketsCandy address (or "") */
+export type ShowPageSettings = Omit<z.output<typeof showPageSchema>, "slug">;
+
+/** A show's page settings for the dashboard's Show page tab. */
+export type ShowPageResponse = {
+  settings: ShowPageSettings;
+  slug: string;
+  coverUrl: string | null;
+  /** The public address, once the organizer has a public page (it may still be switched off) */
+  url: string | null;
+  /** Why the page isn't visible yet, if it isn't */
+  hiddenBecause: "no-profile" | "profile-off" | "not-published" | null;
+};
+
 /** A published show on an organizer's public page. */
 export type PublicShow = {
+  /** Path of the show's own page, /o/:handle/:slug */
+  url: string;
+  coverUrl: string | null;
+  tagline: string;
+  /** Tickets can be bought on the show's page */
+  hasTickets: boolean;
   name: string;
   description: string;
   venueName: string;
@@ -950,6 +1052,13 @@ export type PublicOrganizerPage = {
   upcoming: PublicShow[];
   /** Most recent first */
   past: PublicShow[];
+};
+
+/** A show's public page. */
+export type PublicShowPage = {
+  organizer: { handle: string; displayName: string; logoUrl: string | null };
+  show: PublicShow & { upcoming: boolean };
+  page: Omit<ShowPageSettings, "tagline">;
 };
 
 // ── Discount codes (the Discounts page) ─────────────────────────────────────
