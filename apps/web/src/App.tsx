@@ -17,6 +17,8 @@ import VendorsPage from "./pages/dashboard/VendorsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import DiscountsPage from "./pages/dashboard/DiscountsPage";
 import OrganizerPage from "./pages/OrganizerPage";
+import ShowPage from "./pages/ShowPage";
+import ShowPageTab from "./pages/dashboard/ShowPageTab";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -32,6 +34,7 @@ const router = createBrowserRouter([
       { path: "events/:id", element: <EventFormPage /> },
       { path: "events/:id/tables", element: <TablesPage /> },
       { path: "events/:id/team", element: <TeamPage /> },
+      { path: "events/:id/page", element: <ShowPageTab /> },
       { path: "templates", element: <TemplatesPage /> },
       { path: "emails", element: <EmailLogPage /> },
       { path: "vendors", element: <VendorsPage /> },
@@ -48,6 +51,7 @@ const router = createBrowserRouter([
   { path: "/booking/:requestId", element: <RequestStatusPage /> },
   // Organizer public pages (no sign-in)
   { path: "/o/:handle", element: <OrganizerPage /> },
+  { path: "/o/:handle/:slug", element: <ShowPage /> },
   // Accept an invitation to collaborate on an event (asks to sign in first)
   { path: "/collaborate/:token", element: <AcceptInvitePage /> },
   { path: "/privacy", element: <PrivacyPage /> },

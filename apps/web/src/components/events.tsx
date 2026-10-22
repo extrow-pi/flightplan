@@ -172,7 +172,12 @@ export function EventTabs({ event }: { event: EventRecord }) {
   const base = isTemplate(event) ? `/dashboard/templates/${event.id}` : `/dashboard/events/${event.id}`;
   const tabs = [
     { to: base, label: "Details", end: true },
-    ...(isTemplate(event) ? [] : [{ to: `${base}/tables`, label: "Tables & vendors", end: false }]),
+    ...(isTemplate(event)
+      ? []
+      : [
+          { to: `${base}/tables`, label: "Tables & vendors", end: false },
+          { to: `${base}/page`, label: "Show page", end: false },
+        ]),
     { to: `${base}/team`, label: "Team", end: false },
   ];
   return (
@@ -183,7 +188,7 @@ export function EventTabs({ event }: { event: EventRecord }) {
           to={t.to}
           end={t.end}
           className={({ isActive }) =>
-            `-mb-px border-b-4 px-4 py-2.5 text-sm font-bold transition ${
+            `-mb-px border-b-4 px-2.5 py-2.5 text-sm font-bold whitespace-nowrap sm:px-4 transition ${
               isActive ? "border-coral text-coral-ink" : "border-transparent text-ink-soft hover:text-ink"
             }`
           }

@@ -18,6 +18,7 @@ import {
   type EventStatus,
 } from "@flightplan/shared";
 import { canEdit, EventTabs, isOwner, SharedBadge, SpawnDialog } from "../../components/events";
+import { Field, inputClass, PrimaryButton, Section, Toggle } from "./ui";
 import { ArrowLeftIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import {
   ApiRequestError,
@@ -851,66 +852,6 @@ function RowError({ message }: { message?: string }) {
   return message ? <p className="mt-1 px-1 text-sm font-semibold text-coral-ink">{message}</p> : null;
 }
 
-function PrimaryButton({ onClick, pending, children }: { onClick: () => void; pending: boolean; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={pending}
-      className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-7 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
-    >
-      {pending ? "Saving…" : children}
-    </button>
-  );
-}
-
-const inputClass =
-  "w-full rounded-xl border-2 border-cream bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
-      <legend className="sr-only">{title}</legend>
-      <h2 className="text-lg font-extrabold" aria-hidden="true">
-        {title}
-      </h2>
-      <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">{children}</div>
-    </fieldset>
-  );
-}
-
-function Field({
-  label,
-  id,
-  optional,
-  hint,
-  error,
-  className = "",
-  children,
-}: {
-  label: string;
-  id: string;
-  optional?: boolean;
-  hint?: string;
-  error?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      <label htmlFor={id} className="text-sm font-bold">
-        {label} {optional && <span className="font-normal text-ink-muted">(optional)</span>}
-      </label>
-      {children}
-      {error ? (
-        <p className="text-sm font-semibold text-coral-ink">{error}</p>
-      ) : (
-        hint && <p className="text-xs text-ink-muted">{hint}</p>
-      )}
-    </div>
-  );
-}
-
 /** The kinds of table at the show, each with its count, price and optional label prefix. */
 function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?: string; onChange: (types: TypeRow[]) => void }) {
   const set = (key: number, patch: Partial<TypeRow>) => onChange(types.map((t) => (t.key === key ? { ...t, ...patch } : t)));
@@ -1057,43 +998,6 @@ function MoneyInput({
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
-  );
-}
-
-function Toggle({
-  id,
-  checked,
-  onChange,
-  label,
-  description,
-  className = "",
-}: {
-  id: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  description?: string;
-  className?: string;
-}) {
-  return (
-    <label htmlFor={id} className={`flex cursor-pointer items-start gap-4 ${className}`}>
-      <input
-        id={id}
-        type="checkbox"
-        role="switch"
-        className="peer sr-only"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span
-        aria-hidden="true"
-        className="relative mt-0.5 h-7 w-12 shrink-0 rounded-full bg-ink/15 transition peer-checked:bg-coral peer-focus-visible:ring-4 peer-focus-visible:ring-coral/25 after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"
-      />
-      <span>
-        <span className="block font-bold">{label}</span>
-        {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
-      </span>
-    </label>
   );
 }
 
