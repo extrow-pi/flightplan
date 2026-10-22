@@ -932,29 +932,43 @@ export type OrganizerProfile = z.output<typeof organizerProfileSchema> & {
 
 /** Lowercase letters, digits and single hyphens, up to 60 characters, e.g. "spring-card-show-2026" */
 export const SHOW_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,59}$/;
-export const MAX_SHOW_PAGE_SECTIONS = 8;
 
 /** A show name as a page address, e.g. "Red-eye Night Market!" → "red-eye-night-market" */
 export function suggestShowSlug(name: string) {
   return suggestHandle(name, 60);
 }
 
+export const TICKETSCANDY_ORIGIN = "https://ticketscandy.com";
 const isTicketsCandyHost = (host: string) => host === "ticketscandy.com" || host.endsWith(".ticketscandy.com");
+const TICKETSCANDY_FRAME = /^https:\/\/ticketscandy\.com\/checkout-widget\/frame\/(\d{1,12})$/;
+
+/** The TicketsCandy event number of a checkout widget address, or null for other links. */
+export const ticketsCandyEventId = (url: string) => TICKETSCANDY_FRAME.exec(url)?.[1] ?? null;
 
 /**
- * The TicketsCandy address in what an organizer pasted: the widget's embed code (we take its iframe's
- * src) or a plain link. Only https addresses on ticketscandy.com are accepted; null otherwise.
- * We embed this address ourselves rather than the pasted HTML, so no outside script runs on our pages.
+ * The TicketsCandy address in what an organizer pasted, or null. Their "Embed on Page" code is a loader
+ * script plus `TCCheckout.createWidget({ eventId: '21593', … })`; we keep just the event's checkout
+ * frame (https://ticketscandy.com/checkout-widget/frame/21593). A pasted iframe or plain link on
+ * ticketscandy.com is kept as is (except scripts and stylesheets). We embed the address ourselves rather
+ * than the pasted HTML, so no outside script runs on our pages.
  */
 export function ticketsCandyUrl(pasted: string): string | null {
   const text = pasted.trim().replace(/&amp;/g, "&");
   if (!text) return null;
+  const eventId =
+    /\beventId\s*:\s*["']?(\d{1,12})\b/.exec(text)?.[1] ??
+    /ticketscandy\.com\/checkout-widget\/(?:frame|button)\/(\d{1,12})\b/i.exec(text)?.[1] ??
+    /\btc-checkout-container-(\d{1,12})\b/.exec(text)?.[1];
+  if (eventId) return `${TICKETSCANDY_ORIGIN}/checkout-widget/frame/${eventId}`;
+
   const iframeSrc = text.match(/<iframe\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']/i)?.[1];
   const candidates = [iframeSrc, ...(text.match(/https:\/\/[^\s"'<>]+/gi) ?? [])].filter(Boolean) as string[];
   for (const c of candidates) {
     try {
       const url = new URL(c);
-      if (url.protocol === "https:" && isTicketsCandyHost(url.hostname.toLowerCase())) return url.href;
+      if (url.protocol === "https:" && isTicketsCandyHost(url.hostname.toLowerCase()) && !/\.(js|css)$/i.test(url.pathname)) {
+        return url.href;
+      }
     } catch {
       // not a URL; keep looking
     }
@@ -962,10 +976,130 @@ export function ticketsCandyUrl(pasted: string): string | null {
   return null;
 }
 
-export const showPageSectionSchema = z.object({
-  title: z.string().trim().min(1, "Give this section a title").max(80, "Up to 80 characters"),
-  body: z.string().trim().min(1, "Add some text").max(5000, "Up to 5000 characters"),
-});
+/** A YouTube or Vimeo link as an embeddable player address, or null. */
+export function videoEmbedUrl(link: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(link.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, "");
+  const id = (s: string | null | undefined, pattern: RegExp) => (s && pattern.test(s) ? s : null);
+  const yt = /^[A-Za-z0-9_-]{6,20}$/;
+  let youtube: string | null = null;
+  if (host === "youtu.be") youtube = id(url.pathname.slice(1), yt);
+  else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    youtube = url.pathname === "/watch" ? id(url.searchParams.get("v"), yt) : id(/^\/(?:embed|shorts|live)\/([^/]+)/.exec(url.pathname)?.[1], yt);
+  }
+  if (youtube) return `https://www.youtube-nocookie.com/embed/${youtube}`;
+  if (host === "vimeo.com" || host === "player.vimeo.com") {
+    const vimeo = /^\/(?:video\/)?(\d{5,12})(?:\/|$)/.exec(url.pathname)?.[1];
+    if (vimeo) return `https://player.vimeo.com/video/${vimeo}`;
+  }
+  return null;
+}
+
+/** Path of an uploaded image (cover, flyer, gallery and sponsor images are public) */
+export const uploadPath = (file: string) => `/api/uploads/${file}`;
+export const UPLOADED_IMAGE_PATTERN = /^[0-9a-f-]{36}\.(png|jpg|webp)$/;
+
+export const SHOW_PAGE_THEMES = ["warm", "light", "dark"] as const;
+export type ShowPageTheme = (typeof SHOW_PAGE_THEMES)[number];
+export const MAX_SHOW_PAGE_BLOCKS = 20;
+export const MAX_BLOCK_ITEMS = 30;
+
+const imageFile = z.string().regex(UPLOADED_IMAGE_PATTERN, "Upload the image again");
+const blockId = z.string().min(1).max(40);
+const blockTitle = (fallback: string) => z.string().trim().max(80, "Up to 80 characters").optional().default(fallback);
+const linkUrl = z
+  .string()
+  .trim()
+  .min(1, "Enter a web address")
+  .max(500)
+  .transform((s) => (/^https?:\/\//i.test(s) ? s : `https://${s}`))
+  .pipe(z.url({ protocol: /^https?$/, error: "Enter a web address like example.com" }));
+
+/** The building blocks of a show page, in the organizer's order. */
+export const showPageBlockSchema = z.discriminatedUnion("type", [
+  /** Where the TicketsCandy widget goes (the code itself is the page's `tickets` setting) */
+  z.object({ id: blockId, type: z.literal("tickets"), title: blockTitle("Tickets") }),
+  z.object({
+    id: blockId,
+    type: z.literal("text"),
+    title: z.string().trim().min(1, "Give this section a title").max(80, "Up to 80 characters"),
+    body: z.string().trim().min(1, "Add some text").max(5000, "Up to 5000 characters"),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("faq"),
+    title: blockTitle("FAQ"),
+    items: z
+      .array(
+        z.object({
+          question: z.string().trim().min(1, "Enter a question").max(200, "Up to 200 characters"),
+          answer: z.string().trim().min(1, "Enter an answer").max(2000, "Up to 2000 characters"),
+        }),
+      )
+      .min(1, "Add at least one question")
+      .max(MAX_BLOCK_ITEMS, `Up to ${MAX_BLOCK_ITEMS} questions`),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("gallery"),
+    title: blockTitle("Photos"),
+    images: z.array(imageFile).min(1, "Add at least one photo").max(MAX_BLOCK_ITEMS, `Up to ${MAX_BLOCK_ITEMS} photos`),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("video"),
+    title: blockTitle(""),
+    url: z
+      .string()
+      .trim()
+      .refine((s) => videoEmbedUrl(s) !== null, "Paste a YouTube or Vimeo link"),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("links"),
+    title: blockTitle(""),
+    links: z
+      .array(z.object({ label: z.string().trim().min(1, "Enter a label").max(60, "Up to 60 characters"), url: linkUrl }))
+      .min(1, "Add at least one link")
+      .max(12, "Up to 12 links"),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("sponsors"),
+    title: blockTitle("Sponsors"),
+    items: z
+      .array(
+        z.object({
+          image: imageFile,
+          name: z.string().trim().max(80, "Up to 80 characters").optional().default(""),
+          url: z.union([z.literal(""), linkUrl]).optional().default(""),
+        }),
+      )
+      .min(1, "Add at least one sponsor")
+      .max(MAX_BLOCK_ITEMS, `Up to ${MAX_BLOCK_ITEMS} sponsors`),
+  }),
+  /** A map of the venue */
+  z.object({ id: blockId, type: z.literal("map"), title: blockTitle("Getting there") }),
+]);
+export type ShowPageBlock = z.output<typeof showPageBlockSchema>;
+export type ShowPageBlockInput = z.input<typeof showPageBlockSchema>;
+export type ShowPageBlockType = ShowPageBlock["type"];
+
+/** Every uploaded image a page uses (flyer, gallery photos, sponsor logos). */
+export function showPageImages(page: { flyer: string; blocks: ShowPageBlock[] }) {
+  const files = page.flyer ? [page.flyer] : [];
+  for (const b of page.blocks) {
+    if (b.type === "gallery") files.push(...b.images);
+    if (b.type === "sponsors") files.push(...b.items.map((i) => i.image));
+  }
+  return files;
+}
 
 /** What an organizer can change on a show's public page. */
 export const showPageSchema = z.object({
@@ -985,7 +1119,19 @@ export const showPageSchema = z.object({
     .pipe(z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour")]))
     .optional()
     .default(""),
-  sections: z.array(showPageSectionSchema).max(MAX_SHOW_PAGE_SECTIONS, `Up to ${MAX_SHOW_PAGE_SECTIONS} sections`).optional().default([]),
+  theme: z.enum(SHOW_PAGE_THEMES).optional().default("warm"),
+  /** The show's flyer, shown under its name */
+  flyer: z.union([z.literal(""), imageFile]).optional().default(""),
+  blocks: z
+    .array(showPageBlockSchema)
+    .max(MAX_SHOW_PAGE_BLOCKS, `Up to ${MAX_SHOW_PAGE_BLOCKS} blocks`)
+    .optional()
+    .default([])
+    .superRefine((blocks, ctx) => {
+      if (new Set(blocks.map((b) => b.id)).size !== blocks.length) ctx.addIssue({ code: "custom", message: "Two blocks share an id" });
+      if (blocks.filter((b) => b.type === "tickets").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Tickets block" });
+      if (blocks.filter((b) => b.type === "map").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Map block" });
+    }),
   /** Show the "Book a vendor table" button while the booking link is open */
   showVendorBooking: z.boolean().optional().default(true),
   /** The TicketsCandy widget's embed code, or its link; stored as the address only */
@@ -1012,6 +1158,9 @@ export const showPageSchema = z.object({
 export type ShowPageInput = z.input<typeof showPageSchema>;
 /** As stored: `tickets` is the TicketsCandy address (or "") */
 export type ShowPageSettings = Omit<z.output<typeof showPageSchema>, "slug">;
+
+/** As kept in the database: also the images uploaded for the page, and the older text sections. */
+export type StoredShowPage = Partial<ShowPageSettings> & { assets?: string[]; sections?: { title: string; body: string }[] };
 
 /** A show's page settings for the dashboard's Show page tab. */
 export type ShowPageResponse = {
@@ -1056,7 +1205,7 @@ export type PublicOrganizerPage = {
 
 /** A show's public page. */
 export type PublicShowPage = {
-  organizer: { handle: string; displayName: string; logoUrl: string | null };
+  organizer: { handle: string; displayName: string; logoUrl: string | null; websiteUrl: string; instagram: string; contactEmail: string };
   show: PublicShow & { upcoming: boolean };
   page: Omit<ShowPageSettings, "tagline">;
 };

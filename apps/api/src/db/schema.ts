@@ -8,7 +8,7 @@ import {
   EVENT_STATUSES,
   PAYMENT_METHODS,
   type BulkDiscountTier,
-  type ShowPageSettings,
+  type StoredShowPage,
   type TableType,
 } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
@@ -65,7 +65,7 @@ export const events = pgTable(
     // the organizer's content and ticket widget. Settings are validated by showPageSchema.
     pageSlug: text("page_slug"),
     coverFile: text("cover_file"),
-    pageSettings: jsonb("page_settings").$type<Partial<ShowPageSettings>>().notNull().default({}),
+    pageSettings: jsonb("page_settings").$type<StoredShowPage>().notNull().default({}),
     // Secret for the public booking link /book/:token
     bookingToken: text("booking_token")
       .notNull()

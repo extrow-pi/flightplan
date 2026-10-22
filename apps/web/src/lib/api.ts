@@ -415,6 +415,17 @@ export function useShowCover(eventId: string) {
   };
 }
 
+/** Upload a flyer, gallery photo or sponsor logo; the page uses it once it's saved. */
+export function useUploadPageImage(eventId: string) {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<{ file: string; url: string }>(`/events/${eventId}/page/images`, { method: "POST", body: form });
+    },
+  });
+}
+
 export function usePublicShow(handle: string | undefined, slug: string | undefined) {
   return useQuery({
     queryKey: ["public", "organizer", handle, "show", slug],

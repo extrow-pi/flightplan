@@ -263,7 +263,14 @@ export const publicOrganizerRoutes = new Hono()
     const [show] = await toPublicShows(profile.handle, [row]);
     const { tagline: _t, ...settings } = pageSettings(row.pageSettings);
     const body: PublicShowPage = {
-      organizer: { handle: profile.handle, displayName: profile.displayName, logoUrl: uploadUrl(profile.logoFile) },
+      organizer: {
+        handle: profile.handle,
+        displayName: profile.displayName,
+        logoUrl: uploadUrl(profile.logoFile),
+        websiteUrl: profile.websiteUrl,
+        instagram: profile.instagram,
+        contactEmail: profile.contactEmail,
+      },
       show: { ...show, booking: settings.showVendorBooking ? show.booking : null },
       // Tickets are only sold until the show is over
       page: { ...settings, tickets: show.upcoming ? settings.tickets : "" },

@@ -16,7 +16,7 @@ import { syncTables, TablesInUseError, TablesRenumberedError, type Tx } from "..
 import { db, schema } from "../db/index.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
-import { ensureShowSlug } from "./showPages.js";
+import { ensureShowSlug, pageImages } from "./showPages.js";
 
 const { events, eventDays, eventCollaborators, user } = schema;
 
@@ -268,10 +268,10 @@ export const eventRoutes = new Hono<AuthEnv>()
     const deleted = await db
       .delete(events)
       .where(eq(events.id, id))
-      .returning({ id: events.id, floorMapFile: events.floorMapFile, coverFile: events.coverFile });
+      .returning({ id: events.id, floorMapFile: events.floorMapFile, coverFile: events.coverFile, pageSettings: events.pageSettings });
     if (!deleted.length) return c.json(notFound, 404);
     await deleteFloorMapIfUnused(deleted[0].floorMapFile);
-    if (deleted[0].coverFile) await deleteUpload(deleted[0].coverFile);
+    for (const file of [deleted[0].coverFile, ...pageImages(deleted[0].pageSettings)]) if (file) await deleteUpload(file);
     return c.body(null, 204);
   })
 
