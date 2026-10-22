@@ -12,7 +12,7 @@ import {
   type EventRecord,
 } from "@flightplan/shared";
 import { accessColumns, accessibleEvents, canEdit, collaboratorJoin, editableEvents, eventAccess, forbidden, roleOf } from "../access.js";
-import { syncTables, TablesInUseError, type Tx } from "../bookings.js";
+import { syncTables, TablesInUseError, TablesRenumberedError, type Tx } from "../bookings.js";
 import { db, schema } from "../db/index.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
@@ -99,7 +99,7 @@ async function insertEvent(
     .values({ ...fields, organizerId, floorMapFile })
     .returning({ id: events.id });
   await tx.insert(eventDays).values(days.map((d) => ({ ...d, eventId: row.id })));
-  await syncTables(tx, row.id, fields.vendorTables);
+  await syncTables(tx, row.id, fields.tableTypes);
   return row.id;
 }
 
@@ -113,7 +113,8 @@ async function deleteFloorMapIfUnused(file: string | null) {
   if (count === 0) await deleteUpload(file);
 }
 
-const tablesInUse = (err: unknown) => (err instanceof TablesInUseError ? ({ error: err.message } satisfies ApiError) : null);
+const tablesInUse = (err: unknown) =>
+  err instanceof TablesInUseError || err instanceof TablesRenumberedError ? ({ error: err.message } satisfies ApiError) : null;
 
 // Routes cover the signed-in organizer's own events and templates, plus ones shared with them
 // (see access.ts for what each role can do)
@@ -173,7 +174,7 @@ export const eventRoutes = new Hono<AuthEnv>()
         await tx.update(events).set(fields).where(eq(events.id, id));
         await tx.delete(eventDays).where(eq(eventDays.eventId, id));
         await tx.insert(eventDays).values(days.map((d) => ({ ...d, eventId: id })));
-        await syncTables(tx, id, fields.vendorTables);
+        await syncTables(tx, id, fields.tableTypes);
       });
     } catch (err) {
       const conflict = tablesInUse(err);

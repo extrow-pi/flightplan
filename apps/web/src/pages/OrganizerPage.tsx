@@ -182,7 +182,7 @@ function ShowCard({ show: s }: { show: PublicShow }) {
               <TableIcon className="size-4 text-ink-muted" />
               {s.booking.tablesLeft > 0
                 ? `${s.booking.tablesLeft} vendor ${s.booking.tablesLeft === 1 ? "table" : "tables"} left${
-                    s.tablePriceCents > 0 ? ` · ${formatMoney(s.tablePriceCents)} each` : ""
+                    s.tablePriceCents > 0 ? ` · ${s.tablePriceMaxCents > s.tablePriceCents ? "from " : ""}${formatMoney(s.tablePriceCents)} each` : ""
                   }`
                 : "Vendor tables sold out"}
             </span>

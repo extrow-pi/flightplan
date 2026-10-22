@@ -9,7 +9,9 @@ import {
   FLOOR_MAP_TYPES,
   MAX_DISCOUNT_TIERS,
   MAX_EVENT_DAYS,
+  MAX_TABLE_TYPES,
   MAX_TABLES_PER_REQUEST,
+  tableLabels,
   type BulkDiscountKind,
   type EventInput,
   type EventRecord,
@@ -32,6 +34,9 @@ type Kind = "event" | "template";
 // One multi-table discount tier. `value` is a percent, or dollars off each table.
 type TierRow = { key: number; minTables: string; kind: BulkDiscountKind; value: string };
 
+// One table type (6 ft, 8 ft…). `id` is kept so saving doesn't reshuffle which tables are which type.
+type TypeRow = { key: number; id: string; name: string; count: string; price: string; prefix: string };
+
 // One schedule row. Events use `date`; templates use `day` (1 = first day).
 type DayRow = { key: number; date: string; day: string; setupTime: string; startTime: string; endTime: string };
 
@@ -43,8 +48,7 @@ type FormState = {
   address: string;
   city: string;
   days: DayRow[];
-  vendorTables: string;
-  tablePrice: string;
+  types: TypeRow[];
   ticketPrice: string;
   // Vendor booking
   requiresApproval: boolean;
@@ -56,14 +60,16 @@ type FormState = {
   tiers: TierRow[];
 };
 
-type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen" | "tiers">, string>> & {
+type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen" | "tiers" | "types">, string>> & {
   tiers?: string;
+  types?: string;
   days?: string;
   rows?: Record<number, Partial<Record<"date" | "day" | "setupTime" | "startTime" | "endTime", string>>>;
 };
 
 let nextKey = 1;
 const row = (r: Omit<DayRow, "key">): DayRow => ({ key: nextKey++, ...r });
+const typeRow = (t: Omit<TypeRow, "key">): TypeRow => ({ key: nextKey++, ...t });
 
 const emptyForm = (): FormState => ({
   name: "",
@@ -72,8 +78,7 @@ const emptyForm = (): FormState => ({
   address: "",
   city: "",
   days: [row({ date: "", day: "1", setupTime: "", startTime: "11:00", endTime: "16:00" })],
-  vendorTables: "",
-  tablePrice: "",
+  types: [typeRow({ id: crypto.randomUUID(), name: "Table", count: "", price: "", prefix: "" })],
   ticketPrice: "0",
   requiresApproval: false,
   paymentDueDays: "7",
@@ -100,8 +105,9 @@ function fromEvent(e: EventRecord): FormState {
         endTime: d.endTime,
       }),
     ),
-    vendorTables: String(e.vendorTables),
-    tablePrice: (e.tablePriceCents / 100).toString(),
+    types: e.tableTypes.map((t) =>
+      typeRow({ id: t.id, name: t.name, count: String(t.count), price: (t.priceCents / 100).toString(), prefix: t.prefix }),
+    ),
     ticketPrice: (e.ticketPriceCents / 100).toString(),
     requiresApproval: e.requiresApproval,
     paymentDueDays: String(e.paymentDueDays ?? 7),
@@ -142,8 +148,7 @@ function toInput(f: FormState, status: EventStatus, rowsAreDated: boolean): Even
     city: f.city,
     startDate: status === "template" ? null : startDate,
     days: f.days.map((d, i) => ({ dayOffset: offsets[i], setupTime: d.setupTime, startTime: d.startTime, endTime: d.endTime })),
-    vendorTables: toInt(f.vendorTables),
-    tablePriceCents: toCents(f.tablePrice),
+    tableTypes: f.types.map((t) => ({ id: t.id, name: t.name, count: toInt(t.count), priceCents: toCents(t.price), prefix: t.prefix })),
     ticketPriceCents: toCents(f.ticketPrice),
     status,
     requiresApproval: f.requiresApproval,
@@ -172,7 +177,9 @@ function toErrors(issues: z.core.$ZodIssue[]): Errors {
       errors.rows[index][key] ??= issue.message;
     } else if (field === "bulkDiscounts") {
       errors.tiers ??= typeof index === "number" ? `Tier ${index + 1}: ${issue.message}` : issue.message;
-    } else if (field === "tablePriceCents") errors.tablePrice ??= issue.message;
+    } else if (field === "tableTypes") {
+      errors.types ??= typeof index === "number" ? `Table type ${index + 1}: ${issue.message}` : issue.message;
+    } else if (field === "vendorTables" || field === "tablePriceCents") errors.types ??= issue.message;
     else if (field === "ticketPriceCents") errors.ticketPrice ??= issue.message;
     else if (field === "startDate") errors.days ??= "Pick a date for every day";
     else if (typeof field === "string") (errors as Record<string, string>)[field] ??= issue.message;
@@ -186,7 +193,7 @@ function fromServerErrors(fieldErrors: Record<string, string[] | undefined>): Er
   for (const [field, messages] of Object.entries(fieldErrors)) {
     const message = messages?.[0];
     if (!message) continue;
-    if (field === "tablePriceCents") errors.tablePrice = message;
+    if (field === "tableTypes" || field === "vendorTables" || field === "tablePriceCents") errors.types = message;
     else if (field === "ticketPriceCents") errors.ticketPrice = message;
     else if (field === "days" || field === "startDate") errors.days = message;
     else if (field === "bulkDiscounts") errors.tiers = message;
@@ -455,29 +462,14 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         </Section>
 
         <Section title="Vendors & tickets">
-          <Field label="Vendor tables" id="vendorTables" error={errors.vendorTables}>
-            <input
-              id="vendorTables"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
-              className={inputClass}
-              placeholder="48"
-              value={form.vendorTables}
-              aria-invalid={!!errors.vendorTables}
-              onChange={(e) => update("vendorTables", e.target.value)}
-            />
-          </Field>
-          <Field label="Price per table" id="tablePrice" error={errors.tablePrice} hint="For the whole show">
-            <MoneyInput
-              id="tablePrice"
-              value={form.tablePrice}
-              invalid={!!errors.tablePrice}
-              onChange={(v) => update("tablePrice", v)}
-              placeholder="80"
-            />
-          </Field>
+          <TableTypesField
+            types={form.types}
+            error={errors.types}
+            onChange={(types) => {
+              update("types", types);
+              setErrors((e) => ({ ...e, types: undefined }));
+            }}
+          />
           <Field label="Admission ticket" id="ticketPrice" error={errors.ticketPrice} hint="Use 0 for free entry">
             <MoneyInput
               id="ticketPrice"
@@ -581,7 +573,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
         <TiersSection
           tiers={form.tiers}
-          tablePrice={toCents(form.tablePrice)}
+          tablePrice={Math.min(...form.types.map((t) => toCents(t.price)).filter((c) => Number.isFinite(c) && c > 0), Infinity)}
           maxPerRequest={toInt(form.maxTablesPerRequest)}
           error={errors.tiers}
           onChange={(tiers) => {
@@ -914,6 +906,123 @@ function Field({
         <p className="text-sm font-semibold text-coral-ink">{error}</p>
       ) : (
         hint && <p className="text-xs text-ink-muted">{hint}</p>
+      )}
+    </div>
+  );
+}
+
+/** The kinds of table at the show, each with its count, price and optional label prefix. */
+function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?: string; onChange: (types: TypeRow[]) => void }) {
+  const set = (key: number, patch: Partial<TypeRow>) => onChange(types.map((t) => (t.key === key ? { ...t, ...patch } : t)));
+  // How the tables will be numbered: "6 ft table 1–20 · 8 ft table L1–L10"
+  const labels = tableLabels(types.map((t) => ({ id: t.id, count: Math.max(0, toInt(t.count) || 0), prefix: t.prefix.trim() })));
+  const ranges = types
+    .map((t) => {
+      const mine = labels.filter((l) => l.typeId === t.id);
+      if (!mine.length) return null;
+      const range = mine.length === 1 ? mine[0].label : `${mine[0].label}–${mine.at(-1)!.label}`;
+      return `${t.name.trim() || "Table"}: ${range}`;
+    })
+    .filter(Boolean);
+  const cell = "w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-base text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:outline-none";
+
+  return (
+    <div className="sm:col-span-2">
+      <p className="text-sm font-bold">Vendor tables</p>
+      <p className="mt-0.5 text-sm text-ink-soft">One row per kind of table, e.g. 6 ft and 8 ft tables at different prices. Prices are for the whole show.</p>
+      <div className="mt-3 hidden grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+        <span>Type</span>
+        <span>Tables</span>
+        <span>Price each</span>
+        <span>
+          Prefix <span className="font-semibold normal-case">(optional)</span>
+        </span>
+        <span className="w-10" />
+      </div>
+      <ol className="mt-2 space-y-2">
+        {types.map((t, i) => (
+          <li key={t.key} className="grid grid-cols-3 gap-2 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-center sm:bg-transparent sm:p-0 sm:ring-0">
+            <input
+              className={`${cell} col-span-3 sm:col-span-1`}
+              aria-label={`Table type ${i + 1}: name`}
+              placeholder="e.g. 6 ft table"
+              maxLength={40}
+              value={t.name}
+              onChange={(e) => set(t.key, { name: e.target.value })}
+            />
+            <input
+              className={cell}
+              aria-label={`Table type ${i + 1}: number of tables`}
+              placeholder="Tables"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={t.count}
+              onChange={(e) => set(t.key, { count: e.target.value })}
+            />
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-bold text-ink-muted">$</span>
+              <input
+                className={`${cell} pl-7`}
+                aria-label={`Table type ${i + 1}: price per table`}
+                placeholder="Price"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={t.price}
+                onChange={(e) => set(t.key, { price: e.target.value })}
+              />
+            </div>
+            <input
+              className={`${cell} uppercase placeholder:normal-case`}
+              aria-label={`Table type ${i + 1}: label prefix (optional)`}
+              placeholder="e.g. L"
+              maxLength={4}
+              value={t.prefix}
+              onChange={(e) => set(t.key, { prefix: e.target.value.toUpperCase() })}
+            />
+            <button
+              type="button"
+              onClick={() => onChange(types.filter((x) => x.key !== t.key))}
+              disabled={types.length === 1}
+              className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-10 sm:py-0"
+              aria-label={`Remove table type ${t.name || i + 1}`}
+              title="Remove this table type"
+            >
+              <CloseIcon className="size-4" />
+              <span className="sm:hidden">Remove type</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      {error && (
+        <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {types.length < MAX_TABLE_TYPES && (
+          <button
+            type="button"
+            onClick={() => onChange([...types, typeRow({ id: crypto.randomUUID(), name: "", count: "", price: "", prefix: "" })])}
+            className="inline-flex items-center gap-2 rounded-full border-2 border-dashed border-coral/40 px-4 py-2 text-sm font-bold text-coral-ink transition hover:border-coral hover:bg-peach/40"
+          >
+            + Add a table type
+          </button>
+        )}
+        {labels.length > 0 && (
+          <span className="text-sm text-ink-soft">
+            {labels.length} {labels.length === 1 ? "table" : "tables"}
+            {types.length > 1 && `, numbered ${ranges.join(" · ")}`}
+          </span>
+        )}
+      </div>
+      {types.length > 1 && (
+        <p className="mt-2 text-xs text-ink-muted">
+          Tables are numbered in this order. A prefix gives a type its own numbers (L1, L2…), so adding tables to an earlier type later
+          doesn't renumber it.
+        </p>
       )}
     </div>
   );

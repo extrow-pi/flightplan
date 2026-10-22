@@ -8,6 +8,7 @@ import {
   EVENT_STATUSES,
   PAYMENT_METHODS,
   type BulkDiscountTier,
+  type TableType,
 } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
 
@@ -44,7 +45,10 @@ export const events = pgTable(
     // First day of the show (local date). Null for templates.
     startDate: date("start_date", { mode: "string" }),
     vendorTables: integer("vendor_tables").notNull().default(0),
+    // Worked out from table_types on save: the lowest price (for "from $60") and the total count (vendor_tables)
     tablePriceCents: integer("table_price_cents").notNull().default(0),
+    // Kinds of table (6 ft, 8 ft…) with their price, count and optional label prefix
+    tableTypes: jsonb("table_types").$type<TableType[]>().notNull().default([]),
     ticketPriceCents: integer("ticket_price_cents").notNull().default(0),
     status: text("status", { enum: EVENT_STATUSES }).notNull().default("draft"),
     // Vendor booking settings
@@ -97,6 +101,8 @@ export const eventTables = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     number: integer("number").notNull(),
     label: text("label").notNull(),
+    // Which of the event's table types this is (events.table_types[].id)
+    typeId: text("type_id").notNull().default("standard"),
   },
   (t) => [uniqueIndex("event_tables_event_number_idx").on(t.eventId, t.number)],
 );
