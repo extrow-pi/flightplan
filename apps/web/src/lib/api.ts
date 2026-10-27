@@ -26,6 +26,9 @@ import type {
   OrganizerProfileInput,
   PaymentMethod,
   PublicOrganizerPage,
+  PublicShowPage,
+  ShowPageInput,
+  ShowPageResponse,
   EmailLogEntry,
   EventInput,
   EventRecord,
@@ -368,6 +371,66 @@ export function usePublicOrganizer(handle: string | undefined) {
     queryKey: ["public", "organizer", handle],
     queryFn: () => request<PublicOrganizerPage>(`/public/organizers/${handle}`),
     enabled: Boolean(handle),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+  });
+}
+
+// ── Show pages (/o/:handle/:slug) ────────────────────────────────────────
+
+const showPageKey = (eventId: string) => ["events", eventId, "page"] as const;
+
+/** A show's public page settings, for its Show page tab */
+export function useShowPage(eventId: string | undefined) {
+  return useQuery({
+    queryKey: showPageKey(eventId ?? ""),
+    queryFn: () => request<ShowPageResponse>(`/events/${eventId}/page`),
+    enabled: Boolean(eventId),
+  });
+}
+
+export function useSaveShowPage(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ShowPageInput) => request<ShowPageResponse>(`/events/${eventId}/page`, { method: "PUT", body: input }),
+    onSuccess: (page) => qc.setQueryData(showPageKey(eventId), page),
+  });
+}
+
+export function useShowCover(eventId: string) {
+  const qc = useQueryClient();
+  const onSuccess = (page: ShowPageResponse) => qc.setQueryData(showPageKey(eventId), page);
+  return {
+    upload: useMutation({
+      mutationFn: (file: File) => {
+        const form = new FormData();
+        form.append("file", file);
+        return request<ShowPageResponse>(`/events/${eventId}/page/cover`, { method: "POST", body: form });
+      },
+      onSuccess,
+    }),
+    remove: useMutation({
+      mutationFn: () => request<ShowPageResponse>(`/events/${eventId}/page/cover`, { method: "DELETE" }),
+      onSuccess,
+    }),
+  };
+}
+
+/** Upload a flyer, gallery photo or sponsor logo; the page uses it once it's saved. */
+export function useUploadPageImage(eventId: string) {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<{ file: string; url: string }>(`/events/${eventId}/page/images`, { method: "POST", body: form });
+    },
+  });
+}
+
+export function usePublicShow(handle: string | undefined, slug: string | undefined) {
+  return useQuery({
+    queryKey: ["public", "organizer", handle, "show", slug],
+    queryFn: () => request<PublicShowPage>(`/public/organizers/${handle}/shows/${slug}`),
+    enabled: Boolean(handle && slug),
     retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
   });
 }

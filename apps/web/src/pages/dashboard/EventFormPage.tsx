@@ -1,12 +1,10 @@
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import {
   addDays,
   daysBetween,
   eventInputSchema,
-  FLOOR_MAP_MAX_BYTES,
-  FLOOR_MAP_TYPES,
   MAX_DISCOUNT_TIERS,
   MAX_EVENT_DAYS,
   MAX_TABLE_TYPES,
@@ -18,6 +16,7 @@ import {
   type EventStatus,
 } from "@flightplan/shared";
 import { canEdit, EventTabs, isOwner, SharedBadge, SpawnDialog } from "../../components/events";
+import { Field, ImageDropzone, inputClass, PrimaryButton, SaveStatus, Section, Toggle, useImagePicker, useUnsavedChanges } from "./ui";
 import { ArrowLeftIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import {
   ApiRequestError,
@@ -226,16 +225,18 @@ export default function EventFormPage({ kind: newKind = "event" }: { kind?: Kind
 function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const fromTemplate = (location.state as { fromTemplate?: string } | null)?.fromTemplate;
+  const { fromTemplate, saved: savedOnCreate } = (location.state as { fromTemplate?: string; saved?: string } | null) ?? {};
   const save = useSaveEvent(event?.id);
   const saveAsTemplate = useSaveEvent(undefined, { floorMapFrom: event?.id });
   const del = useDeleteEvent();
-  const [initial] = useState<FormState>(() => (event ? fromEvent(event) : emptyForm()));
+  const [initial, setInitial] = useState<FormState>(() => (event ? fromEvent(event) : emptyForm()));
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<Errors>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedTemplate, setSavedTemplate] = useState<EventRecord | null>(null);
   const [spawning, setSpawning] = useState(false);
+  // What the last save did ("Changes saved", "Published"…); shown until the next edit
+  const [savedNote, setSavedNote] = useState<string | null>(savedOnCreate ?? null);
 
   const isNew = !event;
   const isTemplateForm = kind === "template";
@@ -248,6 +249,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+    setSavedNote(null);
     if (key !== "days" && errors[key as keyof Errors]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
@@ -308,12 +310,50 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
     return input;
   }
 
+  // Viewers can't change anything, so there's nothing to lose
+  const guard = useUnsavedChanges(dirty && !readOnly);
+
+  /** Put every field back as it was when the page opened (or was last saved). */
+  function discard() {
+    setForm(initial);
+    setErrors({});
+    setSavedTemplate(null);
+    setSavedNote(null);
+  }
+
   function submit(status: EventStatus) {
     setSavedTemplate(null);
     const input = validate(status, !isTemplateForm);
     if (!input) return;
+    const note =
+      status === "template"
+        ? isNew
+          ? "Template created"
+          : "Changes saved"
+        : status === "published"
+          ? event?.status === "published"
+            ? "Changes saved"
+            : "Published"
+          : event?.status === "published"
+            ? "Saved and unpublished"
+            : isNew
+              ? "Saved as a draft"
+              : "Changes saved";
     save.mutate(input, {
-      onSuccess: () => navigate(listPath),
+      onSuccess: (saved) => {
+        if (isNew) {
+          // A new event or template opens its own page, which shows the note
+          guard.allowLeaving();
+          navigate(`${listPath}/${saved.id}`, { replace: true, state: { saved: note } });
+          return;
+        }
+        // Stay on the page: what was saved is the new starting point for Discard and the warning
+        const next = fromEvent(saved);
+        setInitial(next);
+        setForm(next);
+        setErrors({});
+        setSavedNote(note);
+      },
       onError: (err) => {
         if (err instanceof ApiRequestError && err.body.fieldErrors) {
           setErrors(fromServerErrors(err.body.fieldErrors));
@@ -341,6 +381,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
   return (
     <>
+      {guard.dialog}
       <Link
         to={listPath}
         className="inline-flex items-center gap-2 text-sm font-bold text-ink-soft transition hover:text-ink"
@@ -602,8 +643,8 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         )}
 
         {!readOnly && (
-        <div className="flex flex-col-reverse gap-3 border-t border-ink/10 pt-6 lg:flex-row lg:items-center">
-          <div className="flex flex-wrap items-center gap-2">
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-t border-ink/10 pt-6">
             {!isNew && owner &&
               (confirmDelete ? (
                 <>
@@ -611,7 +652,14 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                   <button
                     type="button"
                     disabled={del.isPending}
-                    onClick={() => del.mutate(event.id, { onSuccess: () => navigate(listPath) })}
+                    onClick={() =>
+                      del.mutate(event.id, {
+                        onSuccess: () => {
+                          guard.allowLeaving();
+                          navigate(listPath);
+                        },
+                      })
+                    }
                     className="rounded-full bg-coral-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
                   >
                     {del.isPending ? "Deleting…" : "Delete"}
@@ -645,7 +693,8 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             )}
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row lg:ml-auto">
+          <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-3 border-t border-ink/10 bg-cream-50/95 px-1 py-4 backdrop-blur sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <SaveStatus dirty={dirty} onDiscard={discard} saved={savedNote} />
             {isTemplateForm ? (
               <>
                 {!isNew && (
@@ -683,7 +732,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
               </>
             )}
           </div>
-        </div>
+        </>
         )}
         {isTemplateForm && !isNew && dirty && (
           <p className="text-right text-xs text-ink-muted">Save your changes before using this template.</p>
@@ -851,66 +900,6 @@ function RowError({ message }: { message?: string }) {
   return message ? <p className="mt-1 px-1 text-sm font-semibold text-coral-ink">{message}</p> : null;
 }
 
-function PrimaryButton({ onClick, pending, children }: { onClick: () => void; pending: boolean; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={pending}
-      className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-7 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
-    >
-      {pending ? "Saving…" : children}
-    </button>
-  );
-}
-
-const inputClass =
-  "w-full rounded-xl border-2 border-cream bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
-      <legend className="sr-only">{title}</legend>
-      <h2 className="text-lg font-extrabold" aria-hidden="true">
-        {title}
-      </h2>
-      <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">{children}</div>
-    </fieldset>
-  );
-}
-
-function Field({
-  label,
-  id,
-  optional,
-  hint,
-  error,
-  className = "",
-  children,
-}: {
-  label: string;
-  id: string;
-  optional?: boolean;
-  hint?: string;
-  error?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      <label htmlFor={id} className="text-sm font-bold">
-        {label} {optional && <span className="font-normal text-ink-muted">(optional)</span>}
-      </label>
-      {children}
-      {error ? (
-        <p className="text-sm font-semibold text-coral-ink">{error}</p>
-      ) : (
-        hint && <p className="text-xs text-ink-muted">{hint}</p>
-      )}
-    </div>
-  );
-}
-
 /** The kinds of table at the show, each with its count, price and optional label prefix. */
 function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?: string; onChange: (types: TypeRow[]) => void }) {
   const set = (key: number, patch: Partial<TypeRow>) => onChange(types.map((t) => (t.key === key ? { ...t, ...patch } : t)));
@@ -1060,43 +1049,6 @@ function MoneyInput({
   );
 }
 
-function Toggle({
-  id,
-  checked,
-  onChange,
-  label,
-  description,
-  className = "",
-}: {
-  id: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  description?: string;
-  className?: string;
-}) {
-  return (
-    <label htmlFor={id} className={`flex cursor-pointer items-start gap-4 ${className}`}>
-      <input
-        id={id}
-        type="checkbox"
-        role="switch"
-        className="peer sr-only"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span
-        aria-hidden="true"
-        className="relative mt-0.5 h-7 w-12 shrink-0 rounded-full bg-ink/15 transition peer-checked:bg-coral peer-focus-visible:ring-4 peer-focus-visible:ring-coral/25 after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"
-      />
-      <span>
-        <span className="block font-bold">{label}</span>
-        {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
-      </span>
-    </label>
-  );
-}
-
 /** Multi-table discount tiers: "3+ tables: 10% off", "5+ tables: $15 off each table". */
 function TiersSection({
   tiers,
@@ -1235,20 +1187,8 @@ function FloorMapSection({ event }: { event?: EventRecord }) {
 function FloorMapUpload({ event }: { event: EventRecord }) {
   const upload = useUploadFloorMap(event.id);
   const remove = useRemoveFloorMap(event.id);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const error = localError ?? upload.error?.message ?? remove.error?.message;
-  const maxMb = FLOOR_MAP_MAX_BYTES / 1024 / 1024;
-
-  function onFile(file: File | undefined) {
-    setLocalError(null);
-    if (!file) return;
-    if (!(FLOOR_MAP_TYPES as readonly string[]).includes(file.type)) {
-      return setLocalError("Upload a PNG, JPEG or WebP image");
-    }
-    if (file.size > FLOOR_MAP_MAX_BYTES) return setLocalError(`Images can be up to ${maxMb} MB`);
-    upload.mutate(file);
-  }
+  const picker = useImagePicker({ label: "Floor map image", onFiles: ([file]) => upload.mutate(file) });
+  const error = picker.error ?? upload.error?.message ?? remove.error?.message;
 
   return (
     <div className="mt-5">
@@ -1267,41 +1207,16 @@ function FloorMapUpload({ event }: { event: EventRecord }) {
           />
         </a>
       ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            onFile(e.dataTransfer.files[0]);
-          }}
-          className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 py-10 text-center transition hover:border-coral hover:bg-peach/40"
-        >
-          <span className="font-bold text-coral-ink">{upload.isPending ? "Uploading…" : "Upload floor map"}</span>
-          <span className="mt-1 text-sm text-ink-soft">
-            PNG, JPEG or WebP, up to {maxMb} MB. Click or drop a file here.
-          </span>
-        </button>
+        <ImageDropzone label="Upload floor map" busy={upload.isPending} picker={picker} />
       )}
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept={FLOOR_MAP_TYPES.join(",")}
-        className="sr-only"
-        tabIndex={-1}
-        aria-label="Floor map image"
-        onChange={(e) => {
-          onFile(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
+      {picker.input}
 
       {event.floorMapUrl && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={picker.open}
             disabled={upload.isPending}
             className="rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
           >
