@@ -29,11 +29,15 @@ function dayCount(event: Dated) {
 
 // ── Display pieces ───────────────────────────────────────────────────────
 
-/** Calendar tile like the event cards on jetlaggedcards.ca. Shows a range for multi-day shows. */
-export function DateTile({ event, size = "md" }: { event: Dated; size?: "md" | "lg" }) {
+/**
+ * Calendar tile like the event cards on jetlaggedcards.ca. Shows a range for multi-day shows.
+ * `accent` uses the show page's accent colour (its --accent and --on-accent CSS variables).
+ */
+export function DateTile({ event, size = "md", accent = false }: { event: Dated; size?: "md" | "lg" | "xl"; accent?: boolean }) {
   const start = event.startDate;
   const end = eventEndDate(event);
-  const big = size === "lg";
+  const big = size !== "md";
+  const xl = size === "xl";
 
   if (!start || !end) {
     // Templates have no dates
@@ -59,16 +63,20 @@ export function DateTile({ event, size = "md" }: { event: Dated; size?: "md" | "
 
   return (
     <div
-      className={`flex shrink-0 flex-col items-center justify-center rounded-2xl text-white shadow-sm ${
-        isPast(event) ? "bg-gradient-to-br from-sky to-slate" : "bg-gradient-to-br from-gold to-coral"
-      } ${big ? "size-20" : "size-16"}`}
+      className={`flex shrink-0 flex-col items-center justify-center rounded-2xl shadow-sm ${
+        accent
+          ? "bg-[var(--accent)] text-[var(--on-accent)] shadow-md ring-4 ring-[var(--accent)]/25"
+          : isPast(event)
+            ? "bg-gradient-to-br from-sky to-slate text-white"
+            : "bg-gradient-to-br from-gold to-coral text-white"
+      } ${xl ? "size-24 rounded-3xl" : big ? "size-20" : "size-16"}`}
     >
       {days ? (
         <>
-          <span className="text-[11px] font-bold tracking-wider uppercase">{formatDate(start, { month: "short" })}</span>
+          <span className={`font-extrabold tracking-wider uppercase ${xl ? "text-sm" : "text-[11px]"}`}>{formatDate(start, { month: "short" })}</span>
           <span
             className={`leading-none font-extrabold ${
-              days.length > 3 ? (big ? "text-2xl" : "text-lg") : big ? "text-4xl" : "text-2xl"
+              days.length > 3 ? (xl ? "text-3xl" : big ? "text-2xl" : "text-lg") : xl ? "text-5xl" : big ? "text-4xl" : "text-2xl"
             }`}
           >
             {days}
@@ -76,7 +84,7 @@ export function DateTile({ event, size = "md" }: { event: Dated; size?: "md" | "
         </>
       ) : (
         // Crosses a month boundary, e.g. Oct 31 – Nov 2
-        <span className="text-center text-[11px] leading-tight font-extrabold uppercase">
+        <span className={`text-center leading-tight font-extrabold uppercase ${xl ? "text-sm" : "text-[11px]"}`}>
           {formatDate(start, { month: "short", day: "numeric" })}
           <br />–<br />
           {formatDate(end, { month: "short", day: "numeric" })}

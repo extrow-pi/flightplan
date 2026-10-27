@@ -187,7 +187,7 @@ function Page({ data }: { data: PublicShowPage }) {
         {s.coverUrl ? <img src={s.coverUrl} alt="" className="aspect-[3/1] w-full object-cover" /> : <div className="h-2 bg-[var(--accent)]" />}
         <div className="p-5 sm:p-8">
           <div className="flex gap-4">
-            <DateTile event={s} size="lg" />
+            <DateTile event={s} size="xl" accent />
             <div className="min-w-0 flex-1">
               <h1 className="text-3xl font-extrabold tracking-tight break-words sm:text-4xl">{s.name}</h1>
               {s.tagline && <p className="mt-1 text-lg text-[var(--soft)]">{s.tagline}</p>}
