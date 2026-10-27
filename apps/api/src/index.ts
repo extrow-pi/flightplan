@@ -23,6 +23,7 @@ import { collaboratorInviteRoutes, teamRoutes } from "./routes/collaborators.js"
 import { emailDeliveryEnabled, startEmailWorker } from "./email/outbox.js";
 import { startNotificationScheduler } from "./email/notifications.js";
 import { uploadRoutes } from "./uploads.js";
+import { organizerMeta, showPageMeta, withMeta, type PageMeta } from "./pageMeta.js";
 
 const app = new Hono().basePath("/api");
 
@@ -101,6 +102,13 @@ if (existsSync(join(webDist, "index.html"))) {
   server.use("/assets/*", serveStatic({ root: webDist }));
   server.get("/assets/*", (c) => c.notFound());
   server.get("/", sendIndex);
+  // Public pages get their own title, description and preview image for shared links
+  const sendWithMeta = async (c: Context, meta: PageMeta | null) => {
+    c.header("Cache-Control", "no-cache");
+    return c.html(meta ? withMeta(indexHtml, meta) : indexHtml);
+  };
+  server.get("/o/:handle/:slug", async (c) => sendWithMeta(c, await showPageMeta(c.req.param("handle"), c.req.param("slug"))));
+  server.get("/o/:handle", async (c) => sendWithMeta(c, await organizerMeta(c.req.param("handle"))));
   server.use("*", serveStatic({ root: webDist }));
   // Client-side routes (/dashboard, /book/:token…) all load the single-page app
   server.get("*", sendIndex);

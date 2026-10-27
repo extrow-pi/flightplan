@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { and, eq, like, ne, or, sql } from "drizzle-orm";
+import { and, eq, like, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   FLOOR_MAP_MAX_BYTES,
@@ -15,6 +15,7 @@ import {
 } from "@flightplan/shared";
 import { canEdit, eventAccess, forbidden } from "../access.js";
 import { db, schema } from "../db/index.js";
+import { isUniqueViolation } from "../db/errors.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
 
@@ -25,43 +26,47 @@ const { events, organizerProfiles } = schema;
 
 const notFound = { error: "Event not found" } satisfies ApiError;
 
-/** Most images one show can have uploaded at once (used or waiting to be saved) */
-const MAX_PAGE_ASSETS = 150;
+class MissingImageError extends Error {}
+
+/** Most images waiting to be used on one show's page */
+const MAX_PENDING_UPLOADS = 150;
+/** Unused uploads are kept this long, so a save doesn't delete photos still being added in the editor */
+const PENDING_UPLOAD_MS = 60 * 60 * 1000;
+
+const { slug: _slug, ...defaultSettings } = showPageSchema.parse({});
 
 /** Stored settings with defaults filled in (older rows have none). */
 export function pageSettings(stored: StoredShowPage): ShowPageSettings {
-  const { slug: _s, ...defaults } = showPageSchema.parse({});
-  const { assets: _a, sections, ...rest } = stored;
-  const settings = { ...defaults, ...rest };
-  // Early versions had text sections instead of blocks
+  const { assets: _a, uploads: _u, sections, ...rest } = stored;
+  const settings = { ...defaultSettings, ...rest };
+  // Early versions had text sections, and no blocks: give them blocks, with the widget first
   if (!rest.blocks?.length && sections?.length) {
     settings.blocks = sections.map((s, i) => ({ id: `text-${i + 1}`, type: "text" as const, ...s }));
   }
   // Re-read the saved address with today's rules (an early version kept the widget's loader script)
   settings.tickets = ticketsCandyUrl(settings.tickets) ?? "";
-  // Pages with tickets always have somewhere to show them
-  if (settings.tickets && !settings.blocks.some((b) => b.type === "tickets")) {
+  if (settings.tickets && !rest.blocks?.length && !settings.blocks.some((b) => b.type === "tickets")) {
     settings.blocks = [{ id: "tickets", type: "tickets", title: "Tickets" }, ...settings.blocks];
   }
   return settings;
 }
 
-/** Every image file a show's page holds: ones uploaded for it, and ones it uses. */
-export const pageImages = (stored: StoredShowPage) => [...(stored.assets ?? []), ...showPageImages(pageSettings(stored))];
+/** Uploaded images the page doesn't use yet (older pages kept them as plain names). */
+const pendingUploads = (stored: StoredShowPage) => [...(stored.uploads ?? []), ...(stored.assets ?? []).map((file) => ({ file, at: 0 }))];
 
-const isUniqueViolation = (err: unknown) => {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e?.code === "23505" || e?.cause?.code === "23505";
-};
+/** Every image file a show's page holds: ones uploaded for it, and ones it uses. */
+export const pageImages = (stored: StoredShowPage) => [...pendingUploads(stored).map((u) => u.file), ...showPageImages(pageSettings(stored))];
+
 
 /** A free page address for one of the organizer's shows: the name, then name-2, name-3… */
 async function freeSlug(organizerId: string, eventId: string, base: string) {
+  // Long names are shortened to fit "-2", so look at everything sharing the shortened start
   const taken = new Set(
     (
       await db
         .select({ slug: events.pageSlug })
         .from(events)
-        .where(and(eq(events.organizerId, organizerId), ne(events.id, eventId), or(eq(events.pageSlug, base), like(events.pageSlug, `${base}-%`))))
+        .where(and(eq(events.organizerId, organizerId), ne(events.id, eventId), like(events.pageSlug, `${base.slice(0, 50)}%`)))
     ).map((r) => r.slug),
   );
   if (!taken.has(base)) return base;
@@ -144,24 +149,34 @@ export const showPageRoutes = new Hono<AuthEnv>()
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
 
     const { slug, ...settings } = parsed.data;
-    // Pages can only use images uploaded for this show
-    const own = new Set(pageImages(check.stored));
-    const used = showPageImages(settings);
-    if (used.some((f) => !own.has(f))) return c.json<ApiError>({ error: "One of the images is missing. Upload it again." }, 400);
+    const used = new Set(showPageImages(settings));
+    let removed: string[];
     try {
-      await db
-        .update(events)
-        .set({ pageSlug: slug || null, pageSettings: { ...settings, assets: [...new Set(used)] } })
-        .where(eq(events.id, id));
+      // The row is locked so an image uploaded while this saves isn't lost (the upload waits for it)
+      removed = await db.transaction(async (tx) => {
+        const [row] = await tx.select({ stored: events.pageSettings }).from(events).where(eq(events.id, id)).for("update");
+        // Pages can only use images uploaded for this show
+        const own = new Set(pageImages(row.stored));
+        if ([...used].some((f) => !own.has(f))) throw new MissingImageError();
+        // Unused recent uploads may still be on their way into the editor; older ones are dropped
+        const now = Date.now();
+        const uploads = pendingUploads(row.stored).filter((u) => !used.has(u.file) && now - u.at < PENDING_UPLOAD_MS);
+        const kept = new Set([...used, ...uploads.map((u) => u.file)]);
+        await tx
+          .update(events)
+          .set({ pageSlug: slug || null, pageSettings: { ...settings, uploads } satisfies StoredShowPage })
+          .where(eq(events.id, id));
+        return [...own].filter((f) => !kept.has(f));
+      });
     } catch (err) {
+      if (err instanceof MissingImageError) return c.json<ApiError>({ error: "One of the images is missing. Upload it again." }, 400);
       if (!isUniqueViolation(err)) throw err;
       return c.json<ApiError>(
         { error: "That page address is taken", fieldErrors: { slug: ["Another of your shows uses this address"] } },
         409,
       );
     }
-    // Images that were uploaded or used before but aren't any more
-    for (const f of own) if (!used.includes(f)) await deleteUpload(f);
+    for (const f of removed) await deleteUpload(f);
     // A cleared address goes back to one made from the show's name
     if (!slug) await ensureShowSlug(id);
     return c.json((await loadPage(id))!);
@@ -172,7 +187,7 @@ export const showPageRoutes = new Hono<AuthEnv>()
     const id = c.req.param("id");
     const check = await editable(id, c.var.user.id);
     if ("error" in check) return c.json(check.error, check.status);
-    if ((check.stored.assets ?? []).length >= MAX_PAGE_ASSETS) {
+    if (pendingUploads(check.stored).length >= MAX_PENDING_UPLOADS) {
       return c.json<ApiError>({ error: "Too many images. Save the page or remove some first." }, 400);
     }
     const body = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
@@ -188,7 +203,7 @@ export const showPageRoutes = new Hono<AuthEnv>()
     await db
       .update(events)
       .set({
-        pageSettings: sql`jsonb_set(${events.pageSettings}, '{assets}', coalesce(${events.pageSettings}->'assets', '[]'::jsonb) || to_jsonb(${name}::text))`,
+        pageSettings: sql`jsonb_set(${events.pageSettings}, '{uploads}', coalesce(${events.pageSettings}->'uploads', '[]'::jsonb) || jsonb_build_array(jsonb_build_object('file', ${name}::text, 'at', ${Date.now()}::bigint)))`,
       })
       .where(eq(events.id, id));
     return c.json({ file: name, url: uploadUrl(name) }, 201);

@@ -1160,7 +1160,13 @@ export type ShowPageInput = z.input<typeof showPageSchema>;
 export type ShowPageSettings = Omit<z.output<typeof showPageSchema>, "slug">;
 
 /** As kept in the database: also the images uploaded for the page, and the older text sections. */
-export type StoredShowPage = Partial<ShowPageSettings> & { assets?: string[]; sections?: { title: string; body: string }[] };
+export type StoredShowPage = Partial<ShowPageSettings> & {
+  /** Images uploaded for the page that it doesn't use (yet), with their upload time (ms) */
+  uploads?: { file: string; at: number }[];
+  /** Older pages: uploaded images, and text sections instead of blocks */
+  assets?: string[];
+  sections?: { title: string; body: string }[];
+};
 
 /** A show's page settings for the dashboard's Show page tab. */
 export type ShowPageResponse = {

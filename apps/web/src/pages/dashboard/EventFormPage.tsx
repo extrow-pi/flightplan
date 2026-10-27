@@ -1,12 +1,10 @@
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import {
   addDays,
   daysBetween,
   eventInputSchema,
-  FLOOR_MAP_MAX_BYTES,
-  FLOOR_MAP_TYPES,
   MAX_DISCOUNT_TIERS,
   MAX_EVENT_DAYS,
   MAX_TABLE_TYPES,
@@ -18,7 +16,7 @@ import {
   type EventStatus,
 } from "@flightplan/shared";
 import { canEdit, EventTabs, isOwner, SharedBadge, SpawnDialog } from "../../components/events";
-import { Field, inputClass, PrimaryButton, Section, Toggle } from "./ui";
+import { Field, ImageDropzone, inputClass, PrimaryButton, Section, Toggle, useImagePicker } from "./ui";
 import { ArrowLeftIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import {
   ApiRequestError,
@@ -1139,20 +1137,8 @@ function FloorMapSection({ event }: { event?: EventRecord }) {
 function FloorMapUpload({ event }: { event: EventRecord }) {
   const upload = useUploadFloorMap(event.id);
   const remove = useRemoveFloorMap(event.id);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const error = localError ?? upload.error?.message ?? remove.error?.message;
-  const maxMb = FLOOR_MAP_MAX_BYTES / 1024 / 1024;
-
-  function onFile(file: File | undefined) {
-    setLocalError(null);
-    if (!file) return;
-    if (!(FLOOR_MAP_TYPES as readonly string[]).includes(file.type)) {
-      return setLocalError("Upload a PNG, JPEG or WebP image");
-    }
-    if (file.size > FLOOR_MAP_MAX_BYTES) return setLocalError(`Images can be up to ${maxMb} MB`);
-    upload.mutate(file);
-  }
+  const picker = useImagePicker({ label: "Floor map image", onFiles: ([file]) => upload.mutate(file) });
+  const error = picker.error ?? upload.error?.message ?? remove.error?.message;
 
   return (
     <div className="mt-5">
@@ -1171,41 +1157,16 @@ function FloorMapUpload({ event }: { event: EventRecord }) {
           />
         </a>
       ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            onFile(e.dataTransfer.files[0]);
-          }}
-          className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 py-10 text-center transition hover:border-coral hover:bg-peach/40"
-        >
-          <span className="font-bold text-coral-ink">{upload.isPending ? "Uploading…" : "Upload floor map"}</span>
-          <span className="mt-1 text-sm text-ink-soft">
-            PNG, JPEG or WebP, up to {maxMb} MB. Click or drop a file here.
-          </span>
-        </button>
+        <ImageDropzone label="Upload floor map" busy={upload.isPending} picker={picker} />
       )}
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept={FLOOR_MAP_TYPES.join(",")}
-        className="sr-only"
-        tabIndex={-1}
-        aria-label="Floor map image"
-        onChange={(e) => {
-          onFile(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
+      {picker.input}
 
       {event.floorMapUrl && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={picker.open}
             disabled={upload.isPending}
             className="rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
           >

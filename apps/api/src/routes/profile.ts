@@ -18,6 +18,7 @@ import {
 } from "@flightplan/shared";
 import { z } from "zod";
 import { db, schema } from "../db/index.js";
+import { isUniqueViolation } from "../db/errors.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
 import { pageSettings } from "./showPages.js";
@@ -35,10 +36,6 @@ function invalid(error: z.ZodError) {
   return { error: "Please fix the highlighted fields", fieldErrors: z.flattenError(error).fieldErrors } satisfies ApiError;
 }
 
-const isUniqueViolation = (err: unknown) => {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e?.code === "23505" || e?.cause?.code === "23505";
-};
 
 const handleTaken = {
   error: "That handle is taken",
@@ -197,7 +194,7 @@ async function toPublicShows(handle: string, rows: (typeof events.$inferSelect)[
       url: `/o/${handle}/${e.pageSlug ?? e.id}`,
       coverUrl: uploadUrl(e.coverFile),
       tagline: settings.tagline,
-      hasTickets: upcoming && !!settings.tickets,
+      hasTickets: upcoming && !!settings.tickets && settings.blocks.some((b) => b.type === "tickets"),
       name: e.name,
       description: e.description,
       venueName: e.venueName,
@@ -215,7 +212,7 @@ async function toPublicShows(handle: string, rows: (typeof events.$inferSelect)[
   });
 }
 
-async function publishedProfile(rawHandle: string) {
+export async function publishedProfile(rawHandle: string) {
   const handle = rawHandle.toLowerCase();
   if (!HANDLE_PATTERN.test(handle)) return null;
   const [profile] = await db
@@ -246,34 +243,39 @@ export const publicOrganizerRoutes = new Hono()
 
   // One show's page, by its page address (or its id, until it has one)
   .get("/:handle/shows/:slug", async (c) => {
-    const notFound = { error: "Show not found" } satisfies ApiError;
-    const profile = await publishedProfile(c.req.param("handle"));
-    if (!profile) return c.json(notFound, 404);
-    const slug = c.req.param("slug").toLowerCase();
-    if (!SHOW_SLUG_PATTERN.test(slug)) return c.json(notFound, 404);
-
-    const byAddress = uuidSchema.safeParse(slug).success ? or(eq(events.pageSlug, slug), eq(events.id, slug)) : eq(events.pageSlug, slug);
-    const [row] = await db
-      .select()
-      .from(events)
-      .where(and(publishedShows(profile.userId), byAddress))
-      .limit(1);
-    if (!row) return c.json(notFound, 404);
-
-    const [show] = await toPublicShows(profile.handle, [row]);
-    const { tagline: _t, ...settings } = pageSettings(row.pageSettings);
-    const body: PublicShowPage = {
-      organizer: {
-        handle: profile.handle,
-        displayName: profile.displayName,
-        logoUrl: uploadUrl(profile.logoFile),
-        websiteUrl: profile.websiteUrl,
-        instagram: profile.instagram,
-        contactEmail: profile.contactEmail,
-      },
-      show: { ...show, booking: settings.showVendorBooking ? show.booking : null },
-      // Tickets are only sold until the show is over
-      page: { ...settings, tickets: show.upcoming ? settings.tickets : "" },
-    };
-    return c.json(body);
+    const page = await findPublicShowPage(c.req.param("handle"), c.req.param("slug"));
+    return page ? c.json(page) : c.json({ error: "Show not found" } satisfies ApiError, 404);
   });
+
+/** A published show's public page, or null if there's no such page. */
+export async function findPublicShowPage(handle: string, rawSlug: string): Promise<PublicShowPage | null> {
+  const profile = await publishedProfile(handle);
+  if (!profile) return null;
+  const slug = rawSlug.toLowerCase();
+  if (!SHOW_SLUG_PATTERN.test(slug)) return null;
+
+  const byAddress = uuidSchema.safeParse(slug).success ? or(eq(events.pageSlug, slug), eq(events.id, slug)) : eq(events.pageSlug, slug);
+  const [row] = await db
+    .select()
+    .from(events)
+    .where(and(publishedShows(profile.userId), byAddress))
+    .limit(1);
+  if (!row) return null;
+
+  const [show] = await toPublicShows(profile.handle, [row]);
+  const { tagline: _t, ...settings } = pageSettings(row.pageSettings);
+  const body: PublicShowPage = {
+    organizer: {
+      handle: profile.handle,
+      displayName: profile.displayName,
+      logoUrl: uploadUrl(profile.logoFile),
+      websiteUrl: profile.websiteUrl,
+      instagram: profile.instagram,
+      contactEmail: profile.contactEmail,
+    },
+    show: { ...show, booking: settings.showVendorBooking ? show.booking : null },
+    // Tickets are only sold until the show is over
+    page: { ...settings, tickets: show.upcoming ? settings.tickets : "" },
+  };
+  return body;
+}

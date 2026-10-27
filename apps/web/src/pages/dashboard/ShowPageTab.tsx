@@ -1,8 +1,6 @@
-import { useRef, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, useBlocker, useParams } from "react-router";
 import {
-  FLOOR_MAP_MAX_BYTES,
-  FLOOR_MAP_TYPES,
   MAX_BLOCK_ITEMS,
   MAX_SHOW_PAGE_BLOCKS,
   SHOW_PAGE_THEMES,
@@ -24,7 +22,7 @@ import { canEdit, EventTabs, SharedBadge } from "../../components/events";
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import { ApiRequestError, useEvent, useSaveShowPage, useShowCover, useShowPage, useUploadPageImage } from "../../lib/api";
 import { DEFAULT_ACCENT, THEMES } from "../ShowPage";
-import { Field, inputClass, PrimaryButton, Section, Toggle } from "./ui";
+import { Field, ImageDropzone, inputClass, PrimaryButton, Section, Toggle, useImagePicker } from "./ui";
 
 // One block on the page while editing. `key` keeps rows stable; `id` is saved.
 type BlockRow = ShowPageBlockInput & { key: number };
@@ -57,6 +55,7 @@ const blockTypes: { type: ShowPageBlockType; label: string; description: string;
   { type: "sponsors", label: "Sponsors", description: "Logos, with links", make: () => ({ id: newId(), type: "sponsors", title: "Sponsors", items: [] }) },
   { type: "map", label: "Venue map", description: "A map of the venue", once: true, make: () => ({ id: newId(), type: "map", title: "Getting there" }) },
 ];
+const makeBlock = (type: ShowPageBlockType) => blockTypes.find((t) => t.type === type)!.make();
 const typeLabel = Object.fromEntries(blockTypes.map((t) => [t.type, t.label])) as Record<ShowPageBlockType, string>;
 
 function newId() {
@@ -206,6 +205,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
   const readOnly = !canEdit(event);
   const strip = (f: FormState) => JSON.stringify({ ...f, blocks: f.blocks.map(({ key: _k, ...b }) => b) });
   const dirty = strip(form) !== strip(initial);
+  useUnsavedWarning(dirty && !readOnly);
   const handlePrefix = page.url ? `${window.location.host}${page.url.replace(/[^/]*$/, "")}` : "";
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -233,7 +233,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
     update("tickets", value);
     // A pasted widget needs somewhere to go: add a Tickets block at the top
     if (ticketsCandyUrl(value) && !form.blocks.some((b) => b.type === "tickets")) {
-      setForm((f) => ({ ...f, tickets: value, blocks: [{ ...blockTypes[0].make(), key: nextKey++ }, ...f.blocks] }));
+      setForm((f) => ({ ...f, tickets: value, blocks: [{ ...makeBlock("tickets"), key: nextKey++ }, ...f.blocks] }));
     }
   }
 
@@ -248,12 +248,18 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
         setSaved(true);
       },
       onError: (err) => {
-        const fieldErrors = err instanceof ApiRequestError ? err.body.fieldErrors : undefined;
-        setErrors(
-          fieldErrors
-            ? { ...Object.fromEntries(Object.entries(fieldErrors).map(([k, v]) => [k, v?.[0]])), general: err.message }
-            : { general: err.message },
-        );
+        const fieldErrors = err instanceof ApiRequestError ? (err.body.fieldErrors ?? {}) : {};
+        const first = (k: string) => fieldErrors[k]?.[0];
+        // Block errors come back as one message for the whole list, so they're shown with the general one
+        setErrors({
+          slug: first("slug"),
+          tagline: first("tagline"),
+          accentColor: first("accentColor"),
+          flyer: first("flyer"),
+          tickets: first("tickets"),
+          ticketsHeight: first("ticketsHeight"),
+          general: first("blocks") ?? err.message,
+        });
       },
     });
   }
@@ -373,6 +379,18 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                 aria-invalid={!!errors.tickets}
                 onChange={(e) => onTickets(e.target.value)}
               />
+              {ticketsUrl && !form.blocks.some((b) => b.type === "tickets") && (
+                <p className="text-sm font-semibold text-coral-ink">
+                  The page has no Tickets block, so the widget won't show.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setBlocks([{ ...makeBlock("tickets"), key: nextKey++ }, ...form.blocks])}
+                    className="font-bold underline"
+                  >
+                    Add one at the top
+                  </button>
+                </p>
+              )}
               {form.tickets.trim() && !errors.tickets && (
                 <p className={`text-sm font-semibold ${ticketsUrl ? "text-[#2d7a6a]" : "text-coral-ink"}`}>
                   {ticketsUrl ? (
@@ -475,6 +493,22 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
       </form>
     </>
   );
+}
+
+/** Ask before leaving with unsaved changes: in-app navigation, and closing or reloading the tab. */
+function useUnsavedWarning(when: boolean) {
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => when && currentLocation.pathname !== nextLocation.pathname);
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    if (window.confirm("You have unsaved changes on this page. Leave without saving?")) blocker.proceed();
+    else blocker.reset();
+  }, [blocker]);
+  useEffect(() => {
+    if (!when) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [when]);
 }
 
 function IconButton({ label, onClick, disabled, danger, children }: { label: string; onClick: () => void; disabled?: boolean; danger?: boolean; children: ReactNode }) {
@@ -751,64 +785,29 @@ function BlockEditor({
   }
 }
 
-/** Upload one or more images for the page; hands back the stored file names. */
+/** Upload one or more images for the page; hands back the stored file names, in the order chosen. */
 function ImageUpload({ eventId, label, multiple, onUploaded }: { eventId: string; label: string; multiple?: boolean; onUploaded: (files: string[]) => void }) {
   const upload = useUploadPageImage(eventId);
-  const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const maxMb = FLOOR_MAP_MAX_BYTES / 1024 / 1024;
+  const picker = useImagePicker({ label, multiple, onFiles: (files) => void uploadAll(files) });
 
-  async function onFiles(list: FileList | null) {
-    setError(null);
-    const files = [...(list ?? [])];
-    if (!files.length) return;
-    const bad = files.find((f) => !(FLOOR_MAP_TYPES as readonly string[]).includes(f.type) || f.size > FLOOR_MAP_MAX_BYTES);
-    if (bad) return setError(`${bad.name}: use a PNG, JPEG or WebP image up to ${maxMb} MB`);
+  async function uploadAll(files: File[]) {
     setBusy(true);
-    const done: string[] = [];
-    try {
-      for (const f of files) done.push((await upload.mutateAsync(f)).file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setBusy(false);
-      if (done.length) onUploaded(done);
-    }
+    const results = await Promise.allSettled(files.map((f) => upload.mutateAsync(f)));
+    setBusy(false);
+    const done = results.flatMap((r) => (r.status === "fulfilled" ? [r.value.file] : []));
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) picker.setError(failed.reason instanceof Error ? failed.reason.message : "Upload failed");
+    if (done.length) onUploaded(done);
   }
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          void onFiles(e.dataTransfer.files);
-        }}
-        disabled={busy}
-        className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 py-6 text-center transition hover:border-coral hover:bg-peach/40 disabled:opacity-60"
-      >
-        <span className="font-bold text-coral-ink">{busy ? "Uploading…" : label}</span>
-        <span className="mt-1 text-sm text-ink-soft">PNG, JPEG or WebP, up to {maxMb} MB. Click or drop {multiple ? "files" : "a file"} here.</span>
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        multiple={multiple}
-        accept={FLOOR_MAP_TYPES.join(",")}
-        className="sr-only"
-        tabIndex={-1}
-        aria-label={label}
-        onChange={(e) => {
-          void onFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
-      {error && (
+      <ImageDropzone label={label} multiple={multiple} busy={busy} picker={picker} className="py-6" />
+      {picker.input}
+      {picker.error && (
         <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
-          {error}
+          {picker.error}
         </p>
       )}
     </div>
@@ -817,18 +816,8 @@ function ImageUpload({ eventId, label, multiple, onUploaded }: { eventId: string
 
 function CoverField({ event, page, readOnly }: { event: EventRecord; page: ShowPageResponse; readOnly: boolean }) {
   const { upload, remove } = useShowCover(event.id);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const error = localError ?? upload.error?.message ?? remove.error?.message;
-  const maxMb = FLOOR_MAP_MAX_BYTES / 1024 / 1024;
-
-  function onFile(file: File | undefined) {
-    setLocalError(null);
-    if (!file) return;
-    if (!(FLOOR_MAP_TYPES as readonly string[]).includes(file.type)) return setLocalError("Upload a PNG, JPEG or WebP image");
-    if (file.size > FLOOR_MAP_MAX_BYTES) return setLocalError(`Images can be up to ${maxMb} MB`);
-    upload.mutate(file);
-  }
+  const picker = useImagePicker({ label: "Cover image", onFiles: ([file]) => upload.mutate(file) });
+  const error = picker.error ?? upload.error?.message ?? remove.error?.message;
 
   return (
     <div className="flex flex-col gap-2 sm:col-span-2">
@@ -839,37 +828,14 @@ function CoverField({ event, page, readOnly }: { event: EventRecord; page: ShowP
       {page.coverUrl ? (
         <img src={page.coverUrl} alt="" className="aspect-[3/1] w-full rounded-2xl bg-cream-50 object-cover ring-1 ring-ink/10" />
       ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            onFile(e.dataTransfer.files[0]);
-          }}
-          className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 py-8 text-center transition hover:border-coral hover:bg-peach/40"
-        >
-          <span className="font-bold text-coral-ink">{upload.isPending ? "Uploading…" : "Upload a cover image"}</span>
-          <span className="mt-1 text-sm text-ink-soft">About 3:1 works best. PNG, JPEG or WebP, up to {maxMb} MB.</span>
-        </button>
+        <ImageDropzone label="Upload a cover image" hint="About 3:1 works best." busy={upload.isPending} picker={picker} className="py-8" />
       )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept={FLOOR_MAP_TYPES.join(",")}
-        className="sr-only"
-        tabIndex={-1}
-        aria-label="Cover image"
-        onChange={(e) => {
-          onFile(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
+      {picker.input}
       {page.coverUrl && !readOnly && (
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={picker.open}
             disabled={upload.isPending}
             className="rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
           >

@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { FLOOR_MAP_MAX_BYTES, FLOOR_MAP_TYPES } from "@flightplan/shared";
 import { PlusIcon } from "../../components/Icons";
 
 // Building blocks shared by the dashboard pages
@@ -150,5 +151,81 @@ export function Toggle({
         {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
       </span>
     </label>
+  );
+}
+
+const IMAGE_MAX_MB = FLOOR_MAP_MAX_BYTES / 1024 / 1024;
+
+/**
+ * Choose images with a hidden file input (call `open`) or by dropping them (`take`). Checks each
+ * file's type and size before handing them over. Render `input` somewhere in the component.
+ */
+export function useImagePicker({ label, multiple = false, onFiles }: { label: string; multiple?: boolean; onFiles: (files: File[]) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function take(list: FileList | null | undefined) {
+    setError(null);
+    const files = [...(list ?? [])].slice(0, multiple ? undefined : 1);
+    if (!files.length) return;
+    const prefix = (f: File) => (files.length > 1 ? `${f.name}: ` : "");
+    const wrongType = files.find((f) => !(FLOOR_MAP_TYPES as readonly string[]).includes(f.type));
+    if (wrongType) return setError(`${prefix(wrongType)}Upload a PNG, JPEG or WebP image`);
+    const tooBig = files.find((f) => f.size > FLOOR_MAP_MAX_BYTES);
+    if (tooBig) return setError(`${prefix(tooBig)}Images can be up to ${IMAGE_MAX_MB} MB`);
+    onFiles(files);
+  }
+
+  const input = (
+    <input
+      ref={inputRef}
+      type="file"
+      multiple={multiple}
+      accept={FLOOR_MAP_TYPES.join(",")}
+      className="sr-only"
+      tabIndex={-1}
+      aria-label={label}
+      onChange={(e) => {
+        take(e.target.files);
+        e.target.value = "";
+      }}
+    />
+  );
+  return { open: () => inputRef.current?.click(), take, input, error, setError };
+}
+
+/** The dashed "click or drop an image here" box. */
+export function ImageDropzone({
+  label,
+  hint,
+  busy,
+  multiple,
+  picker,
+  className = "py-10",
+}: {
+  label: string;
+  hint?: string;
+  busy?: boolean;
+  multiple?: boolean;
+  picker: ReturnType<typeof useImagePicker>;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={picker.open}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        picker.take(e.dataTransfer.files);
+      }}
+      disabled={busy}
+      className={`flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 text-center transition hover:border-coral hover:bg-peach/40 disabled:opacity-60 ${className}`}
+    >
+      <span className="font-bold text-coral-ink">{busy ? "Uploading…" : label}</span>
+      <span className="mt-1 text-sm text-ink-soft">
+        {hint ? `${hint} ` : ""}PNG, JPEG or WebP, up to {IMAGE_MAX_MB} MB. Click or drop {multiple ? "files" : "a file"} here.
+      </span>
+    </button>
   );
 }
