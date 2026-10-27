@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useBlocker } from "react-router";
 import { FLOOR_MAP_MAX_BYTES, FLOOR_MAP_TYPES } from "@flightplan/shared";
-import { PlusIcon } from "../../components/Icons";
+import { CheckIcon, PlusIcon } from "../../components/Icons";
 
 // Building blocks shared by the dashboard pages
 
@@ -225,9 +225,19 @@ function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave
   );
 }
 
-/** "Unsaved changes · Discard changes" for a form's save bar (nothing when there are no changes). */
-export function SaveStatus({ dirty, onDiscard }: { dirty: boolean; onDiscard: () => void }) {
-  if (!dirty) return null;
+/**
+ * A form's save bar status: "Unsaved changes · Discard changes" while there are changes, and
+ * `saved` (e.g. "Changes saved") after a save until the next edit.
+ */
+export function SaveStatus({ dirty, onDiscard, saved }: { dirty: boolean; onDiscard: () => void; saved?: string | null }) {
+  if (!dirty) {
+    return saved ? (
+      <span className="flex items-center gap-1.5 self-start rounded-full bg-[#e8f8f5] px-3 py-1.5 text-sm font-bold text-[#2d7a6a] sm:mr-auto sm:self-auto" role="status">
+        <CheckIcon className="size-4" />
+        {saved}
+      </span>
+    ) : null;
+  }
   return (
     <span className="flex items-center gap-3 text-sm sm:mr-auto">
       <span className="flex items-center gap-1.5 font-bold text-gold-ink">

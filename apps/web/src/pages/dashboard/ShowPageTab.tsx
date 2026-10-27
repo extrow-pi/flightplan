@@ -486,12 +486,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
 
         {!readOnly && (
           <div className="sticky bottom-0 -mx-1 flex flex-col items-stretch gap-3 border-t border-ink/10 bg-cream-50/95 px-1 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-end">
-            {saved && !dirty && (
-              <span className="text-sm font-bold text-[#2d7a6a]" role="status">
-                Saved
-              </span>
-            )}
-            <SaveStatus dirty={dirty} onDiscard={discard} />
+            <SaveStatus dirty={dirty} onDiscard={discard} saved={saved ? "Page saved" : null} />
             <PrimaryButton onClick={submit} pending={save.isPending}>
               Save page
             </PrimaryButton>

@@ -225,16 +225,18 @@ export default function EventFormPage({ kind: newKind = "event" }: { kind?: Kind
 function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const fromTemplate = (location.state as { fromTemplate?: string } | null)?.fromTemplate;
+  const { fromTemplate, saved: savedOnCreate } = (location.state as { fromTemplate?: string; saved?: string } | null) ?? {};
   const save = useSaveEvent(event?.id);
   const saveAsTemplate = useSaveEvent(undefined, { floorMapFrom: event?.id });
   const del = useDeleteEvent();
-  const [initial] = useState<FormState>(() => (event ? fromEvent(event) : emptyForm()));
+  const [initial, setInitial] = useState<FormState>(() => (event ? fromEvent(event) : emptyForm()));
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<Errors>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedTemplate, setSavedTemplate] = useState<EventRecord | null>(null);
   const [spawning, setSpawning] = useState(false);
+  // What the last save did ("Changes saved", "Published"…); shown until the next edit
+  const [savedNote, setSavedNote] = useState<string | null>(savedOnCreate ?? null);
 
   const isNew = !event;
   const isTemplateForm = kind === "template";
@@ -247,6 +249,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+    setSavedNote(null);
     if (key !== "days" && errors[key as keyof Errors]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
@@ -315,16 +318,41 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
     setForm(initial);
     setErrors({});
     setSavedTemplate(null);
+    setSavedNote(null);
   }
 
   function submit(status: EventStatus) {
     setSavedTemplate(null);
     const input = validate(status, !isTemplateForm);
     if (!input) return;
+    const note =
+      status === "template"
+        ? isNew
+          ? "Template created"
+          : "Changes saved"
+        : status === "published"
+          ? event?.status === "published"
+            ? "Changes saved"
+            : "Published"
+          : event?.status === "published"
+            ? "Saved and unpublished"
+            : isNew
+              ? "Saved as a draft"
+              : "Changes saved";
     save.mutate(input, {
-      onSuccess: () => {
-        guard.allowLeaving();
-        navigate(listPath);
+      onSuccess: (saved) => {
+        if (isNew) {
+          // A new event or template opens its own page, which shows the note
+          guard.allowLeaving();
+          navigate(`${listPath}/${saved.id}`, { replace: true, state: { saved: note } });
+          return;
+        }
+        // Stay on the page: what was saved is the new starting point for Discard and the warning
+        const next = fromEvent(saved);
+        setInitial(next);
+        setForm(next);
+        setErrors({});
+        setSavedNote(note);
       },
       onError: (err) => {
         if (err instanceof ApiRequestError && err.body.fieldErrors) {
@@ -666,7 +694,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
           </div>
 
           <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-3 border-t border-ink/10 bg-cream-50/95 px-1 py-4 backdrop-blur sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            <SaveStatus dirty={dirty} onDiscard={discard} />
+            <SaveStatus dirty={dirty} onDiscard={discard} saved={savedNote} />
             {isTemplateForm ? (
               <>
                 {!isNew && (
