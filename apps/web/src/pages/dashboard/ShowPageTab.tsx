@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Link, useBlocker, useParams } from "react-router";
+import { useState, type ReactNode } from "react";
+import { Link, useParams } from "react-router";
 import {
   MAX_BLOCK_ITEMS,
   MAX_SHOW_PAGE_BLOCKS,
@@ -22,7 +22,7 @@ import { canEdit, EventTabs, SharedBadge } from "../../components/events";
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import { ApiRequestError, useEvent, useSaveShowPage, useShowCover, useShowPage, useUploadPageImage } from "../../lib/api";
 import { DEFAULT_ACCENT, THEMES } from "../ShowPage";
-import { Field, ImageDropzone, inputClass, PrimaryButton, Section, Toggle, useImagePicker } from "./ui";
+import { Field, ImageDropzone, inputClass, PrimaryButton, SaveStatus, Section, Toggle, useImagePicker, useUnsavedChanges } from "./ui";
 
 // One block on the page while editing. `key` keeps rows stable; `id` is saved.
 type BlockRow = ShowPageBlockInput & { key: number };
@@ -205,7 +205,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
   const readOnly = !canEdit(event);
   const strip = (f: FormState) => JSON.stringify({ ...f, blocks: f.blocks.map(({ key: _k, ...b }) => b) });
   const dirty = strip(form) !== strip(initial);
-  useUnsavedWarning(dirty && !readOnly);
+  const guard = useUnsavedChanges(dirty && !readOnly);
   const handlePrefix = page.url ? `${window.location.host}${page.url.replace(/[^/]*$/, "")}` : "";
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -235,6 +235,12 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
     if (ticketsCandyUrl(value) && !form.blocks.some((b) => b.type === "tickets")) {
       setForm((f) => ({ ...f, tickets: value, blocks: [{ ...makeBlock("tickets"), key: nextKey++ }, ...f.blocks] }));
     }
+  }
+
+  function discard() {
+    setForm(initial);
+    setErrors({});
+    setSaved(false);
   }
 
   function submit() {
@@ -270,6 +276,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
 
   return (
     <>
+      {guard.dialog}
       <PageStatus page={page} />
       <form
         className="mt-6 space-y-6"
@@ -484,7 +491,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                 Saved
               </span>
             )}
-            {dirty && <span className="text-sm text-ink-muted">Unsaved changes</span>}
+            <SaveStatus dirty={dirty} onDiscard={discard} />
             <PrimaryButton onClick={submit} pending={save.isPending}>
               Save page
             </PrimaryButton>
@@ -493,22 +500,6 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
       </form>
     </>
   );
-}
-
-/** Ask before leaving with unsaved changes: in-app navigation, and closing or reloading the tab. */
-function useUnsavedWarning(when: boolean) {
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => when && currentLocation.pathname !== nextLocation.pathname);
-  useEffect(() => {
-    if (blocker.state !== "blocked") return;
-    if (window.confirm("You have unsaved changes on this page. Leave without saving?")) blocker.proceed();
-    else blocker.reset();
-  }, [blocker]);
-  useEffect(() => {
-    if (!when) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [when]);
 }
 
 function IconButton({ label, onClick, disabled, danger, children }: { label: string; onClick: () => void; disabled?: boolean; danger?: boolean; children: ReactNode }) {
@@ -751,7 +742,7 @@ function BlockEditor({
             <div key={item.image} className="flex flex-col gap-2 rounded-xl bg-white p-3 ring-1 ring-ink/5 sm:flex-row sm:items-center">
               <img src={uploadPath(item.image)} alt="" className="h-14 w-24 shrink-0 rounded-lg object-contain ring-1 ring-ink/10" />
               <input
-                className={smallInput}
+                className={`${smallInput} sm:w-56 sm:shrink-0`}
                 aria-label={`Sponsor ${i + 1} name`}
                 placeholder="Name (optional)"
                 value={item.name ?? ""}

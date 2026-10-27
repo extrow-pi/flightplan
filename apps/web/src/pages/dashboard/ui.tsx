@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useBlocker } from "react-router";
 import { FLOOR_MAP_MAX_BYTES, FLOOR_MAP_TYPES } from "@flightplan/shared";
 import { PlusIcon } from "../../components/Icons";
 
@@ -151,6 +151,93 @@ export function Toggle({
         {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
       </span>
     </label>
+  );
+}
+
+// ── Unsaved changes ──────────────────────────────────────────────────────
+
+/**
+ * Stop the user leaving a form with unsaved changes: links and back/forward inside the app show our
+ * own dialog (Keep editing / Discard and leave), and closing or reloading the tab asks the browser to
+ * confirm. Render `dialog`, and call `allowLeaving()` just before navigating away after a save.
+ */
+export function useUnsavedChanges(dirty: boolean) {
+  const leaving = useRef(false);
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) => dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname,
+  );
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  const dialog =
+    blocker.state === "blocked" ? <UnsavedChangesDialog onStay={() => blocker.reset()} onLeave={() => blocker.proceed()} /> : null;
+  return { dialog, allowLeaving: () => (leaving.current = true) };
+}
+
+function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave: () => void }) {
+  const stayRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    stayRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onStay();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onStay]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onClick={onStay}>
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="unsaved-title"
+        aria-describedby="unsaved-body"
+        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="unsaved-title" className="text-xl font-extrabold">
+          You have unsaved changes
+        </h2>
+        <p id="unsaved-body" className="mt-2 text-ink-soft">
+          Your changes haven't been saved. Keep editing to save them, or leave and discard them.
+        </p>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onLeave}
+            className="rounded-full px-5 py-3 font-bold text-coral-ink transition hover:bg-peach"
+          >
+            Discard and leave
+          </button>
+          <button
+            ref={stayRef}
+            type="button"
+            onClick={onStay}
+            className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)]"
+          >
+            Keep editing
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** "Unsaved changes · Discard changes" for a form's save bar (nothing when there are no changes). */
+export function SaveStatus({ dirty, onDiscard }: { dirty: boolean; onDiscard: () => void }) {
+  if (!dirty) return null;
+  return (
+    <span className="flex items-center gap-3 text-sm sm:mr-auto">
+      <span className="flex items-center gap-1.5 font-bold text-gold-ink">
+        <span className="size-2 rounded-full bg-gold" aria-hidden="true" />
+        Unsaved changes
+      </span>
+      <button type="button" onClick={onDiscard} className="rounded-full px-3 py-1.5 font-bold text-ink-soft transition hover:bg-cream hover:text-ink">
+        Discard changes
+      </button>
+    </span>
   );
 }
 

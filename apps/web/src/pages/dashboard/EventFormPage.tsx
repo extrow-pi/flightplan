@@ -16,7 +16,7 @@ import {
   type EventStatus,
 } from "@flightplan/shared";
 import { canEdit, EventTabs, isOwner, SharedBadge, SpawnDialog } from "../../components/events";
-import { Field, ImageDropzone, inputClass, PrimaryButton, Section, Toggle, useImagePicker } from "./ui";
+import { Field, ImageDropzone, inputClass, PrimaryButton, SaveStatus, Section, Toggle, useImagePicker, useUnsavedChanges } from "./ui";
 import { ArrowLeftIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import {
   ApiRequestError,
@@ -307,12 +307,25 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
     return input;
   }
 
+  // Viewers can't change anything, so there's nothing to lose
+  const guard = useUnsavedChanges(dirty && !readOnly);
+
+  /** Put every field back as it was when the page opened (or was last saved). */
+  function discard() {
+    setForm(initial);
+    setErrors({});
+    setSavedTemplate(null);
+  }
+
   function submit(status: EventStatus) {
     setSavedTemplate(null);
     const input = validate(status, !isTemplateForm);
     if (!input) return;
     save.mutate(input, {
-      onSuccess: () => navigate(listPath),
+      onSuccess: () => {
+        guard.allowLeaving();
+        navigate(listPath);
+      },
       onError: (err) => {
         if (err instanceof ApiRequestError && err.body.fieldErrors) {
           setErrors(fromServerErrors(err.body.fieldErrors));
@@ -340,6 +353,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
   return (
     <>
+      {guard.dialog}
       <Link
         to={listPath}
         className="inline-flex items-center gap-2 text-sm font-bold text-ink-soft transition hover:text-ink"
@@ -601,8 +615,8 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         )}
 
         {!readOnly && (
-        <div className="flex flex-col-reverse gap-3 border-t border-ink/10 pt-6 lg:flex-row lg:items-center">
-          <div className="flex flex-wrap items-center gap-2">
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-t border-ink/10 pt-6">
             {!isNew && owner &&
               (confirmDelete ? (
                 <>
@@ -610,7 +624,14 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                   <button
                     type="button"
                     disabled={del.isPending}
-                    onClick={() => del.mutate(event.id, { onSuccess: () => navigate(listPath) })}
+                    onClick={() =>
+                      del.mutate(event.id, {
+                        onSuccess: () => {
+                          guard.allowLeaving();
+                          navigate(listPath);
+                        },
+                      })
+                    }
                     className="rounded-full bg-coral-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
                   >
                     {del.isPending ? "Deleting…" : "Delete"}
@@ -644,7 +665,8 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             )}
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row lg:ml-auto">
+          <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-3 border-t border-ink/10 bg-cream-50/95 px-1 py-4 backdrop-blur sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <SaveStatus dirty={dirty} onDiscard={discard} />
             {isTemplateForm ? (
               <>
                 {!isNew && (
@@ -682,7 +704,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
               </>
             )}
           </div>
-        </div>
+        </>
         )}
         {isTemplateForm && !isNew && dirty && (
           <p className="text-right text-xs text-ink-muted">Save your changes before using this template.</p>
