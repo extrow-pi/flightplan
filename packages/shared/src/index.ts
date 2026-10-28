@@ -95,19 +95,21 @@ export type PriceQuote = {
  * more (never both). The code must already be validated.
  */
 export function priceRequest(args: {
-  tablePriceCents: number;
-  tableCount: number;
+  /** Each table's list price (its table type's price), in table order */
+  prices: number[];
   tiers: BulkDiscountTier[];
   code?: { code: string; kind: DiscountCodeKind; value: number } | null;
 }): PriceQuote {
-  const { tablePriceCents: price, tableCount: n } = args;
-  const subtotal = price * n;
+  const { prices } = args;
+  const n = prices.length;
+  const subtotal = prices.reduce((sum, p) => sum + p, 0);
+  // Tiers count every table, whatever its type
   const tier = [...args.tiers].filter((t) => n >= t.minTables).sort((a, b) => b.minTables - a.minTables)[0];
   const tierOff = !tier
     ? 0
     : tier.kind === "percent"
       ? Math.round((subtotal * tier.value) / 100)
-      : Math.min(tier.value, price) * n;
+      : prices.reduce((sum, p) => sum + Math.min(tier.value, p), 0);
   const codeOff = !args.code
     ? 0
     : args.code.kind === "percent"
@@ -128,10 +130,16 @@ export function priceRequest(args: {
   }
   discount = Math.min(discount, subtotal);
   const total = subtotal - discount;
-  // Split the total across tables; leftover cents go to the first tables
-  const base = n ? Math.floor(total / n) : 0;
-  const extra = n ? total - base * n : 0;
-  const perTableCents = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+  // Each table's share of the total. "$ off each table" comes off each table; other discounts are
+  // shared in proportion to each table's price, with leftover cents going to the first tables.
+  let perTableCents: number[];
+  if (source === "tier" && tier?.kind === "per_table") {
+    perTableCents = prices.map((p) => p - Math.min(tier.value, p));
+  } else {
+    perTableCents = prices.map((p) => (subtotal ? Math.floor((p * total) / subtotal) : 0));
+    let left = total - perTableCents.reduce((sum, c) => sum + c, 0);
+    for (let i = 0; left > 0 && n; i = (i + 1) % n, left--) perTableCents[i]++;
+  }
   return { tableCount: n, subtotalCents: subtotal, discountCents: discount, totalCents: total, label, source, perTableCents };
 }
 
@@ -139,12 +147,52 @@ export function priceRequest(args: {
 export const eventDaySchema = z
   .object({
     dayOffset: z.number().int().min(0).max(60, "Keep a show within two months"),
+    /** When vendors can start setting up ("" = not set) */
+    setupTime: z.union([z.literal(""), time]).optional().default(""),
     startTime: time,
     endTime: time,
   })
-  .refine((d) => d.endTime > d.startTime, { message: "Must end after it starts", path: ["endTime"] });
+  .refine((d) => d.endTime > d.startTime, { message: "Must end after it starts", path: ["endTime"] })
+  .refine((d) => !d.setupTime || d.setupTime < d.startTime, { message: "Setup should start before opening", path: ["setupTime"] });
 
 export type EventDay = z.output<typeof eventDaySchema>;
+
+// ── Table types ──────────────────────────────────────────────────────────────
+
+export const MAX_TABLE_TYPES = 10;
+
+/**
+ * A kind of vendor table at a show, e.g. "6 ft table" at $60 × 20. Tables are numbered in one
+ * sequence, type by type; a type with a prefix is labelled prefix + 1…N instead (e.g. L1–L10).
+ */
+export const tableTypeSchema = z.object({
+  id: z.string().min(1).max(40),
+  name: z.string().trim().min(1, "Name this table type").max(40, "Keep the name under 40 characters"),
+  priceCents: cents,
+  count: z.number({ error: "Enter a number" }).int("Whole numbers only").min(0, "Can't be negative").max(MAX_TABLES),
+  prefix: z
+    .string()
+    .trim()
+    .max(4, "Prefixes can be up to 4 characters")
+    .regex(/^([A-Za-z][A-Za-z0-9-]*)?$/, "Start the prefix with a letter (e.g. L)")
+    .optional()
+    .default(""),
+});
+export type TableType = z.output<typeof tableTypeSchema>;
+export type TableTypeInput = z.input<typeof tableTypeSchema>;
+
+/** The single type an event has when it only sets a table count and price */
+export const STANDARD_TABLE_TYPE_ID = "standard";
+
+/** Every table's label and type, in order: one running number, except prefixed types (A1, A2…). */
+export function tableLabels(types: Pick<TableType, "id" | "count" | "prefix">[]) {
+  const out: { typeId: string; label: string }[] = [];
+  let next = 1;
+  for (const t of types) {
+    for (let i = 1; i <= t.count; i++) out.push({ typeId: t.id, label: t.prefix ? `${t.prefix}${i}` : String(next++) });
+  }
+  return out;
+}
 
 // Dates are local wall-clock values, stored as-is (no timezone conversion).
 export const eventInputSchema = z
@@ -156,8 +204,11 @@ export const eventInputSchema = z
     city: z.string().trim().min(2, "Which city?").max(100),
     startDate: z.iso.date("Pick a date").nullable().optional().default(null),
     days: z.array(eventDaySchema).min(1, "Add at least one day").max(MAX_EVENT_DAYS, `Up to ${MAX_EVENT_DAYS} days`),
-    vendorTables: z.number({ error: "Enter a number" }).int("Whole numbers only").min(0, "Can't be negative").max(MAX_TABLES),
-    tablePriceCents: cents,
+    /** Table types (6 ft, 8 ft…). Without them, vendorTables and tablePriceCents make one "Table" type. */
+    tableTypes: z.array(tableTypeSchema).max(MAX_TABLE_TYPES, `Up to ${MAX_TABLE_TYPES} table types`).optional().default([]),
+    /** Worked out from the table types on save: the total number of tables, and the lowest price */
+    vendorTables: z.number({ error: "Enter a number" }).int("Whole numbers only").min(0, "Can't be negative").max(MAX_TABLES).optional(),
+    tablePriceCents: cents.optional(),
     ticketPriceCents: cents,
     status: z.enum(EVENT_STATUSES).optional().default("draft"),
     // Vendor booking settings
@@ -200,14 +251,38 @@ export const eventInputSchema = z
     if (new Set(mins).size !== mins.length) {
       ctx.addIssue({ code: "custom", path: ["bulkDiscounts"], message: "Each tier needs a different number of tables" });
     }
+    if (e.tableTypes.length) {
+      if (new Set(e.tableTypes.map((t) => t.id)).size !== e.tableTypes.length) {
+        ctx.addIssue({ code: "custom", path: ["tableTypes"], message: "Two table types share an id" });
+      }
+      const prefixes = e.tableTypes.map((t) => t.prefix.toLowerCase()).filter(Boolean);
+      if (new Set(prefixes).size !== prefixes.length) {
+        ctx.addIssue({ code: "custom", path: ["tableTypes"], message: "Each table type needs a different prefix" });
+      }
+      if (e.tableTypes.reduce((n, t) => n + t.count, 0) > MAX_TABLES) {
+        ctx.addIssue({ code: "custom", path: ["tableTypes"], message: `Up to ${MAX_TABLES} tables in all` });
+      }
+    } else {
+      if (e.vendorTables === undefined) ctx.addIssue({ code: "custom", path: ["vendorTables"], message: "Enter a number" });
+      if (e.tablePriceCents === undefined) ctx.addIssue({ code: "custom", path: ["tablePriceCents"], message: "Enter an amount" });
+    }
   })
   // Templates are undated; days are kept in order
-  .transform((e) => ({
+  .transform((e) => {
+    const tableTypes: TableType[] = e.tableTypes.length
+      ? e.tableTypes
+      : [{ id: STANDARD_TABLE_TYPE_ID, name: "Table", priceCents: e.tablePriceCents ?? 0, count: e.vendorTables ?? 0, prefix: "" }];
+    return {
     ...e,
+    tableTypes,
+    vendorTables: tableTypes.reduce((n, t) => n + t.count, 0),
+    // The lowest price, for "from $60" (all types count, even ones with no tables yet)
+    tablePriceCents: Math.min(...tableTypes.map((t) => t.priceCents)),
     startDate: e.status === "template" ? null : e.startDate,
     days: [...e.days].sort((a, b) => a.dayOffset - b.dayOffset),
     bulkDiscounts: [...e.bulkDiscounts].sort((a, b) => a.minTables - b.minTables),
-  }));
+    };
+  });
 
 export type EventInput = z.input<typeof eventInputSchema>;
 
@@ -336,6 +411,8 @@ export type VendorBookingInput = z.input<typeof vendorBookingSchema>;
 /** Price preview on the booking page, before submitting */
 export const quoteRequestSchema = z.object({
   tableCount: z.number().int().min(1).max(MAX_TABLES_PER_REQUEST),
+  /** The picked tables, so each is priced by its type (otherwise tableCount at the lowest price) */
+  tableIds: z.array(z.uuid()).max(MAX_TABLES_PER_REQUEST).optional().default([]),
   discountCode: z.string().trim().toUpperCase().max(40).optional().default(""),
   /** Lets "one use per vendor" codes be checked early */
   email: z.union([z.literal(""), z.email().trim().toLowerCase()]).optional().default(""),
@@ -648,6 +725,8 @@ export type EventTable = {
   label: string;
   /** The table on the event's floorplan, if it has one */
   planItemId: string | null;
+  /** Which of the event's table types it is */
+  typeId: string;
   /** The table's active booking, if any */
   booking: Booking | null;
 };
@@ -704,11 +783,13 @@ export type PublicBookingPage = {
     paymentDueDays: number | null;
     floorMapUrl: string | null;
     maxTablesPerRequest: number;
+    /** The kinds of table and their prices */
+    tableTypes: { id: string; name: string; priceCents: number }[];
     bulkDiscounts: BulkDiscountTier[];
     /** Whether the organizer has any discount codes that could apply (shows the code field) */
     acceptsCodes: boolean;
   };
-  tables: { id: string; label: string; available: boolean; planItemId: string | null }[];
+  tables: { id: string; label: string; available: boolean; typeId: string; planItemId: string | null }[];
   /** The show's floorplan, for picking tables on a map (no vendor names) */
   floorplan: PublicFloorplan | null;
   /** For invite links: who it was sent to, and whether it's been used */
@@ -809,14 +890,14 @@ export function eventEndDate(event: { startDate: string | null; days: EventDay[]
 export const HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,29}$/;
 
 /** Turn a name into a handle suggestion, e.g. "Jetlagged Cards!" → "jetlagged-cards" */
-export function suggestHandle(name: string) {
+export function suggestHandle(name: string, maxLength = 30) {
   return name
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 30)
+    .slice(0, maxLength)
     .replace(/-+$/, "");
 }
 
@@ -855,8 +936,265 @@ export type OrganizerProfile = z.output<typeof organizerProfileSchema> & {
   logoUrl: string | null;
 };
 
+// ── Show pages (/o/:handle/:slug) ───────────────────────────────────────────
+
+/** Lowercase letters, digits and single hyphens, up to 60 characters, e.g. "spring-card-show-2026" */
+export const SHOW_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,59}$/;
+
+/** A show name as a page address, e.g. "Red-eye Night Market!" → "red-eye-night-market" */
+export function suggestShowSlug(name: string) {
+  return suggestHandle(name, 60);
+}
+
+export const TICKETSCANDY_ORIGIN = "https://ticketscandy.com";
+const isTicketsCandyHost = (host: string) => host === "ticketscandy.com" || host.endsWith(".ticketscandy.com");
+const TICKETSCANDY_FRAME = /^https:\/\/ticketscandy\.com\/checkout-widget\/frame\/(\d{1,12})$/;
+
+/** The TicketsCandy event number of a checkout widget address, or null for other links. */
+export const ticketsCandyEventId = (url: string) => TICKETSCANDY_FRAME.exec(url)?.[1] ?? null;
+
+/**
+ * The TicketsCandy address in what an organizer pasted, or null. Their "Embed on Page" code is a loader
+ * script plus `TCCheckout.createWidget({ eventId: '21593', … })`; we keep just the event's checkout
+ * frame (https://ticketscandy.com/checkout-widget/frame/21593). A pasted iframe or plain link on
+ * ticketscandy.com is kept as is (except scripts and stylesheets). We embed the address ourselves rather
+ * than the pasted HTML, so no outside script runs on our pages.
+ */
+export function ticketsCandyUrl(pasted: string): string | null {
+  const text = pasted.trim().replace(/&amp;/g, "&");
+  if (!text) return null;
+  const eventId =
+    /\beventId\s*:\s*["']?(\d{1,12})\b/.exec(text)?.[1] ??
+    /ticketscandy\.com\/checkout-widget\/(?:frame|button)\/(\d{1,12})\b/i.exec(text)?.[1] ??
+    /\btc-checkout-container-(\d{1,12})\b/.exec(text)?.[1];
+  if (eventId) return `${TICKETSCANDY_ORIGIN}/checkout-widget/frame/${eventId}`;
+
+  const iframeSrc = text.match(/<iframe\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']/i)?.[1];
+  const candidates = [iframeSrc, ...(text.match(/https:\/\/[^\s"'<>]+/gi) ?? [])].filter(Boolean) as string[];
+  for (const c of candidates) {
+    try {
+      const url = new URL(c);
+      if (url.protocol === "https:" && isTicketsCandyHost(url.hostname.toLowerCase()) && !/\.(js|css)$/i.test(url.pathname)) {
+        return url.href;
+      }
+    } catch {
+      // not a URL; keep looking
+    }
+  }
+  return null;
+}
+
+/** A YouTube or Vimeo link as an embeddable player address, or null. */
+export function videoEmbedUrl(link: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(link.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, "");
+  const id = (s: string | null | undefined, pattern: RegExp) => (s && pattern.test(s) ? s : null);
+  const yt = /^[A-Za-z0-9_-]{6,20}$/;
+  let youtube: string | null = null;
+  if (host === "youtu.be") youtube = id(url.pathname.slice(1), yt);
+  else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    youtube = url.pathname === "/watch" ? id(url.searchParams.get("v"), yt) : id(/^\/(?:embed|shorts|live)\/([^/]+)/.exec(url.pathname)?.[1], yt);
+  }
+  if (youtube) return `https://www.youtube-nocookie.com/embed/${youtube}`;
+  if (host === "vimeo.com" || host === "player.vimeo.com") {
+    const vimeo = /^\/(?:video\/)?(\d{5,12})(?:\/|$)/.exec(url.pathname)?.[1];
+    if (vimeo) return `https://player.vimeo.com/video/${vimeo}`;
+  }
+  return null;
+}
+
+/** Path of an uploaded image (cover, flyer, gallery and sponsor images are public) */
+export const uploadPath = (file: string) => `/api/uploads/${file}`;
+export const UPLOADED_IMAGE_PATTERN = /^[0-9a-f-]{36}\.(png|jpg|webp)$/;
+
+export const SHOW_PAGE_THEMES = ["warm", "light", "dark"] as const;
+export type ShowPageTheme = (typeof SHOW_PAGE_THEMES)[number];
+export const MAX_SHOW_PAGE_BLOCKS = 20;
+export const MAX_BLOCK_ITEMS = 30;
+
+const imageFile = z.string().regex(UPLOADED_IMAGE_PATTERN, "Upload the image again");
+const blockId = z.string().min(1).max(40);
+const blockTitle = (fallback: string) => z.string().trim().max(80, "Up to 80 characters").optional().default(fallback);
+const linkUrl = z
+  .string()
+  .trim()
+  .min(1, "Enter a web address")
+  .max(500)
+  .transform((s) => (/^https?:\/\//i.test(s) ? s : `https://${s}`))
+  .pipe(z.url({ protocol: /^https?$/, error: "Enter a web address like example.com" }));
+
+/** The building blocks of a show page, in the organizer's order. */
+export const showPageBlockSchema = z.discriminatedUnion("type", [
+  /** Where the TicketsCandy widget goes (the code itself is the page's `tickets` setting) */
+  z.object({ id: blockId, type: z.literal("tickets"), title: blockTitle("Tickets") }),
+  z.object({
+    id: blockId,
+    type: z.literal("text"),
+    title: z.string().trim().min(1, "Give this section a title").max(80, "Up to 80 characters"),
+    body: z.string().trim().min(1, "Add some text").max(5000, "Up to 5000 characters"),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("faq"),
+    title: blockTitle("FAQ"),
+    items: z
+      .array(
+        z.object({
+          question: z.string().trim().min(1, "Enter a question").max(200, "Up to 200 characters"),
+          answer: z.string().trim().min(1, "Enter an answer").max(2000, "Up to 2000 characters"),
+        }),
+      )
+      .min(1, "Add at least one question")
+      .max(MAX_BLOCK_ITEMS, `Up to ${MAX_BLOCK_ITEMS} questions`),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("gallery"),
+    title: blockTitle("Photos"),
+    images: z.array(imageFile).min(1, "Add at least one photo").max(MAX_BLOCK_ITEMS, `Up to ${MAX_BLOCK_ITEMS} photos`),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("video"),
+    title: blockTitle(""),
+    url: z
+      .string()
+      .trim()
+      .refine((s) => videoEmbedUrl(s) !== null, "Paste a YouTube or Vimeo link"),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("links"),
+    title: blockTitle(""),
+    links: z
+      .array(z.object({ label: z.string().trim().min(1, "Enter a label").max(60, "Up to 60 characters"), url: linkUrl }))
+      .min(1, "Add at least one link")
+      .max(12, "Up to 12 links"),
+  }),
+  z.object({
+    id: blockId,
+    type: z.literal("sponsors"),
+    title: blockTitle("Sponsors"),
+    items: z
+      .array(
+        z.object({
+          image: imageFile,
+          name: z.string().trim().max(80, "Up to 80 characters").optional().default(""),
+          url: z.union([z.literal(""), linkUrl]).optional().default(""),
+        }),
+      )
+      .min(1, "Add at least one sponsor")
+      .max(MAX_BLOCK_ITEMS, `Up to ${MAX_BLOCK_ITEMS} sponsors`),
+  }),
+  /** A map of the venue */
+  z.object({ id: blockId, type: z.literal("map"), title: blockTitle("Getting there") }),
+]);
+export type ShowPageBlock = z.output<typeof showPageBlockSchema>;
+export type ShowPageBlockInput = z.input<typeof showPageBlockSchema>;
+export type ShowPageBlockType = ShowPageBlock["type"];
+
+/** Every uploaded image a page uses (flyer, gallery photos, sponsor logos). */
+export function showPageImages(page: { flyer: string; blocks: ShowPageBlock[] }) {
+  const files = page.flyer ? [page.flyer] : [];
+  for (const b of page.blocks) {
+    if (b.type === "gallery") files.push(...b.images);
+    if (b.type === "sponsors") files.push(...b.items.map((i) => i.image));
+  }
+  return files;
+}
+
+/** What an organizer can change on a show's public page. */
+export const showPageSchema = z.object({
+  /** The page address after /o/:handle/; empty uses the show's name */
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.union([z.literal(""), z.string().regex(SHOW_SLUG_PATTERN, "Lowercase letters, numbers and hyphens (e.g. spring-show-2026)")]))
+    .optional()
+    .default(""),
+  tagline: z.string().trim().max(160, "Up to 160 characters").optional().default(""),
+  /** Buttons and highlights, e.g. "#e8856a"; empty = Flightplan's coral */
+  accentColor: z
+    .string()
+    .trim()
+    .pipe(z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour")]))
+    .optional()
+    .default(""),
+  theme: z.enum(SHOW_PAGE_THEMES).optional().default("warm"),
+  /** The show's flyer, shown under its name */
+  flyer: z.union([z.literal(""), imageFile]).optional().default(""),
+  blocks: z
+    .array(showPageBlockSchema)
+    .max(MAX_SHOW_PAGE_BLOCKS, `Up to ${MAX_SHOW_PAGE_BLOCKS} blocks`)
+    .optional()
+    .default([])
+    .superRefine((blocks, ctx) => {
+      if (new Set(blocks.map((b) => b.id)).size !== blocks.length) ctx.addIssue({ code: "custom", message: "Two blocks share an id" });
+      if (blocks.filter((b) => b.type === "tickets").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Tickets block" });
+      if (blocks.filter((b) => b.type === "map").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Map block" });
+    }),
+  /** Show the "Book a vendor table" button while the booking link is open */
+  showVendorBooking: z.boolean().optional().default(true),
+  /** The TicketsCandy widget's embed code, or its link; stored as the address only */
+  tickets: z
+    .string()
+    .max(10_000, "That's too long for a widget code")
+    .optional()
+    .default("")
+    .superRefine((s, ctx) => {
+      if (s.trim() && !ticketsCandyUrl(s)) {
+        ctx.addIssue({ code: "custom", message: "Paste the widget code from TicketsCandy (Sell Online → Website Widget → Embed on Page)" });
+      }
+    })
+    .transform((s) => ticketsCandyUrl(s) ?? ""),
+  /** Height of the embedded ticket widget, in pixels */
+  ticketsHeight: z
+    .number({ error: "Enter a height" })
+    .int("Whole pixels only")
+    .min(300, "At least 300 px")
+    .max(3000, "Up to 3000 px")
+    .optional()
+    .default(700),
+});
+export type ShowPageInput = z.input<typeof showPageSchema>;
+/** As stored: `tickets` is the TicketsCandy address (or "") */
+export type ShowPageSettings = Omit<z.output<typeof showPageSchema>, "slug">;
+
+/** As kept in the database: also the images uploaded for the page, and the older text sections. */
+export type StoredShowPage = Partial<ShowPageSettings> & {
+  /** Images uploaded for the page that it doesn't use (yet), with their upload time (ms) */
+  uploads?: { file: string; at: number }[];
+  /** Older pages: uploaded images, and text sections instead of blocks */
+  assets?: string[];
+  sections?: { title: string; body: string }[];
+};
+
+/** A show's page settings for the dashboard's Show page tab. */
+export type ShowPageResponse = {
+  settings: ShowPageSettings;
+  slug: string;
+  coverUrl: string | null;
+  /** The public address, once the organizer has a public page (it may still be switched off) */
+  url: string | null;
+  /** Why the page isn't visible yet, if it isn't */
+  hiddenBecause: "no-profile" | "profile-off" | "not-published" | null;
+};
+
 /** A published show on an organizer's public page. */
 export type PublicShow = {
+  /** Path of the show's own page, /o/:handle/:slug */
+  url: string;
+  coverUrl: string | null;
+  tagline: string;
+  /** Tickets can be bought on the show's page */
+  hasTickets: boolean;
   name: string;
   description: string;
   venueName: string;
@@ -865,7 +1203,9 @@ export type PublicShow = {
   startDate: string;
   days: EventDay[];
   ticketPriceCents: number;
+  /** The cheapest and dearest table types ("from $60" when they differ) */
   tablePriceCents: number;
+  tablePriceMaxCents: number;
   /** Set while the show's public booking link is open: the booking page path and open tables */
   booking: { url: string; tablesLeft: number } | null;
   /** The show's public vendor map, when the organizer has turned it on */
@@ -877,6 +1217,13 @@ export type PublicOrganizerPage = {
   upcoming: PublicShow[];
   /** Most recent first */
   past: PublicShow[];
+};
+
+/** A show's public page. */
+export type PublicShowPage = {
+  organizer: { handle: string; displayName: string; logoUrl: string | null; websiteUrl: string; instagram: string; contactEmail: string };
+  show: PublicShow & { upcoming: boolean };
+  page: Omit<ShowPageSettings, "tagline">;
 };
 
 // ── Discount codes (the Discounts page) ─────────────────────────────────────
@@ -999,6 +1346,8 @@ export const floorplanTableSchema = z.object({
   rotation,
   /** The table group it belongs to, if any */
   group: z.string().min(1).max(40).optional(),
+  /** Its table type on the event (events.table_types[].id), for its price; unset or unknown = the first type */
+  type: z.string().min(1).max(40).optional(),
 });
 /** A wall from one point to another. */
 export const floorplanWallSchema = z.object({

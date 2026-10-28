@@ -1,21 +1,22 @@
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import {
   addDays,
   daysBetween,
   eventInputSchema,
-  FLOOR_MAP_MAX_BYTES,
-  FLOOR_MAP_TYPES,
   MAX_DISCOUNT_TIERS,
   MAX_EVENT_DAYS,
+  MAX_TABLE_TYPES,
   MAX_TABLES_PER_REQUEST,
+  tableLabels,
   type BulkDiscountKind,
   type EventInput,
   type EventRecord,
   type EventStatus,
 } from "@flightplan/shared";
 import { canEdit, EventTabs, isOwner, SharedBadge, SpawnDialog } from "../../components/events";
+import { Field, ImageDropzone, inputClass, PrimaryButton, SaveStatus, Section, Toggle, useImagePicker, useUnsavedChanges } from "./ui";
 import { ArrowLeftIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import {
   ApiRequestError,
@@ -32,8 +33,11 @@ type Kind = "event" | "template";
 // One multi-table discount tier. `value` is a percent, or dollars off each table.
 type TierRow = { key: number; minTables: string; kind: BulkDiscountKind; value: string };
 
+// One table type (6 ft, 8 ft…). `id` is kept so saving doesn't reshuffle which tables are which type.
+type TypeRow = { key: number; id: string; name: string; count: string; price: string; prefix: string };
+
 // One schedule row. Events use `date`; templates use `day` (1 = first day).
-type DayRow = { key: number; date: string; day: string; startTime: string; endTime: string };
+type DayRow = { key: number; date: string; day: string; setupTime: string; startTime: string; endTime: string };
 
 // The form edits strings; prices are dollars here and cents in the API
 type FormState = {
@@ -43,8 +47,7 @@ type FormState = {
   address: string;
   city: string;
   days: DayRow[];
-  vendorTables: string;
-  tablePrice: string;
+  types: TypeRow[];
   ticketPrice: string;
   // Vendor booking
   requiresApproval: boolean;
@@ -56,14 +59,16 @@ type FormState = {
   tiers: TierRow[];
 };
 
-type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen" | "tiers">, string>> & {
+type Errors = Partial<Record<Exclude<keyof FormState, "days" | "requiresApproval" | "noDeadline" | "bookingOpen" | "tiers" | "types">, string>> & {
   tiers?: string;
+  types?: string;
   days?: string;
-  rows?: Record<number, Partial<Record<"date" | "day" | "startTime" | "endTime", string>>>;
+  rows?: Record<number, Partial<Record<"date" | "day" | "setupTime" | "startTime" | "endTime", string>>>;
 };
 
 let nextKey = 1;
 const row = (r: Omit<DayRow, "key">): DayRow => ({ key: nextKey++, ...r });
+const typeRow = (t: Omit<TypeRow, "key">): TypeRow => ({ key: nextKey++, ...t });
 
 const emptyForm = (): FormState => ({
   name: "",
@@ -71,9 +76,8 @@ const emptyForm = (): FormState => ({
   venueName: "",
   address: "",
   city: "",
-  days: [row({ date: "", day: "1", startTime: "11:00", endTime: "16:00" })],
-  vendorTables: "",
-  tablePrice: "",
+  days: [row({ date: "", day: "1", setupTime: "", startTime: "11:00", endTime: "16:00" })],
+  types: [typeRow({ id: crypto.randomUUID(), name: "Table", count: "", price: "", prefix: "" })],
   ticketPrice: "0",
   requiresApproval: false,
   paymentDueDays: "7",
@@ -95,12 +99,14 @@ function fromEvent(e: EventRecord): FormState {
       row({
         date: e.startDate ? addDays(e.startDate, d.dayOffset) : "",
         day: String(d.dayOffset + 1),
+        setupTime: d.setupTime,
         startTime: d.startTime,
         endTime: d.endTime,
       }),
     ),
-    vendorTables: String(e.vendorTables),
-    tablePrice: (e.tablePriceCents / 100).toString(),
+    types: e.tableTypes.map((t) =>
+      typeRow({ id: t.id, name: t.name, count: String(t.count), price: (t.priceCents / 100).toString(), prefix: t.prefix }),
+    ),
     ticketPrice: (e.ticketPriceCents / 100).toString(),
     requiresApproval: e.requiresApproval,
     paymentDueDays: String(e.paymentDueDays ?? 7),
@@ -140,9 +146,8 @@ function toInput(f: FormState, status: EventStatus, rowsAreDated: boolean): Even
     address: f.address,
     city: f.city,
     startDate: status === "template" ? null : startDate,
-    days: f.days.map((d, i) => ({ dayOffset: offsets[i], startTime: d.startTime, endTime: d.endTime })),
-    vendorTables: toInt(f.vendorTables),
-    tablePriceCents: toCents(f.tablePrice),
+    days: f.days.map((d, i) => ({ dayOffset: offsets[i], setupTime: d.setupTime, startTime: d.startTime, endTime: d.endTime })),
+    tableTypes: f.types.map((t) => ({ id: t.id, name: t.name, count: toInt(t.count), priceCents: toCents(t.price), prefix: t.prefix })),
     ticketPriceCents: toCents(f.ticketPrice),
     status,
     requiresApproval: f.requiresApproval,
@@ -167,11 +172,13 @@ function toErrors(issues: z.core.$ZodIssue[]): Errors {
     if (field === "days" && typeof index === "number" && typeof sub === "string") {
       errors.rows ??= {};
       errors.rows[index] ??= {};
-      const key = sub === "dayOffset" ? "day" : (sub as "startTime" | "endTime");
+      const key = sub === "dayOffset" ? "day" : (sub as "setupTime" | "startTime" | "endTime");
       errors.rows[index][key] ??= issue.message;
     } else if (field === "bulkDiscounts") {
       errors.tiers ??= typeof index === "number" ? `Tier ${index + 1}: ${issue.message}` : issue.message;
-    } else if (field === "tablePriceCents") errors.tablePrice ??= issue.message;
+    } else if (field === "tableTypes") {
+      errors.types ??= typeof index === "number" ? `Table type ${index + 1}: ${issue.message}` : issue.message;
+    } else if (field === "vendorTables" || field === "tablePriceCents") errors.types ??= issue.message;
     else if (field === "ticketPriceCents") errors.ticketPrice ??= issue.message;
     else if (field === "startDate") errors.days ??= "Pick a date for every day";
     else if (typeof field === "string") (errors as Record<string, string>)[field] ??= issue.message;
@@ -185,7 +192,7 @@ function fromServerErrors(fieldErrors: Record<string, string[] | undefined>): Er
   for (const [field, messages] of Object.entries(fieldErrors)) {
     const message = messages?.[0];
     if (!message) continue;
-    if (field === "tablePriceCents") errors.tablePrice = message;
+    if (field === "tableTypes" || field === "vendorTables" || field === "tablePriceCents") errors.types = message;
     else if (field === "ticketPriceCents") errors.ticketPrice = message;
     else if (field === "days" || field === "startDate") errors.days = message;
     else if (field === "bulkDiscounts") errors.tiers = message;
@@ -218,16 +225,18 @@ export default function EventFormPage({ kind: newKind = "event" }: { kind?: Kind
 function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const fromTemplate = (location.state as { fromTemplate?: string } | null)?.fromTemplate;
+  const { fromTemplate, saved: savedOnCreate } = (location.state as { fromTemplate?: string; saved?: string } | null) ?? {};
   const save = useSaveEvent(event?.id);
   const saveAsTemplate = useSaveEvent(undefined, { floorMapFrom: event?.id });
   const del = useDeleteEvent();
-  const [initial] = useState<FormState>(() => (event ? fromEvent(event) : emptyForm()));
+  const [initial, setInitial] = useState<FormState>(() => (event ? fromEvent(event) : emptyForm()));
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<Errors>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedTemplate, setSavedTemplate] = useState<EventRecord | null>(null);
   const [spawning, setSpawning] = useState(false);
+  // What the last save did ("Changes saved", "Published"…); shown until the next edit
+  const [savedNote, setSavedNote] = useState<string | null>(savedOnCreate ?? null);
 
   const isNew = !event;
   const isTemplateForm = kind === "template";
@@ -240,6 +249,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+    setSavedNote(null);
     if (key !== "days" && errors[key as keyof Errors]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
@@ -260,6 +270,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
       row({
         date: latestDate ? addDays(latestDate, 1) : "",
         day: String(nextDay),
+        setupTime: last?.setupTime ?? "",
         startTime: last?.startTime ?? "10:00",
         endTime: last?.endTime ?? "17:00",
       }),
@@ -299,12 +310,50 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
     return input;
   }
 
+  // Viewers can't change anything, so there's nothing to lose
+  const guard = useUnsavedChanges(dirty && !readOnly);
+
+  /** Put every field back as it was when the page opened (or was last saved). */
+  function discard() {
+    setForm(initial);
+    setErrors({});
+    setSavedTemplate(null);
+    setSavedNote(null);
+  }
+
   function submit(status: EventStatus) {
     setSavedTemplate(null);
     const input = validate(status, !isTemplateForm);
     if (!input) return;
+    const note =
+      status === "template"
+        ? isNew
+          ? "Template created"
+          : "Changes saved"
+        : status === "published"
+          ? event?.status === "published"
+            ? "Changes saved"
+            : "Published"
+          : event?.status === "published"
+            ? "Saved and unpublished"
+            : isNew
+              ? "Saved as a draft"
+              : "Changes saved";
     save.mutate(input, {
-      onSuccess: () => navigate(listPath),
+      onSuccess: (saved) => {
+        if (isNew) {
+          // A new event or template opens its own page, which shows the note
+          guard.allowLeaving();
+          navigate(`${listPath}/${saved.id}`, { replace: true, state: { saved: note } });
+          return;
+        }
+        // Stay on the page: what was saved is the new starting point for Discard and the warning
+        const next = fromEvent(saved);
+        setInitial(next);
+        setForm(next);
+        setErrors({});
+        setSavedNote(note);
+      },
       onError: (err) => {
         if (err instanceof ApiRequestError && err.body.fieldErrors) {
           setErrors(fromServerErrors(err.body.fieldErrors));
@@ -332,6 +381,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
   return (
     <>
+      {guard.dialog}
       <Link
         to={listPath}
         className="inline-flex items-center gap-2 text-sm font-bold text-ink-soft transition hover:text-ink"
@@ -453,45 +503,15 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         </Section>
 
         <Section title="Vendors & tickets">
-          <Field
-            label="Vendor tables"
-            id="vendorTables"
-            error={errors.vendorTables}
-            hint={event?.floorplan ? "Set by the floorplan" : undefined}
-          >
-            <input
-              id="vendorTables"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
-              className={`${inputClass} disabled:bg-cream-50 disabled:text-ink-soft`}
-              placeholder="48"
-              value={event?.floorplan ? String(event.floorplan.tableCount) : form.vendorTables}
-              disabled={Boolean(event?.floorplan)}
-              aria-invalid={!!errors.vendorTables}
-              aria-describedby={event?.floorplan ? "vendorTables-plan" : undefined}
-              onChange={(e) => update("vendorTables", e.target.value)}
-            />
-            {event?.floorplan && (
-              <span id="vendorTables-plan" className="mt-1 block text-xs text-ink-muted">
-                Tables come from the{" "}
-                <Link to={`${listPath}/${event.id}/floorplan`} className="font-bold text-coral-ink hover:underline">
-                  floorplan
-                </Link>
-                .
-              </span>
-            )}
-          </Field>
-          <Field label="Price per table" id="tablePrice" error={errors.tablePrice} hint="For the whole show">
-            <MoneyInput
-              id="tablePrice"
-              value={form.tablePrice}
-              invalid={!!errors.tablePrice}
-              onChange={(v) => update("tablePrice", v)}
-              placeholder="80"
-            />
-          </Field>
+          <TableTypesField
+            types={form.types}
+            error={errors.types}
+            planPath={event?.floorplan ? `${listPath}/${event.id}/floorplan` : null}
+            onChange={(types) => {
+              update("types", types);
+              setErrors((e) => ({ ...e, types: undefined }));
+            }}
+          />
           <Field label="Admission ticket" id="ticketPrice" error={errors.ticketPrice} hint="Use 0 for free entry">
             <MoneyInput
               id="ticketPrice"
@@ -595,7 +615,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
 
         <TiersSection
           tiers={form.tiers}
-          tablePrice={toCents(form.tablePrice)}
+          tablePrice={Math.min(...form.types.map((t) => toCents(t.price)).filter((c) => Number.isFinite(c) && c > 0), Infinity)}
           maxPerRequest={toInt(form.maxTablesPerRequest)}
           error={errors.tiers}
           onChange={(tiers) => {
@@ -624,8 +644,8 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         )}
 
         {!readOnly && (
-        <div className="flex flex-col-reverse gap-3 border-t border-ink/10 pt-6 lg:flex-row lg:items-center">
-          <div className="flex flex-wrap items-center gap-2">
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-t border-ink/10 pt-6">
             {!isNew && owner &&
               (confirmDelete ? (
                 <>
@@ -633,7 +653,14 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                   <button
                     type="button"
                     disabled={del.isPending}
-                    onClick={() => del.mutate(event.id, { onSuccess: () => navigate(listPath) })}
+                    onClick={() =>
+                      del.mutate(event.id, {
+                        onSuccess: () => {
+                          guard.allowLeaving();
+                          navigate(listPath);
+                        },
+                      })
+                    }
                     className="rounded-full bg-coral-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
                   >
                     {del.isPending ? "Deleting…" : "Delete"}
@@ -667,7 +694,8 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             )}
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row lg:ml-auto">
+          <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-3 border-t border-ink/10 bg-cream-50/95 px-1 py-4 backdrop-blur sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <SaveStatus dirty={dirty} onDiscard={discard} saved={savedNote} />
             {isTemplateForm ? (
               <>
                 {!isNew && (
@@ -705,7 +733,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
               </>
             )}
           </div>
-        </div>
+        </>
         )}
         {isTemplateForm && !isNew && dirty && (
           <p className="text-right text-xs text-ink-muted">Save your changes before using this template.</p>
@@ -746,8 +774,11 @@ function ScheduleEditor({
         </p>
       </div>
 
-      <div className="mt-5 hidden grid-cols-[1.4fr_1fr_1fr_auto] gap-3 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+      <div className="mt-5 hidden grid-cols-[1.4fr_1fr_1fr_1fr_auto] gap-3 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
         <span>{dated ? "Date" : "Day"}</span>
+        <span title="When vendors can start setting up (optional)">
+          Setup <span className="font-semibold normal-case">(optional)</span>
+        </span>
         <span>Opens</span>
         <span>Closes</span>
         <span className="w-10" />
@@ -764,9 +795,9 @@ function ScheduleEditor({
           return (
             <li
               key={d.key}
-              className="grid grid-cols-2 gap-3 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
+              className="grid grid-cols-3 gap-3 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[1.4fr_1fr_1fr_1fr_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
             >
-              <div className="col-span-2 sm:col-span-1">
+              <div className="col-span-3 sm:col-span-1">
                 {dated ? (
                   <input
                     type="date"
@@ -796,6 +827,19 @@ function ScheduleEditor({
                 <RowError message={rowErrors.date ?? rowErrors.day} />
               </div>
               <div>
+                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Setup</span>
+                <input
+                  type="time"
+                  aria-label={`${label}: vendor setup starts (optional)`}
+                  className={inputClass}
+                  value={d.setupTime}
+                  aria-invalid={!!rowErrors.setupTime}
+                  onChange={(e) => onChange(d.key, { setupTime: e.target.value })}
+                />
+                <RowError message={rowErrors.setupTime} />
+              </div>
+              <div>
+                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Opens</span>
                 <input
                   type="time"
                   aria-label={`${label}: opens`}
@@ -807,6 +851,7 @@ function ScheduleEditor({
                 <RowError message={rowErrors.startTime} />
               </div>
               <div>
+                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Closes</span>
                 <input
                   type="time"
                   aria-label={`${label}: closes`}
@@ -821,7 +866,7 @@ function ScheduleEditor({
                 type="button"
                 onClick={() => onRemove(d.key)}
                 disabled={days.length === 1}
-                className="col-span-2 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-12 sm:py-0"
+                className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-12 sm:py-0"
                 aria-label={`Remove ${label}`}
                 title="Remove day"
               >
@@ -856,61 +901,148 @@ function RowError({ message }: { message?: string }) {
   return message ? <p className="mt-1 px-1 text-sm font-semibold text-coral-ink">{message}</p> : null;
 }
 
-function PrimaryButton({ onClick, pending, children }: { onClick: () => void; pending: boolean; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={pending}
-      className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-7 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
-    >
-      {pending ? "Saving…" : children}
-    </button>
-  );
-}
-
-const inputClass =
-  "w-full rounded-xl border-2 border-cream bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
-      <legend className="sr-only">{title}</legend>
-      <h2 className="text-lg font-extrabold" aria-hidden="true">
-        {title}
-      </h2>
-      <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">{children}</div>
-    </fieldset>
-  );
-}
-
-function Field({
-  label,
-  id,
-  optional,
-  hint,
+/**
+ * The kinds of table at the show, each with its count, price and optional label prefix. With a
+ * floorplan (`planPath`), the plan's tables are the show's tables: counts come from the plan and each
+ * table's type is picked in the floorplan editor, so only names and prices are edited here.
+ */
+function TableTypesField({
+  types,
   error,
-  className = "",
-  children,
+  planPath,
+  onChange,
 }: {
-  label: string;
-  id: string;
-  optional?: boolean;
-  hint?: string;
+  types: TypeRow[];
   error?: string;
-  className?: string;
-  children: ReactNode;
+  planPath?: string | null;
+  onChange: (types: TypeRow[]) => void;
 }) {
+  const planned = Boolean(planPath);
+  const set = (key: number, patch: Partial<TypeRow>) => onChange(types.map((t) => (t.key === key ? { ...t, ...patch } : t)));
+  // How the tables will be numbered: "6 ft table 1–20 · 8 ft table L1–L10"
+  const labels = tableLabels(types.map((t) => ({ id: t.id, count: Math.max(0, toInt(t.count) || 0), prefix: t.prefix.trim() })));
+  const ranges = types
+    .map((t) => {
+      const mine = labels.filter((l) => l.typeId === t.id);
+      if (!mine.length) return null;
+      const range = mine.length === 1 ? mine[0].label : `${mine[0].label}–${mine.at(-1)!.label}`;
+      return `${t.name.trim() || "Table"}: ${range}`;
+    })
+    .filter(Boolean);
+  const cell =
+    "w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-base text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:outline-none disabled:bg-cream-50 disabled:text-ink-soft";
+
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      <label htmlFor={id} className="text-sm font-bold">
-        {label} {optional && <span className="font-normal text-ink-muted">(optional)</span>}
-      </label>
-      {children}
-      {error ? (
-        <p className="text-sm font-semibold text-coral-ink">{error}</p>
-      ) : (
-        hint && <p className="text-xs text-ink-muted">{hint}</p>
+    <div className="sm:col-span-2">
+      <p className="text-sm font-bold">Vendor tables</p>
+      <p className="mt-0.5 text-sm text-ink-soft">One row per kind of table, e.g. 6 ft and 8 ft tables at different prices. Prices are for the whole show.</p>
+      {planned && (
+        <p className="mt-2 rounded-xl bg-[#eef3fb] px-3 py-2 text-sm text-slate-deep">
+          This show has a floorplan, so its tables come from the plan: counts below are the plan's tables of each type. Set each
+          table's type in the{" "}
+          <Link to={planPath!} className="font-bold underline">
+            floorplan editor
+          </Link>
+          .
+        </p>
+      )}
+      <div className="mt-3 hidden grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+        <span>Type</span>
+        <span>Tables</span>
+        <span>Price each</span>
+        <span>
+          Prefix <span className="font-semibold normal-case">(optional)</span>
+        </span>
+        <span className="w-10" />
+      </div>
+      <ol className="mt-2 space-y-2">
+        {types.map((t, i) => (
+          <li key={t.key} className="grid grid-cols-3 gap-2 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-center sm:bg-transparent sm:p-0 sm:ring-0">
+            <input
+              className={`${cell} col-span-3 sm:col-span-1`}
+              aria-label={`Table type ${i + 1}: name`}
+              placeholder="e.g. 6 ft table"
+              maxLength={40}
+              value={t.name}
+              onChange={(e) => set(t.key, { name: e.target.value })}
+            />
+            <input
+              className={cell}
+              aria-label={`Table type ${i + 1}: number of tables`}
+              placeholder="Tables"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={t.count}
+              disabled={planned}
+              title={planned ? "Set by the floorplan" : undefined}
+              onChange={(e) => set(t.key, { count: e.target.value })}
+            />
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-bold text-ink-muted">$</span>
+              <input
+                className={`${cell} pl-7`}
+                aria-label={`Table type ${i + 1}: price per table`}
+                placeholder="Price"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={t.price}
+                onChange={(e) => set(t.key, { price: e.target.value })}
+              />
+            </div>
+            <input
+              className={`${cell} uppercase placeholder:normal-case`}
+              aria-label={`Table type ${i + 1}: label prefix (optional)`}
+              placeholder="e.g. L"
+              maxLength={4}
+              value={planned ? "" : t.prefix}
+              disabled={planned}
+              title={planned ? "The floorplan labels its tables" : undefined}
+              onChange={(e) => set(t.key, { prefix: e.target.value.toUpperCase() })}
+            />
+            <button
+              type="button"
+              onClick={() => onChange(types.filter((x) => x.key !== t.key))}
+              disabled={types.length === 1}
+              className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-10 sm:py-0"
+              aria-label={`Remove table type ${t.name || i + 1}`}
+              title="Remove this table type"
+            >
+              <CloseIcon className="size-4" />
+              <span className="sm:hidden">Remove type</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      {error && (
+        <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {types.length < MAX_TABLE_TYPES && (
+          <button
+            type="button"
+            onClick={() => onChange([...types, typeRow({ id: crypto.randomUUID(), name: "", count: planned ? "0" : "", price: "", prefix: "" })])}
+            className="inline-flex items-center gap-2 rounded-full border-2 border-dashed border-coral/40 px-4 py-2 text-sm font-bold text-coral-ink transition hover:border-coral hover:bg-peach/40"
+          >
+            + Add a table type
+          </button>
+        )}
+        {labels.length > 0 && (
+          <span className="text-sm text-ink-soft">
+            {labels.length} {labels.length === 1 ? "table" : "tables"}
+            {planned ? " on the floorplan" : types.length > 1 && `, numbered ${ranges.join(" · ")}`}
+          </span>
+        )}
+      </div>
+      {types.length > 1 && !planned && (
+        <p className="mt-2 text-xs text-ink-muted">
+          Tables are numbered in this order. A prefix gives a type its own numbers (L1, L2…), so adding tables to an earlier type later
+          doesn't renumber it.
+        </p>
       )}
     </div>
   );
@@ -945,43 +1077,6 @@ function MoneyInput({
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
-  );
-}
-
-function Toggle({
-  id,
-  checked,
-  onChange,
-  label,
-  description,
-  className = "",
-}: {
-  id: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  description?: string;
-  className?: string;
-}) {
-  return (
-    <label htmlFor={id} className={`flex cursor-pointer items-start gap-4 ${className}`}>
-      <input
-        id={id}
-        type="checkbox"
-        role="switch"
-        className="peer sr-only"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span
-        aria-hidden="true"
-        className="relative mt-0.5 h-7 w-12 shrink-0 rounded-full bg-ink/15 transition peer-checked:bg-coral peer-focus-visible:ring-4 peer-focus-visible:ring-coral/25 after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"
-      />
-      <span>
-        <span className="block font-bold">{label}</span>
-        {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
-      </span>
-    </label>
   );
 }
 
@@ -1123,20 +1218,8 @@ function FloorMapSection({ event }: { event?: EventRecord }) {
 function FloorMapUpload({ event }: { event: EventRecord }) {
   const upload = useUploadFloorMap(event.id);
   const remove = useRemoveFloorMap(event.id);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const error = localError ?? upload.error?.message ?? remove.error?.message;
-  const maxMb = FLOOR_MAP_MAX_BYTES / 1024 / 1024;
-
-  function onFile(file: File | undefined) {
-    setLocalError(null);
-    if (!file) return;
-    if (!(FLOOR_MAP_TYPES as readonly string[]).includes(file.type)) {
-      return setLocalError("Upload a PNG, JPEG or WebP image");
-    }
-    if (file.size > FLOOR_MAP_MAX_BYTES) return setLocalError(`Images can be up to ${maxMb} MB`);
-    upload.mutate(file);
-  }
+  const picker = useImagePicker({ label: "Floor map image", onFiles: ([file]) => upload.mutate(file) });
+  const error = picker.error ?? upload.error?.message ?? remove.error?.message;
 
   return (
     <div className="mt-5">
@@ -1155,41 +1238,16 @@ function FloorMapUpload({ event }: { event: EventRecord }) {
           />
         </a>
       ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            onFile(e.dataTransfer.files[0]);
-          }}
-          className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 py-10 text-center transition hover:border-coral hover:bg-peach/40"
-        >
-          <span className="font-bold text-coral-ink">{upload.isPending ? "Uploading…" : "Upload floor map"}</span>
-          <span className="mt-1 text-sm text-ink-soft">
-            PNG, JPEG or WebP, up to {maxMb} MB. Click or drop a file here.
-          </span>
-        </button>
+        <ImageDropzone label="Upload floor map" busy={upload.isPending} picker={picker} />
       )}
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept={FLOOR_MAP_TYPES.join(",")}
-        className="sr-only"
-        tabIndex={-1}
-        aria-label="Floor map image"
-        onChange={(e) => {
-          onFile(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
+      {picker.input}
 
       {event.floorMapUrl && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={picker.open}
             disabled={upload.isPending}
             className="rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
           >

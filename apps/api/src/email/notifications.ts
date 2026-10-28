@@ -40,6 +40,22 @@ function timeLabel(t: string) {
   return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""}${h < 12 ? "am" : "pm"}`;
 }
 
+type ScheduleDay = { dayOffset: number; setupTime: string; startTime: string; endTime: string };
+
+/**
+ * A show's schedule as email rows: "Setup" (only if any day has a setup time) and "Show hours",
+ * one line per day, e.g. "Sat, Nov 14: 11am–5pm".
+ */
+function scheduleRows(startDate: string | null, days: ScheduleDay[]): [string, string][] {
+  if (!startDate || !days.length) return [];
+  const day = (d: ScheduleDay) => formatDay(addDays(startDate, d.dayOffset), { weekday: "short", month: "short", day: "numeric" });
+  const setup = days.filter((d) => d.setupTime).map((d) => `${day(d)}: from ${timeLabel(d.setupTime)}`);
+  const hours = days.map((d) => `${day(d)}: ${timeLabel(d.startTime)}–${timeLabel(d.endTime)}`);
+  return [...(setup.length ? ([["Setup", setup.join("\n")]] as [string, string][]) : []), ["Show hours", hours.join("\n")]];
+}
+
+const venueLine = (e: { venueName: string; address: string; city: string }) => [e.venueName, e.address, e.city].filter(Boolean).join(", ");
+
 const tablesLabel = (labels: string[]) => `${labels.length > 1 ? "tables" : "table"} ${labels.join(", ")}`;
 const TablesLabel = (labels: string[]) => `${labels.length > 1 ? "Tables" : "Table"} ${labels.join(", ")}`;
 
@@ -68,7 +84,7 @@ async function loadRequest(requestId: string) {
     .where(eq(eventCollaborators.eventId, event.id))
     .orderBy(asc(eventCollaborators.createdAt));
   const days = await db
-    .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+    .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
     .from(eventDays)
     .where(eq(eventDays.eventId, event.id))
     .orderBy(asc(eventDays.dayOffset));
@@ -106,15 +122,10 @@ function totalsFor(r: RequestInfo, labels: string[]) {
 
 function eventDetails(r: RequestInfo, labels: string[]) {
   const { event, days } = r;
-  const schedule = event.startDate
-    ? days
-        .map((d) => `${formatDay(addDays(event.startDate!, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}: ${timeLabel(d.startTime)}–${timeLabel(d.endTime)}`)
-        .join("\n")
-    : "";
   const rows: [string, string][] = [
     ["Show", event.name],
-    ["When", schedule],
-    ["Where", [event.venueName, event.address, event.city].filter(Boolean).join(", ")],
+    ...scheduleRows(event.startDate, days),
+    ["Where", venueLine(event)],
     [labels.length > 1 ? "Tables" : "Table", labels.join(", ")],
   ];
   const t = totalsFor(r, labels);
@@ -524,16 +535,11 @@ export async function sendCollaboratorInvite(invite: {
 /** Email vendors their personal booking links for a show. */
 export async function sendVendorInvites(args: {
   event: { id: string; name: string; organizerId: string; startDate: string | null; venueName: string; address: string; city: string };
-  days: { dayOffset: number; startTime: string; endTime: string }[];
+  days: ScheduleDay[];
   organizer: { name: string; email: string };
   invites: { name: string; email: string; token: string }[];
 }) {
   const { event, days, organizer } = args;
-  const schedule = event.startDate
-    ? days
-        .map((d) => `${formatDay(addDays(event.startDate!, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}: ${timeLabel(d.startTime)}–${timeLabel(d.endTime)}`)
-        .join("\n")
-    : "";
   try {
     await enqueueEmails(
       args.invites.map((inv) => ({
@@ -549,8 +555,8 @@ export async function sendVendorInvites(args: {
             p(`Hi ${firstName(inv.name)}, ${esc(organizer.name)} invited you to book a vendor table at <strong>${esc(event.name)}</strong>.`),
             details([
               ["Show", event.name],
-              ["When", schedule],
-              ["Where", [event.venueName, event.address, event.city].filter(Boolean).join(", ")],
+              ...scheduleRows(event.startDate, days),
+              ["Where", venueLine(event)],
             ]),
             button("Pick your table", `${APP_URL}/invite/${inv.token}`),
             p("This link is just for you and can be used once."),
@@ -585,9 +591,9 @@ export function startNotificationScheduler(intervalMs = 5 * 60_000) {
 
 /** A message the organizer writes to vendors at one show. Each vendor gets their own copy. */
 export function vendorMessageEmail(args: {
-  event: { name: string };
+  event: { name: string; startDate: string | null; days: ScheduleDay[]; venueName: string; address: string; city: string };
   sender: { name: string };
-  vendor: { name: string; tables: string[]; status: string };
+  vendor: { name: string; tables: string[] };
   subject: string;
   message: string;
   includeDetails: boolean;
@@ -605,10 +611,12 @@ export function vendorMessageEmail(args: {
     .map((para) => para.trim())
     .filter(Boolean)
     .map((para) => p(esc(para).replace(/\r?\n/g, "<br>"), para));
+  // The vendor's tables, then the show's setup time, hours and address
   const yours: [string, string][] = [
     ["Show", event.name],
     ["Your tables", vendor.tables.length ? vendor.tables.join(", ") : "Not assigned yet"],
-    ["Status", vendor.status],
+    ...scheduleRows(event.startDate, event.days),
+    ["Venue", venueLine(event)],
   ];
   return layout(
     args.subject,

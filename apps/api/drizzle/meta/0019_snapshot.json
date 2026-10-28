@@ -1,6 +1,6 @@
 {
-  "id": "3047b7f6-0689-4fcc-b807-95ce291f706c",
-  "prevId": "5a641b81-9d6c-4fa0-96cb-d8e49af51af7",
+  "id": "1f93a43e-3082-42f0-afbd-fdff31b31f24",
+  "prevId": "993de756-edff-4f4d-820f-2f4645c86dc1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1039,6 +1039,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "setup_time": {
+          "name": "setup_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "start_time": {
           "name": "start_time",
           "type": "text",
@@ -1125,11 +1132,12 @@
           "primaryKey": false,
           "notNull": true
         },
-        "plan_item_id": {
-          "name": "plan_item_id",
+        "type_id": {
+          "name": "type_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'standard'"
         }
       },
       "indexes": {
@@ -1335,6 +1343,13 @@
           "notNull": true,
           "default": 0
         },
+        "table_types": {
+          "name": "table_types",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "ticket_price_cents": {
           "name": "ticket_price_cents",
           "type": "integer",
@@ -1397,6 +1412,25 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
+        "page_slug": {
+          "name": "page_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cover_file": {
+          "name": "cover_file",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "page_settings": {
+          "name": "page_settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
         "booking_token": {
           "name": "booking_token",
           "type": "text",
@@ -1440,6 +1474,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "events_organizer_page_slug_idx": {
+          "name": "events_organizer_page_slug_idx",
+          "columns": [
+            {
+              "expression": "organizer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "page_slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1467,149 +1522,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.floorplans": {
-      "name": "floorplans",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organizer_id": {
-          "name": "organizer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "units": {
-          "name": "units",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'ft'"
-        },
-        "width_mm": {
-          "name": "width_mm",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "depth_mm": {
-          "name": "depth_mm",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "items": {
-          "name": "items",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "groups": {
-          "name": "groups",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "floorplans_organizer_idx": {
-          "name": "floorplans_organizer_idx",
-          "columns": [
-            {
-              "expression": "organizer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "floorplans_event_idx": {
-          "name": "floorplans_event_idx",
-          "columns": [
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "floorplans_organizer_id_user_id_fk": {
-          "name": "floorplans_organizer_id_user_id_fk",
-          "tableFrom": "floorplans",
-          "tableTo": "user",
-          "columnsFrom": [
-            "organizer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "floorplans_event_id_events_id_fk": {
-          "name": "floorplans_event_id_events_id_fk",
-          "tableFrom": "floorplans",
-          "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
