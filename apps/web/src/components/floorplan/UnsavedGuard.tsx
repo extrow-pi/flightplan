@@ -1,19 +1,6 @@
-import { useEffect } from "react";
-import { useBlocker } from "react-router";
+import { useUnsavedChanges } from "../../pages/dashboard/ui";
 
-/** Ask before leaving with unsaved changes (in-app navigation and closing the tab). */
-export default function UnsavedGuard({ dirty, message = "You have unsaved changes to this floorplan. Leave without saving?" }: { dirty: boolean; message?: string }) {
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
-  useEffect(() => {
-    if (blocker.state !== "blocked") return;
-    if (window.confirm(message)) blocker.proceed();
-    else blocker.reset();
-  }, [blocker, message]);
-  useEffect(() => {
-    if (!dirty) return;
-    const onUnload = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", onUnload);
-    return () => window.removeEventListener("beforeunload", onUnload);
-  }, [dirty]);
-  return null;
+/** Ask before leaving with unsaved changes: our own dialog in the app, the browser's when closing the tab. */
+export default function UnsavedGuard({ dirty }: { dirty: boolean }) {
+  return useUnsavedChanges(dirty).dialog;
 }

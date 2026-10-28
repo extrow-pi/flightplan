@@ -212,6 +212,7 @@ async function toPublicShows(handle: string, rows: (typeof events.$inferSelect)[
       tablePriceMaxCents: Math.max(e.tablePriceCents, ...e.tableTypes.map((t) => t.priceCents)),
       booking: upcoming && e.bookingOpen ? { url: `/book/${e.bookingToken}`, tablesLeft: Math.max(0, tablesLeft) } : null,
       mapUrl: upcoming && e.publicMap !== "off" && planned.has(e.id) ? `/map/${e.id}` : null,
+      mapEventId: upcoming && e.publicMap !== "off" && planned.has(e.id) ? e.id : null,
       upcoming,
     };
     return show;

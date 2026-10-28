@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import MapViewer from "../components/floorplan/MapViewer";
+import { typeFill } from "../components/floorplan/FloorplanDrawing";
 import {
   addDays,
   discountLabel,
@@ -174,6 +175,14 @@ function BookingForm({
   const labels = selected.map((t) => t.label).join(", ");
   const paid = paidShow(page.event);
   const priceOf = new Map(page.event.tableTypes.map((t) => [t.id, t.priceCents]));
+  // With several table types, the map tints open tables by type and shows each one's price
+  const typeIndex = new Map(page.event.tableTypes.map((t, i) => [t.id, i]));
+  const multiType = page.event.tableTypes.length > 1;
+  const typeName = (t: { typeId: string }) => page.event.tableTypes[typeIndex.get(t.typeId) ?? 0]?.name ?? "";
+  const priceLabel = (t: { typeId: string }) => {
+    const p = priceOf.get(t.typeId) ?? 0;
+    return p ? formatMoney(p) : "Free";
+  };
 
   // Price: multi-table tiers are worked out right here, each table at its type's price; with a code,
   // the server checks it and picks whichever discount saves more (the same rule it uses when booking)
@@ -244,15 +253,33 @@ function BookingForm({
                   tableStyle={(item) => {
                     const t = byItem.get(item.id);
                     if (!t || !t.available) return { fill: "#efe8dc", stroke: "#c9bba5", ink: "#9a8070", title: t ? `Table ${t.label}: taken` : undefined };
+                    const about = multiType ? ` · ${typeName(t)}, ${priceLabel(t)}` : "";
                     return selected.some((x) => x.id === t.id)
-                      ? { fill: "#e8856a", stroke: "#c0442a", ink: "#ffffff", title: `Table ${t.label}: your pick` }
-                      : { fill: "#ffffff", stroke: "#5c6b8a", ink: "#4b5875", title: `Table ${t.label}: available` };
+                      ? { fill: "#e8856a", stroke: "#c0442a", ink: "#ffffff", title: `Table ${t.label}: your pick${about}`, sublabel: multiType ? priceLabel(t) : undefined }
+                      : {
+                          fill: multiType ? typeFill(typeIndex.get(t.typeId) ?? 0) : "#ffffff",
+                          stroke: "#5c6b8a",
+                          ink: "#4b5875",
+                          title: `Table ${t.label}: available${about}`,
+                          sublabel: multiType ? priceLabel(t) : undefined,
+                        };
                   }}
                   onTableClick={(item) => {
                     const t = byItem.get(item.id);
                     if (t?.available) toggle(t.id);
                   }}
                 />
+                {multiType && (
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="Table types">
+                    {page.event.tableTypes.map((type, i) => (
+                      <li key={type.id} className="flex items-center gap-1.5">
+                        <span className="size-3.5 rounded ring-1 ring-slate/50" style={{ background: typeFill(i) }} aria-hidden="true" />
+                        <span className="font-bold">{type.name}</span>
+                        <span className="text-ink-muted">{type.priceCents ? formatMoney(type.priceCents) : "Free"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="mt-2 text-xs text-ink-muted">Tap a table to pick it. Drag to move around; pinch or use + and − to zoom.</p>
               </div>
             ) : page.event.floorMapUrl && (

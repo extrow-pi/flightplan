@@ -37,7 +37,8 @@ import {
   unitLabel,
   wallLength,
 } from "../../lib/floorplan";
-import { Landmark, planPadding, Room, Table, Wall } from "./FloorplanDrawing";
+import { defaultTableStyle, Landmark, planPadding, Room, Table, typeFill, Wall } from "./FloorplanDrawing";
+import { formatMoney } from "../../lib/format";
 
 // The floorplan editor: an SVG canvas in millimetres with a toolbar and a properties panel.
 // Used for library plans and (later) each event's own plan.
@@ -69,13 +70,22 @@ const btnOn = `${btn} bg-slate text-white`;
 const fieldClass =
   "mt-1 w-full rounded-xl border-2 border-cream bg-white px-2.5 py-1.5 text-base text-ink transition focus:border-coral focus:outline-none sm:text-sm";
 
+/** A show's table types, so each table on an event's plan can be given one (and so its price) */
+export type EditorTableType = { id: string; name: string; priceCents: number };
+
+/** A table's type: its own if the show has it, otherwise the show's first type */
+const typeIdOf = (t: FloorplanTable, types: EditorTableType[]) => (t.type && types.some((x) => x.id === t.type) ? t.type : types[0]?.id);
+
 export default function FloorplanEditor({
   initial,
   saving,
   saveError,
   onSave,
   header,
+  tableTypes = [],
 }: {
+  /** The show's table types (event plans only). With two or more, tables get a type picker and a colour. */
+  tableTypes?: EditorTableType[];
   initial: Draft;
   saving: boolean;
   saveError: string | null;
@@ -155,6 +165,14 @@ export default function FloorplanEditor({
       : null;
   })();
   const selectedTables = selectedItems.filter(isTable);
+  const typed = tableTypes.length > 1;
+  const setTypeOf = (ids: string[], type: string) =>
+    updateItems((items) => items.map((i) => (isTable(i) && ids.includes(i.id) ? { ...i, type } : i)));
+  const typeStyle = (t: FloorplanTable) => {
+    if (!typed) return undefined;
+    const index = tableTypes.findIndex((x) => x.id === typeIdOf(t, tableTypes));
+    return { ...defaultTableStyle, fill: typeFill(index), title: `${t.label} · ${tableTypes[index]?.name}` };
+  };
 
   // ── Coordinates ──
   const toPlan = (e: { clientX: number; clientY: number }): Pt => {
@@ -636,7 +654,7 @@ export default function FloorplanEditor({
             {/* Items in plan order: later ones sit on top (see the Layer buttons) */}
             {[...draft.items, ...(wallPreview ? [wallPreview] : [])].map((i) => {
               const grab = tool === "select" ? "cursor-move" : undefined;
-              if (isTable(i)) return <Table key={i.id} table={i} onPointerDown={(e) => onItemDown(e, i)} className={grab} />;
+              if (isTable(i)) return <Table key={i.id} table={i} style={typeStyle(i)} onPointerDown={(e) => onItemDown(e, i)} className={grab} />;
               if (isLandmark(i)) return <Landmark key={i.id} landmark={i} onPointerDown={(e) => onItemDown(e, i)} className={grab} />;
               return (
                 <g key={i.id}>
@@ -727,6 +745,9 @@ export default function FloorplanEditor({
               onRotate={() => rotateSelected(90)}
               layerButtons={<LayerButtons items={draft.items} ids={selected} onMove={layer} />}
               group={isTable(single) && single.group ? draft.groups.find((g) => g.id === single.group) : undefined}
+              typePicker={
+                typed && isTable(single) ? <TypeSelect types={tableTypes} tables={[single]} onChange={(type) => setTypeOf([single.id], type)} /> : null
+              }
               onSelectGroup={(id) => setSelected(membersOf(id))}
               onLeaveGroup={() => removeFromGroup(single.id)}
             />
@@ -741,6 +762,11 @@ export default function FloorplanEditor({
               onUngroup={() => ungroup(selectedGroup.id)}
               actions={
                 <>
+                  {typed && (
+                    <div className="mt-3">
+                      <TypeSelect types={tableTypes} tables={selectedTables} onChange={(type) => setTypeOf(selected, type)} />
+                    </div>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button type="button" className={btnPlain} onClick={() => rotateSelected(90)}>
                       Rotate 90°
@@ -764,6 +790,16 @@ export default function FloorplanEditor({
                   Group {selectedTables.length} tables
                 </button>
               )}
+              {typed && selectedTables.length > 0 && (
+                <div className="mt-3">
+                  <TypeSelect
+                    types={tableTypes}
+                    tables={selectedTables}
+                    label={`Table type for ${selectedTables.length === 1 ? "the table" : `${selectedTables.length} tables`}`}
+                    onChange={(type) => setTypeOf(selectedTables.map((t) => t.id), type)}
+                  />
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" className={btnPlain} onClick={() => rotateSelected(90)}>
                   Rotate 90°
@@ -778,7 +814,27 @@ export default function FloorplanEditor({
               <LayerButtons items={draft.items} ids={selected} onMove={layer} />
             </Panel>
           ) : (
-            <PlanPanel draft={draft} counts={counts} onChange={(d) => commit(d)} onFit={() => setView(fitView(draft))} />
+            <PlanPanel
+              draft={draft}
+              counts={counts}
+              onChange={(d) => commit(d)}
+              onFit={() => setView(fitView(draft))}
+              typeKey={
+                typed ? (
+                  <ul className="space-y-1 text-sm">
+                    {tableTypes.map((t, i) => (
+                      <li key={t.id} className="flex items-center gap-2">
+                        <span className="size-3.5 shrink-0 rounded ring-1 ring-slate/50" style={{ background: typeFill(i) }} aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                        <span className="text-ink-muted">
+                          {draft.items.filter((x) => isTable(x) && typeIdOf(x, tableTypes) === t.id).length} · {t.priceCents ? formatMoney(t.priceCents) : "free"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null
+              }
+            />
           )}
           <Panel title="Shortcuts">
             <ul className="space-y-0.5 text-xs text-ink-soft">
@@ -987,6 +1043,38 @@ function LayerButtons({ items, ids, onMove }: { items: FloorplanItem[]; ids: str
   );
 }
 
+/** Pick the table type (and so the price) of one or more tables; "Mixed types" when they differ. */
+function TypeSelect({
+  types,
+  tables,
+  label = "Table type",
+  onChange,
+}: {
+  types: EditorTableType[];
+  tables: FloorplanTable[];
+  label?: string;
+  onChange: (typeId: string) => void;
+}) {
+  const ids = [...new Set(tables.map((t) => typeIdOf(t, types)))];
+  return (
+    <label className="block text-xs font-bold text-ink-soft">
+      {label}
+      <select className={fieldClass} value={ids.length === 1 ? ids[0] : ""} onChange={(e) => e.target.value && onChange(e.target.value)}>
+        {ids.length > 1 && (
+          <option value="" disabled>
+            Mixed types
+          </option>
+        )}
+        {types.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name} · {t.priceCents ? formatMoney(t.priceCents) : "free"}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5">
@@ -1085,7 +1173,10 @@ function PlanPanel({
   counts,
   onChange,
   onFit,
+  typeKey,
 }: {
+  /** Table types with their colours, counts and prices (event plans with several types) */
+  typeKey?: ReactNode;
   draft: Draft;
   counts: { tables: number; walls: number; landmarks: number };
   onChange: (d: Draft) => void;
@@ -1130,6 +1221,13 @@ function PlanPanel({
             Renumber tables
           </button>
         )}
+        {typeKey && (
+          <div>
+            <span className="text-xs font-bold text-ink-soft">Table types</span>
+            <div className="mt-1">{typeKey}</div>
+            <p className="mt-1 text-xs text-ink-muted">Select tables to change their type. Names and prices are on the show's Details.</p>
+          </div>
+        )}
         <p className="text-xs text-ink-muted">Select something on the plan to edit it.</p>
       </div>
     </Panel>
@@ -1148,7 +1246,9 @@ function ItemPanel({
   group,
   onSelectGroup,
   onLeaveGroup,
+  typePicker,
 }: {
+  typePicker?: ReactNode;
   group?: FloorplanGroup;
   onSelectGroup: (id: string) => void;
   onLeaveGroup: () => void;
@@ -1226,6 +1326,7 @@ function ItemPanel({
             }
             onCommit={(label) => onChange({ ...item, label })}
           />
+          {typePicker}
           <div>
             <span className="text-xs font-bold text-ink-soft">Shape</span>
             <div className="mt-1 flex gap-1 rounded-full bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Shape">

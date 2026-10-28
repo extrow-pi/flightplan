@@ -1094,6 +1094,8 @@ export const showPageBlockSchema = z.discriminatedUnion("type", [
   }),
   /** A map of the venue */
   z.object({ id: blockId, type: z.literal("map"), title: blockTitle("Getting there") }),
+  /** The show's floorplan with a vendor search (when it has a plan and its visitor map is on) */
+  z.object({ id: blockId, type: z.literal("floormap"), title: blockTitle("Find a vendor") }),
 ]);
 export type ShowPageBlock = z.output<typeof showPageBlockSchema>;
 export type ShowPageBlockInput = z.input<typeof showPageBlockSchema>;
@@ -1139,6 +1141,7 @@ export const showPageSchema = z.object({
       if (new Set(blocks.map((b) => b.id)).size !== blocks.length) ctx.addIssue({ code: "custom", message: "Two blocks share an id" });
       if (blocks.filter((b) => b.type === "tickets").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Tickets block" });
       if (blocks.filter((b) => b.type === "map").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Map block" });
+      if (blocks.filter((b) => b.type === "floormap").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Vendor map block" });
     }),
   /** Show the "Book a vendor table" button while the booking link is open */
   showVendorBooking: z.boolean().optional().default(true),
@@ -1210,6 +1213,8 @@ export type PublicShow = {
   booking: { url: string; tablesLeft: number } | null;
   /** The show's public vendor map, when the organizer has turned it on */
   mapUrl: string | null;
+  /** The event behind `mapUrl`, for loading its vendor map (null when there's no public map) */
+  mapEventId: string | null;
 };
 
 export type PublicOrganizerPage = {

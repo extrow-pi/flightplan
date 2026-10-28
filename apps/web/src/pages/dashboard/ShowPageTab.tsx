@@ -54,6 +54,13 @@ const blockTypes: { type: ShowPageBlockType; label: string; description: string;
   { type: "links", label: "Link buttons", description: "Instagram, Discord, a sign-up form…", make: () => ({ id: newId(), type: "links", title: "", links: [{ label: "", url: "" }] }) },
   { type: "sponsors", label: "Sponsors", description: "Logos, with links", make: () => ({ id: newId(), type: "sponsors", title: "Sponsors", items: [] }) },
   { type: "map", label: "Venue map", description: "A map of the venue", once: true, make: () => ({ id: newId(), type: "map", title: "Getting there" }) },
+  {
+    type: "floormap",
+    label: "Vendor map",
+    description: "Your floorplan, with a vendor search",
+    once: true,
+    make: () => ({ id: newId(), type: "floormap", title: "Find a vendor" }),
+  },
 ];
 const makeBlock = (type: ShowPageBlockType) => blockTypes.find((t) => t.type === type)!.make();
 const typeLabel = Object.fromEntries(blockTypes.map((t) => [t.type, t.label])) as Record<ShowPageBlockType, string>;
@@ -587,6 +594,16 @@ function BlockEditor({
         <>
           {title("Heading")}
           {!hasTickets && <p className="text-sm text-ink-soft">Paste your TicketsCandy widget code under Tickets above. Until then this block is hidden.</p>}
+        </>
+      );
+    case "floormap":
+      return (
+        <>
+          {title("Heading")}
+          <p className="text-sm text-ink-soft">
+            The show's floorplan, where visitors can search for a vendor and see their table. It shows once the show has a floorplan and its
+            visitor map is on (Floorplan tab).
+          </p>
         </>
       );
     case "map":

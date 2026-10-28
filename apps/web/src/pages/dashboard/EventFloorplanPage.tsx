@@ -99,6 +99,7 @@ function EventPlanEditor({ event, plan, onReplaced }: { event: EventRecord; plan
   return (
     <FloorplanEditor
       initial={initial}
+      tableTypes={event.tableTypes}
       saving={save.isPending}
       saveError={null}
       onSave={(draft) => save.mutateAsync(draft)}
