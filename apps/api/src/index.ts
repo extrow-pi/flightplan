@@ -27,6 +27,10 @@ import { organizerMeta, showPageMeta, withMeta, type PageMeta } from "./pageMeta
 
 const app = new Hono().basePath("/api");
 
+// SITE_LABEL marks a test copy of the site (e.g. "Dev site"): search engines are asked not to
+// index it, and every page shows the label so nobody mistakes it for the live site.
+const siteLabel = process.env.SITE_LABEL?.trim() ?? "";
+
 app.use(logger());
 
 // Better Auth: sign up, sign in, sign out, Google OAuth, sessions
@@ -83,11 +87,29 @@ app.all("*", (c) => c.json<ApiError>({ error: "Not found" }, 404));
 // In production the API also serves the built web app (apps/web/dist, or WEB_DIST), so the
 // site and API share one origin. In development Vite serves the web app and proxies /api here.
 const server = new Hono();
+if (siteLabel) {
+  server.use(async (c, next) => {
+    await next();
+    c.header("X-Robots-Tag", "noindex, nofollow");
+  });
+}
 server.route("/", app);
+
+/** A small fixed label in the corner of every page, for test copies of the site */
+function withSiteLabel(html: string) {
+  if (!siteLabel) return html;
+  const label = siteLabel.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
+  return html
+    .replace("</head>", `<meta name="robots" content="noindex, nofollow" />\n  </head>`)
+    .replace(
+      "</body>",
+      `<div role="note" style="position:fixed;left:12px;bottom:12px;z-index:2147483647;pointer-events:none;padding:4px 10px;border-radius:999px;background:#c0442a;color:#fff;font:700 12px/1.4 system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)">${label}</div>\n  </body>`,
+    );
+}
 
 const webDist = process.env.WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url));
 if (existsSync(join(webDist, "index.html"))) {
-  const indexHtml = readFileSync(join(webDist, "index.html"), "utf8");
+  const indexHtml = withSiteLabel(readFileSync(join(webDist, "index.html"), "utf8"));
   // Revalidated on every visit so a deploy's new asset names are picked up right away
   const sendIndex = (c: Context) => {
     c.header("Cache-Control", "no-cache");

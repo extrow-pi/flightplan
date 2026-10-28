@@ -1,0 +1,87 @@
+# Puts a branch on the dev site (a second Container App with its own test database).
+# Runs on every push to dev, or by hand: Actions → "Deploy to dev site" → Run workflow, and type
+# the branch to test (e.g. feature/teams). Always start it from main ("Use workflow from: main"),
+# so this file decides where it deploys. See deploy/azure/README.md → "Dev site".
+# The deploy job is skipped until the AZURE_CONTAINERAPP_DEV repository variable is set.
+name: Deploy to dev site
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to put on the dev site
+        required: true
+        default: dev
+
+# A newer dev deploy replaces one that's still building
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+      tag: ${{ steps.name.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - id: name
+        # Image names must be lowercase. Dev images get their own tags and never touch :latest,
+        # which the live site's setup uses.
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=dev-$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:dev
+            ${{ steps.name.outputs.image }}:${{ steps.name.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
+    if: vars.AZURE_CONTAINERAPP_DEV != ''
+    runs-on: ubuntu-latest
+    # The "dev" environment gives Azure one sign-in subject for both pushes and manual runs
+    environment: dev
+    permissions:
+      id-token: write # sign in to Azure with OpenID Connect, no stored password
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy new image
+        env:
+          DEPLOYED_REF: ${{ inputs.ref || github.ref_name }}
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp update \
+            --name "${{ vars.AZURE_CONTAINERAPP_DEV }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ needs.image.outputs.image }}:${{ needs.image.outputs.tag }}" \
+            --output none
+          echo "Deployed $DEPLOYED_REF to the dev site"

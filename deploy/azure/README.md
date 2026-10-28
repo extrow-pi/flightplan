@@ -106,6 +106,57 @@ In the Azure portal, go to **Cost Management → Budgets → Add**. Scope it to 
 2. Set `BETTER_AUTH_URL=https://your.domain` in `production.env` and re-run `setup.sh`.
 3. Update the Google OAuth redirect URI and the `EMAIL_FROM` domain to match.
 
+## Dev site
+
+A second copy of the site for testing branches before they go live, at `dev.flightplan.jetlaggedcards.ca`. It runs the same image in the same environment and storage account, with its own app (`flightplan-dev`), uploads share (`uploads-dev`) and Supabase database, so test data never touches the live site.
+
+- **It sleeps while idle** (`MIN_REPLICAS=0`), so it costs cents a month. The first visit after a quiet spell takes a few seconds to wake it. Payment reminders and the email worker only run while it's awake.
+- **Emails aren't sent.** With no `RESEND_API_KEY`, every email is saved to the Email log instead, so a test invite can't reach a real vendor.
+- **It's labelled.** `SITE_LABEL=Dev site` puts a "Dev site" tag in the corner of every page and asks search engines not to index it.
+- **Its database can pause.** Free Supabase projects pause after a week without activity, and a sleeping app doesn't keep it awake. If the dev site won't load after a quiet week, open the project on supabase.com and click **Restore**.
+
+### Set it up
+
+1. **Database.** Create a second Supabase project, e.g. `flightplan-dev`, and set it up as in step 1: Canada (Central), Data API off, Session pooler string with `?sslmode=require`. Free accounts get two free projects.
+2. **Settings.**
+   ```bash
+   cp deploy/azure/dev.env.example deploy/azure/dev.env
+   ```
+   In `deploy/azure/dev.env`, set `STORAGE_ACCOUNT` (the same one as `production.env`), `DATABASE_URL` (the new project) and a new `BETTER_AUTH_SECRET`. Leave `RESEND_API_KEY` blank.
+3. **Create the app.**
+   ```bash
+   bash deploy/azure/setup.sh dev.env
+   ```
+4. **Let GitHub deploy it.** The workflow signs in through a GitHub environment named `dev`, so add a second sign-in subject to the deploy app from step 5:
+   ```bash
+   APP_ID=$(az ad app list --display-name flightplan-github-deploy --query "[0].appId" -o tsv)
+   az ad app federated-credential create --id "$APP_ID" --parameters '{
+     "name": "github-dev",
+     "issuer": "https://token.actions.githubusercontent.com",
+     "subject": "repo:extrow-pi@48468642/flightplan@1383259849:environment:dev",
+     "audiences": ["api://AzureADTokenExchange"]
+   }'
+   ```
+   Then add the repository variable `AZURE_CONTAINERAPP_DEV` = `flightplan-dev`. GitHub creates the `dev` environment the first time the workflow runs.
+5. **Domain.** Open `flightplan-dev` in the portal → **Custom domains → Add**, with a managed certificate, for `dev.flightplan.jetlaggedcards.ca`. Add the DNS records it shows you (a CNAME and a TXT). Then set `BETTER_AUTH_URL=https://dev.flightplan.jetlaggedcards.ca` in `dev.env` and re-run `bash deploy/azure/setup.sh dev.env`.
+6. **Google sign-in (optional).** Add `https://dev.flightplan.jetlaggedcards.ca/api/auth/callback/google` to the OAuth client's redirect URIs and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `dev.env`. Without them, sign in with email and password.
+
+### Putting a branch on it
+
+- Every push to `dev` deploys to the dev site.
+- To try any other branch: **Actions → Deploy to dev site → Run workflow**, keep **Use workflow from** on `main`, and type the branch, e.g. `feature/teams`. The dev site then runs that branch until the next dev deploy.
+
+The dev database keeps whatever migrations the last deployed branch ran. If two branches add different migrations, deploying one after the other can fail at startup. Then reset the dev database, which deletes all its test data, by running this in the dev project's **SQL Editor** (never the live one) and deploying again:
+
+```sql
+drop schema if exists drizzle cascade;
+drop schema public cascade;
+create schema public;
+grant all on schema public to postgres;
+```
+
+Dev site logs: `az containerapp logs show -n flightplan-dev -g flightplan --follow`.
+
 ## Day to day
 
 | Task | Command |

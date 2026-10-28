@@ -47,7 +47,9 @@ jobs:
 
   deploy:
     needs: image
-    if: vars.AZURE_CLIENT_ID != ''
+    # Only main goes live: running this workflow by hand from another branch builds its image but
+    # doesn't deploy it. Use "Deploy to dev site" to try a branch.
+    if: vars.AZURE_CLIENT_ID != '' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       id-token: write # sign in to Azure with OpenID Connect, no stored password
