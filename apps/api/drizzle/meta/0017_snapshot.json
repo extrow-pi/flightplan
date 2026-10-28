@@ -1,5 +1,5 @@
 {
-  "id": "741e5384-4bb5-4d04-abd5-1e6ac99f7869",
+  "id": "58656948-e223-4440-89f1-c06aa47104d8",
   "prevId": "318943f6-3b49-40b8-aacd-fcfc0029124e",
   "version": "7",
   "dialect": "postgresql",
@@ -1039,6 +1039,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "setup_time": {
+          "name": "setup_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "start_time": {
           "name": "start_time",
           "type": "text",
@@ -1461,142 +1468,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.floorplans": {
-      "name": "floorplans",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organizer_id": {
-          "name": "organizer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "units": {
-          "name": "units",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'ft'"
-        },
-        "width_mm": {
-          "name": "width_mm",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "depth_mm": {
-          "name": "depth_mm",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "items": {
-          "name": "items",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "floorplans_organizer_idx": {
-          "name": "floorplans_organizer_idx",
-          "columns": [
-            {
-              "expression": "organizer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "floorplans_event_idx": {
-          "name": "floorplans_event_idx",
-          "columns": [
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "floorplans_organizer_id_user_id_fk": {
-          "name": "floorplans_organizer_id_user_id_fk",
-          "tableFrom": "floorplans",
-          "tableTo": "user",
-          "columnsFrom": [
-            "organizer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "floorplans_event_id_events_id_fk": {
-          "name": "floorplans_event_id_events_id_fk",
-          "tableFrom": "floorplans",
-          "tableTo": "events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

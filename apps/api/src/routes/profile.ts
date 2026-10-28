@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { and, asc, count, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, or } from "drizzle-orm";
 import {
   ACTIVE_BOOKING_STATUSES,
   addDays,
@@ -13,11 +13,15 @@ import {
   type OrganizerProfile,
   type PublicOrganizerPage,
   type PublicShow,
+  type PublicShowPage,
+  SHOW_SLUG_PATTERN,
 } from "@flightplan/shared";
 import { z } from "zod";
 import { db, schema } from "../db/index.js";
+import { isUniqueViolation } from "../db/errors.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
+import { pageSettings } from "./showPages.js";
 
 // An organizer's public page (/o/:handle): a profile and their published shows. Organizers set it up
 // in Settings; it's hidden until they switch it on.
@@ -32,10 +36,6 @@ function invalid(error: z.ZodError) {
   return { error: "Please fix the highlighted fields", fieldErrors: z.flattenError(error).fieldErrors } satisfies ApiError;
 }
 
-const isUniqueViolation = (err: unknown) => {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e?.code === "23505" || e?.cause?.code === "23505";
-};
 
 const handleTaken = {
   error: "That handle is taken",
@@ -156,27 +156,16 @@ function today() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
-export const publicOrganizerRoutes = new Hono().get("/:handle", async (c) => {
-  const handle = c.req.param("handle").toLowerCase();
-  const notFound = { error: "Organizer not found" } satisfies ApiError;
-  if (!HANDLE_PATTERN.test(handle)) return c.json(notFound, 404);
-  const [profile] = await db
-    .select()
-    .from(organizerProfiles)
-    .where(and(eq(organizerProfiles.handle, handle), eq(organizerProfiles.published, true)));
-  if (!profile) return c.json(notFound, 404);
+const publishedShows = (organizerId: string) =>
+  and(eq(events.organizerId, organizerId), eq(events.status, "published"), isNotNull(events.startDate));
 
-  // Published, dated shows only: drafts and templates never appear
-  const rows = await db
-    .select()
-    .from(events)
-    .where(and(eq(events.organizerId, profile.userId), eq(events.status, "published"), isNotNull(events.startDate)))
-    .orderBy(asc(events.startDate));
+/** Published shows as they appear publicly, each with whether it's still upcoming. */
+async function toPublicShows(handle: string, rows: (typeof events.$inferSelect)[]) {
   const ids = rows.map((e) => e.id);
   const [dayRows, tableCounts, heldCounts] = ids.length
     ? await Promise.all([
         db
-          .select({ eventId: eventDays.eventId, dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+          .select({ eventId: eventDays.eventId, dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
           .from(eventDays)
           .where(inArray(eventDays.eventId, ids))
           .orderBy(asc(eventDays.dayOffset)),
@@ -200,14 +189,17 @@ export const publicOrganizerRoutes = new Hono().get("/:handle", async (c) => {
   const heldOf = new Map(heldCounts.map((h) => [h.eventId, h.n]));
 
   const now = today();
-  const upcoming: PublicShow[] = [];
-  const past: PublicShow[] = [];
-  for (const e of rows) {
+  return rows.map((e) => {
     const days = daysOf.get(e.id) ?? [];
     const end = addDays(e.startDate!, Math.max(0, ...days.map((d) => d.dayOffset)));
-    const isUpcoming = end >= now;
+    const upcoming = end >= now;
     const tablesLeft = (tablesOf.get(e.id) ?? 0) - (heldOf.get(e.id) ?? 0);
-    const show: PublicShow = {
+    const settings = pageSettings(e.pageSettings);
+    const show: PublicShow & { upcoming: boolean } = {
+      url: `/o/${handle}/${e.pageSlug ?? e.id}`,
+      coverUrl: uploadUrl(e.coverFile),
+      tagline: settings.tagline,
+      hasTickets: upcoming && !!settings.tickets && settings.blocks.some((b) => b.type === "tickets"),
       name: e.name,
       description: e.description,
       venueName: e.venueName,
@@ -217,13 +209,80 @@ export const publicOrganizerRoutes = new Hono().get("/:handle", async (c) => {
       days,
       ticketPriceCents: e.ticketPriceCents,
       tablePriceCents: e.tablePriceCents,
-      booking: isUpcoming && e.bookingOpen ? { url: `/book/${e.bookingToken}`, tablesLeft: Math.max(0, tablesLeft) } : null,
-      mapUrl: isUpcoming && e.publicMap !== "off" && planned.has(e.id) ? `/map/${e.id}` : null,
+      tablePriceMaxCents: Math.max(e.tablePriceCents, ...e.tableTypes.map((t) => t.priceCents)),
+      booking: upcoming && e.bookingOpen ? { url: `/book/${e.bookingToken}`, tablesLeft: Math.max(0, tablesLeft) } : null,
+      mapUrl: upcoming && e.publicMap !== "off" && planned.has(e.id) ? `/map/${e.id}` : null,
+      mapEventId: upcoming && e.publicMap !== "off" && planned.has(e.id) ? e.id : null,
+      upcoming,
     };
-    (isUpcoming ? upcoming : past).push(show);
-  }
+    return show;
+  });
+}
 
-  const { handle: _h, published: _p, ...publicProfile } = toProfile(profile);
-  const body: PublicOrganizerPage = { profile: publicProfile, upcoming, past: past.reverse().slice(0, PAST_LIMIT) };
-  return c.json(body);
-});
+export async function publishedProfile(rawHandle: string) {
+  const handle = rawHandle.toLowerCase();
+  if (!HANDLE_PATTERN.test(handle)) return null;
+  const [profile] = await db
+    .select()
+    .from(organizerProfiles)
+    .where(and(eq(organizerProfiles.handle, handle), eq(organizerProfiles.published, true)));
+  return profile ?? null;
+}
+
+const uuidSchema = z.uuid();
+
+export const publicOrganizerRoutes = new Hono()
+  .get("/:handle", async (c) => {
+    const profile = await publishedProfile(c.req.param("handle"));
+    if (!profile) return c.json({ error: "Organizer not found" } satisfies ApiError, 404);
+
+    // Published, dated shows only: drafts and templates never appear
+    const rows = await db.select().from(events).where(publishedShows(profile.userId)).orderBy(asc(events.startDate));
+    const shows = await toPublicShows(profile.handle, rows);
+    const upcoming: PublicShow[] = [];
+    const past: PublicShow[] = [];
+    for (const { upcoming: isUpcoming, ...show } of shows) (isUpcoming ? upcoming : past).push(show);
+
+    const { handle: _h, published: _p, ...publicProfile } = toProfile(profile);
+    const body: PublicOrganizerPage = { profile: publicProfile, upcoming, past: past.reverse().slice(0, PAST_LIMIT) };
+    return c.json(body);
+  })
+
+  // One show's page, by its page address (or its id, until it has one)
+  .get("/:handle/shows/:slug", async (c) => {
+    const page = await findPublicShowPage(c.req.param("handle"), c.req.param("slug"));
+    return page ? c.json(page) : c.json({ error: "Show not found" } satisfies ApiError, 404);
+  });
+
+/** A published show's public page, or null if there's no such page. */
+export async function findPublicShowPage(handle: string, rawSlug: string): Promise<PublicShowPage | null> {
+  const profile = await publishedProfile(handle);
+  if (!profile) return null;
+  const slug = rawSlug.toLowerCase();
+  if (!SHOW_SLUG_PATTERN.test(slug)) return null;
+
+  const byAddress = uuidSchema.safeParse(slug).success ? or(eq(events.pageSlug, slug), eq(events.id, slug)) : eq(events.pageSlug, slug);
+  const [row] = await db
+    .select()
+    .from(events)
+    .where(and(publishedShows(profile.userId), byAddress))
+    .limit(1);
+  if (!row) return null;
+
+  const [show] = await toPublicShows(profile.handle, [row]);
+  const { tagline: _t, ...settings } = pageSettings(row.pageSettings);
+  const body: PublicShowPage = {
+    organizer: {
+      handle: profile.handle,
+      displayName: profile.displayName,
+      logoUrl: uploadUrl(profile.logoFile),
+      websiteUrl: profile.websiteUrl,
+      instagram: profile.instagram,
+      contactEmail: profile.contactEmail,
+    },
+    show: { ...show, booking: settings.showVendorBooking ? show.booking : null },
+    // Tickets are only sold until the show is over
+    page: { ...settings, tickets: show.upcoming ? settings.tickets : "" },
+  };
+  return body;
+}

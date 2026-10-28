@@ -1,1 +1,0 @@
-ALTER TABLE "floorplans" ADD COLUMN "groups" jsonb DEFAULT '[]'::jsonb NOT NULL;

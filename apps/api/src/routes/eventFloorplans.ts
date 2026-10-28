@@ -4,7 +4,8 @@ import { z } from "zod";
 import { floorplanInputSchema, publicMapSchema, savePlanToLibrarySchema, useLibraryPlanSchema, type ApiError } from "@flightplan/shared";
 import { canEdit, eventAccess, forbidden } from "../access.js";
 import { db, schema } from "../db/index.js";
-import { PlanTablesInUseError, removeEventPlan, saveEventPlan, TooManyTablesError } from "../eventPlans.js";
+import { TablesInUseError, TablesRenumberedError } from "../bookings.js";
+import { PlanRemovalError, PlanTablesInUseError, removeEventPlan, saveEventPlan, TooManyTablesError } from "../eventPlans.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { toFloorplan } from "./floorplans.js";
 
@@ -35,7 +36,15 @@ async function applying(fn: () => Promise<unknown>) {
     await fn();
     return null;
   } catch (err) {
-    if (err instanceof PlanTablesInUseError || err instanceof TooManyTablesError) return { error: err.message } satisfies ApiError;
+    if (
+      err instanceof PlanTablesInUseError ||
+      err instanceof TooManyTablesError ||
+      err instanceof PlanRemovalError ||
+      err instanceof TablesInUseError ||
+      err instanceof TablesRenumberedError
+    ) {
+      return { error: err.message } satisfies ApiError;
+    }
     throw err;
   }
 }
@@ -119,13 +128,14 @@ export const eventFloorplanRoutes = new Hono<AuthEnv>()
     return c.json({ publicMap: parsed.data.publicMap });
   })
 
-  // Take the plan off the event; its tables stay as numbered tables
+  // Take the plan off the event; its tables stay, numbered from its table types
   .delete("/:id/floorplan", async (c) => {
     const id = c.req.param("id");
     const a = await access(id, c.var.user.id);
     if (!a) return c.json(notFound, 404);
     if (!canEdit(a)) return c.json(forbidden("change the floorplan"), 403);
     if (!(await planOf(id))) return c.json<ApiError>({ error: "This event has no floorplan" }, 404);
-    await db.transaction((tx) => removeEventPlan(tx, id));
+    const conflict = await applying(() => db.transaction((tx) => removeEventPlan(tx, id)));
+    if (conflict) return c.json(conflict, 409);
     return c.json({ ok: true });
   });

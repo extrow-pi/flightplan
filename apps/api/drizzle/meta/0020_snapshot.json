@@ -1,6 +1,6 @@
 {
-  "id": "1411f686-9035-4d0d-819d-003f28a639d4",
-  "prevId": "3047b7f6-0689-4fcc-b807-95ce291f706c",
+  "id": "0be53eb1-ef1e-4bf8-b468-8d6d14f0c682",
+  "prevId": "1f93a43e-3082-42f0-afbd-fdff31b31f24",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1039,6 +1039,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "setup_time": {
+          "name": "setup_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "start_time": {
           "name": "start_time",
           "type": "text",
@@ -1130,6 +1137,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "type_id": {
+          "name": "type_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standard'"
         }
       },
       "indexes": {
@@ -1342,6 +1356,13 @@
           "notNull": true,
           "default": 0
         },
+        "table_types": {
+          "name": "table_types",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "ticket_price_cents": {
           "name": "ticket_price_cents",
           "type": "integer",
@@ -1404,6 +1425,25 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
+        "page_slug": {
+          "name": "page_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cover_file": {
+          "name": "cover_file",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "page_settings": {
+          "name": "page_settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
         "booking_token": {
           "name": "booking_token",
           "type": "text",
@@ -1444,6 +1484,27 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "events_organizer_page_slug_idx": {
+          "name": "events_organizer_page_slug_idx",
+          "columns": [
+            {
+              "expression": "organizer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "page_slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
