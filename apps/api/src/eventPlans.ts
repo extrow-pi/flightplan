@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { ACTIVE_BOOKING_STATUSES, MAX_TABLES, type FloorplanGroup, type FloorplanInput, type FloorplanItem, type TableType } from "@flightplan/shared";
-import { syncTables, type Tx } from "./bookings.js";
+import { syncTables, TablesRenumberedError, type Tx } from "./bookings.js";
 import { schema } from "./db/index.js";
 
 // An event's (or event template's) own floorplan. When an event has a plan, the plan's tables are its
@@ -23,6 +23,18 @@ export class PlanTypeInUseError extends Error {
   constructor(name: string, count: number) {
     super(
       `${count === 1 ? "A table" : `${count} tables`} on the floorplan ${count === 1 ? "is" : "are"} "${name}". Change ${count === 1 ? "its" : "their"} type in the floorplan editor before removing it.`,
+    );
+  }
+}
+
+/** Taking the plan off would renumber booked tables (their plan labels don't fit the table types). */
+export class PlanRemovalError extends Error {
+  constructor(changes: [string, string][]) {
+    const list = changes.map(([from, to]) => `${from} → ${to}`).join(", ");
+    super(
+      `Without the floorplan, tables are numbered from the table types, which would renumber ${
+        changes.length === 1 ? "a booked table" : "booked tables"
+      } (${list}). Keep the plan, or relabel ${changes.length === 1 ? "that table" : "those tables"} on the plan to match first.`,
     );
   }
 }
@@ -154,5 +166,10 @@ export async function removeEventPlan(tx: Tx, eventId: string) {
   await tx.delete(floorplans).where(eq(floorplans.eventId, eventId));
   await tx.update(eventTables).set({ planItemId: null }).where(eq(eventTables.eventId, eventId));
   const [event] = await tx.select({ tableTypes: events.tableTypes }).from(events).where(eq(events.id, eventId));
-  await syncTables(tx, eventId, event.tableTypes);
+  try {
+    await syncTables(tx, eventId, event.tableTypes);
+  } catch (err) {
+    if (err instanceof TablesRenumberedError) throw new PlanRemovalError(err.changes);
+    throw err;
+  }
 }

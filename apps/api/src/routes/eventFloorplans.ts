@@ -5,7 +5,7 @@ import { floorplanInputSchema, publicMapSchema, savePlanToLibrarySchema, useLibr
 import { canEdit, eventAccess, forbidden } from "../access.js";
 import { db, schema } from "../db/index.js";
 import { TablesInUseError, TablesRenumberedError } from "../bookings.js";
-import { PlanTablesInUseError, removeEventPlan, saveEventPlan, TooManyTablesError } from "../eventPlans.js";
+import { PlanRemovalError, PlanTablesInUseError, removeEventPlan, saveEventPlan, TooManyTablesError } from "../eventPlans.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { toFloorplan } from "./floorplans.js";
 
@@ -39,6 +39,7 @@ async function applying(fn: () => Promise<unknown>) {
     if (
       err instanceof PlanTablesInUseError ||
       err instanceof TooManyTablesError ||
+      err instanceof PlanRemovalError ||
       err instanceof TablesInUseError ||
       err instanceof TablesRenumberedError
     ) {

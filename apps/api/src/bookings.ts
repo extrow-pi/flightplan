@@ -38,7 +38,7 @@ export class TableTakenError extends Error {
 /** Thrown when reducing the table count would remove tables that are booked. */
 /** Changing table counts would renumber booked tables; pairs are [current label, new label] */
 export class TablesRenumberedError extends Error {
-  constructor(changes: [string, string][]) {
+  constructor(public changes: [string, string][]) {
     const list = changes.map(([from, to]) => `${from} → ${to}`).join(", ");
     super(
       `That would renumber ${changes.length === 1 ? "a booked table" : "booked tables"} (${list}). Add new tables to the last table type, or give the later types a prefix (e.g. L1, L2…) so their numbers don't move.`,
