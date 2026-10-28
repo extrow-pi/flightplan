@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Creates or updates Flightplan on Azure Container Apps. Safe to re-run: it applies the
-# settings in deploy/azure/production.env to whatever already exists.
+# settings in a settings file (deploy/azure/production.env by default) to whatever already exists.
 #
-#   bash deploy/azure/setup.sh
+#   bash deploy/azure/setup.sh             # the live site (production.env)
+#   bash deploy/azure/setup.sh dev.env     # the dev site (dev.env)
 #
 # Creates, in one resource group:
 #   - a storage account with a 5 GB file share for floor map uploads
 #   - a Container Apps environment (plus the Log Analytics workspace Azure adds for logs)
-#   - the Container App: one always-on replica, 0.25 vCPU / 0.5 GiB, HTTPS ingress
+#   - the Container App: 0.25 vCPU / 0.5 GiB, HTTPS ingress, one always-on replica
+#     (or none while idle, with MIN_REPLICAS=0)
+# The dev site shares the storage account and environment, with its own share and app.
 # The database is Supabase (DATABASE_URL), not an Azure resource.
 set -euo pipefail
 
@@ -15,8 +18,9 @@ cd "$(dirname "$0")"
 # Git Bash on Windows rewrites arguments that look like paths (e.g. Azure resource IDs)
 export MSYS_NO_PATHCONV=1
 
-if [[ ! -f production.env ]]; then
-  echo "Missing deploy/azure/production.env: copy production.env.example and fill it in." >&2
+settings="${1:-production.env}"
+if [[ ! -f "$settings" ]]; then
+  echo "Missing deploy/azure/$settings: copy ${settings%.env}.env.example and fill it in." >&2
   exit 1
 fi
 # Read KEY=value lines literally rather than sourcing the file, so values can contain
@@ -29,14 +33,21 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   value="$(sed -E 's/[[:space:]]+#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//' <<<"$value")"
   if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then value="${BASH_REMATCH[1]}"; fi
   export "$key=$value"
-done < production.env
+done < "$settings"
 
 for var in RESOURCE_GROUP LOCATION CONTAINERAPP_ENV CONTAINERAPP_NAME STORAGE_ACCOUNT IMAGE DATABASE_URL BETTER_AUTH_SECRET; do
   if [[ -z "${!var:-}" ]]; then
-    echo "Set $var in deploy/azure/production.env" >&2
+    echo "Set $var in deploy/azure/$settings" >&2
     exit 1
   fi
 done
+
+UPLOADS_SHARE="${UPLOADS_SHARE:-uploads}"
+MIN_REPLICAS="${MIN_REPLICAS:-1}"
+if [[ "$MIN_REPLICAS" != 0 && "$MIN_REPLICAS" != 1 ]]; then
+  echo "MIN_REPLICAS must be 0 or 1" >&2
+  exit 1
+fi
 
 [[ -n "${AZURE_SUBSCRIPTION:-}" ]] && az account set --subscription "$AZURE_SUBSCRIPTION"
 echo "Subscription: $(az account show --query name -o tsv)"
@@ -49,20 +60,20 @@ az provider register --namespace Microsoft.OperationalInsights --wait
 echo "==> Resource group $RESOURCE_GROUP ($LOCATION)"
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 
-echo "==> Storage account $STORAGE_ACCOUNT and uploads share"
+echo "==> Storage account $STORAGE_ACCOUNT and $UPLOADS_SHARE share"
 az storage account create --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" \
   --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false --output none
 az storage share-rm create --storage-account "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" \
-  --name uploads --quota 5 --output none
+  --name "$UPLOADS_SHARE" --quota 5 --output none
 storage_key=$(az storage account keys list --account-name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query "[0].value" -o tsv)
 
 echo "==> Container Apps environment $CONTAINERAPP_ENV"
 if ! az containerapp env show --name "$CONTAINERAPP_ENV" --resource-group "$RESOURCE_GROUP" --output none 2>/dev/null; then
   az containerapp env create --name "$CONTAINERAPP_ENV" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" --output none
 fi
-az containerapp env storage set --name "$CONTAINERAPP_ENV" --resource-group "$RESOURCE_GROUP" --storage-name uploads \
+az containerapp env storage set --name "$CONTAINERAPP_ENV" --resource-group "$RESOURCE_GROUP" --storage-name "$UPLOADS_SHARE" \
   --azure-file-account-name "$STORAGE_ACCOUNT" --azure-file-account-key "$storage_key" \
-  --azure-file-share-name uploads --access-mode ReadWrite --output none
+  --azure-file-share-name "$UPLOADS_SHARE" --access-mode ReadWrite --output none
 env_id=$(az containerapp env show --name "$CONTAINERAPP_ENV" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
 
 app_exists=false
@@ -99,6 +110,7 @@ add_env BETTER_AUTH_URL
 add_env EMAIL_FROM
 add_env APP_TIMEZONE
 add_env GOOGLE_CLIENT_ID
+add_env SITE_LABEL
 
 registries=""
 if [[ -n "${GHCR_USERNAME:-}" && -n "${GHCR_TOKEN:-}" ]]; then
@@ -155,15 +167,15 @@ ${env}        volumeMounts:
               path: /api/health
               port: 3001
             periodSeconds: 30
-    # Exactly one replica: the email worker and payment reminders run inside the app,
-    # and it must never scale to zero or they stop.
+    # At most one replica: the email worker and payment reminders run inside the app.
+    # The live site never scales to zero or they'd stop; the dev site sleeps while idle.
     scale:
-      minReplicas: 1
+      minReplicas: $MIN_REPLICAS
       maxReplicas: 1
     volumes:
       - name: uploads
         storageType: AzureFile
-        storageName: uploads
+        storageName: $UPLOADS_SHARE
 YAML
 
 if $app_exists; then
