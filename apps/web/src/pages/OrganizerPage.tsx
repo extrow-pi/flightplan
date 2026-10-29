@@ -192,6 +192,11 @@ function ShowCard({ show: s }: { show: PublicShow }) {
         <Link to={s.url} className="inline-flex items-center gap-1.5 text-sm font-bold text-coral-ink hover:underline">
           Show details <ArrowRightIcon className="size-4" />
         </Link>
+        {s.mapUrl && (
+          <Link to={s.mapUrl} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate hover:underline">
+            <MapPinIcon className="size-4" /> Vendor map
+          </Link>
+        )}
         {s.booking ? (
           <>
             <span className="flex items-center gap-1.5 text-sm text-ink-soft">

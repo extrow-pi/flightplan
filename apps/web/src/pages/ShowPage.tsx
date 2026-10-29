@@ -13,7 +13,8 @@ import {
 import { DateTile, Schedule } from "../components/events";
 import { ArrowLeftIcon, ClockIcon, MailIcon, MapPinIcon, TableIcon, TicketIcon } from "../components/Icons";
 import Logo from "../components/Logo";
-import { ApiRequestError, usePublicShow } from "../lib/api";
+import { ApiRequestError, usePublicEventMap, usePublicShow } from "../lib/api";
+import VendorMap from "../components/floorplan/VendorMap";
 import { formatDate, formatDateRange, formatMoney, timeRange } from "../lib/format";
 
 /** Flightplan's coral, used when the organizer hasn't picked an accent colour */
@@ -401,6 +402,8 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
           </ul>
         </BlockSection>
       );
+    case "floormap":
+      return s.mapEventId ? <FloorMapBlock eventId={s.mapEventId} title={b.title} /> : null;
     case "map":
       return (
         <BlockSection title={b.title}>
@@ -421,6 +424,17 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
         </BlockSection>
       );
   }
+}
+
+/** The show's vendor map, loaded when the block is on the page; hidden if the map isn't public. */
+function FloorMapBlock({ eventId, title }: { eventId: string; title: string }) {
+  const { data } = usePublicEventMap(eventId);
+  if (!data) return null;
+  return (
+    <BlockSection id="vendor-map" title={title}>
+      <VendorMap data={data} className="max-h-[65dvh] min-h-64" />
+    </BlockSection>
+  );
 }
 
 function OrganizerCard({ organizer: o }: { organizer: PublicShowPage["organizer"] }) {

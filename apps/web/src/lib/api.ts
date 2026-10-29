@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AddEventVendorInput,
   ApiError,
+  Floorplan,
+  PublicEventMap,
+  PublicMapMode,
+  FloorplanInput,
   AssignTableInput,
   Booking,
   BookingAlert,
@@ -749,5 +753,135 @@ export function useRequestStatus(requestId: string | undefined) {
     queryFn: () => request<PublicRequestStatus>(`/public/request/${requestId}`),
     enabled: Boolean(requestId),
     retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+  });
+}
+
+// ── Floorplans ───────────────────────────────────────────────────────────
+
+const planKeys = { list: ["floorplans"] as const, detail: (id: string) => ["floorplans", id] as const };
+
+/** The organizer's floorplan library */
+export function useFloorplans() {
+  return useQuery({
+    queryKey: planKeys.list,
+    queryFn: () => request<{ floorplans: Floorplan[] }>("/floorplans").then((r) => r.floorplans),
+  });
+}
+
+export function useFloorplan(id: string | undefined) {
+  return useQuery({
+    queryKey: planKeys.detail(id ?? ""),
+    queryFn: () => request<{ floorplan: Floorplan }>(`/floorplans/${id}`).then((r) => r.floorplan),
+    enabled: Boolean(id),
+  });
+}
+
+/** Create (no id) or save a library plan */
+export function useSaveFloorplan(id?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: FloorplanInput) =>
+      request<{ floorplan: Floorplan }>(id ? `/floorplans/${id}` : "/floorplans", { method: id ? "PUT" : "POST", body: input }).then(
+        (r) => r.floorplan,
+      ),
+    onSuccess: (plan) => {
+      qc.setQueryData(planKeys.detail(plan.id), plan);
+      void qc.invalidateQueries({ queryKey: planKeys.list, exact: true });
+    },
+  });
+}
+
+export function useDuplicateFloorplan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<{ floorplan: Floorplan }>(`/floorplans/${id}/duplicate`, { method: "POST" }).then((r) => r.floorplan),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
+  });
+}
+
+export function useDeleteFloorplan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request(`/floorplans/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
+  });
+}
+
+// ── An event's own floorplan ─────────────────────────────────────────────
+
+const eventPlanKey = (eventId: string) => ["events", eventId, "floorplan"] as const;
+
+export function useEventFloorplan(eventId: string | undefined) {
+  return useQuery({
+    queryKey: eventPlanKey(eventId ?? ""),
+    queryFn: () => request<{ floorplan: Floorplan | null }>(`/events/${eventId}/floorplan`).then((r) => r.floorplan),
+    enabled: Boolean(eventId),
+  });
+}
+
+/** After a plan change: the plan, the event (its table count and plan summary) and its tables */
+function planChanged(qc: ReturnType<typeof useQueryClient>, eventId: string, plan: Floorplan | null) {
+  qc.setQueryData(eventPlanKey(eventId), plan);
+  void qc.invalidateQueries({ queryKey: eventKeys.detail(eventId), exact: true });
+  void qc.invalidateQueries({ queryKey: eventKeys.all, exact: true });
+  void qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) });
+}
+
+export function useSaveEventFloorplan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: FloorplanInput) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan`, { method: "PUT", body: input }).then((r) => r.floorplan),
+    onSuccess: (plan) => planChanged(qc, eventId, plan),
+  });
+}
+
+export function useUseLibraryPlan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (floorplanId: string) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan/from-library`, { method: "POST", body: { floorplanId } }).then((r) => r.floorplan),
+    onSuccess: (plan) => planChanged(qc, eventId, plan),
+  });
+}
+
+export function useSavePlanToLibrary(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan/to-library`, { method: "POST", body: { name } }).then((r) => r.floorplan),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
+  });
+}
+
+export function useRemoveEventFloorplan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request(`/events/${eventId}/floorplan`, { method: "DELETE" }),
+    onSuccess: () => planChanged(qc, eventId, null),
+  });
+}
+
+/** The public vendor map for a show (no sign-in) */
+export function usePublicEventMap(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["public", "map", eventId],
+    queryFn: () => request<PublicEventMap>(`/public/map/${eventId}`),
+    enabled: Boolean(eventId),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+    // Vendors get added while the show is on
+    refetchInterval: 60_000,
+  });
+}
+
+/** Who appears on a show's public visitor map */
+export function useSetPublicMap(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (publicMap: PublicMapMode) => request(`/events/${eventId}/public-map`, { method: "PUT", body: { publicMap } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: eventKeys.detail(eventId), exact: true });
+      void qc.invalidateQueries({ queryKey: eventKeys.all, exact: true });
+    },
   });
 }

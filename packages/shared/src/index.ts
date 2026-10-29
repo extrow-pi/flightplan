@@ -296,6 +296,10 @@ export type EventRecord = z.output<typeof eventInputSchema> & {
   updatedAt: string;
   /** What the signed-in organizer can do with this event, and whose it is */
   access: EventAccess;
+  /** The event's own floorplan, if it has one. Its tables are the event's bookable tables. */
+  floorplan: { tableCount: number; updatedAt: string } | null;
+  /** Who appears on the public visitor map (/map/:id) */
+  publicMap: PublicMapMode;
 };
 
 // ── Collaborators ───────────────────────────────────────────────────────────
@@ -719,6 +723,8 @@ export type EventTable = {
   id: string;
   number: number;
   label: string;
+  /** The table on the event's floorplan, if it has one */
+  planItemId: string | null;
   /** Which of the event's table types it is */
   typeId: string;
   /** The table's active booking, if any */
@@ -783,7 +789,9 @@ export type PublicBookingPage = {
     /** Whether the organizer has any discount codes that could apply (shows the code field) */
     acceptsCodes: boolean;
   };
-  tables: { id: string; label: string; available: boolean; typeId: string }[];
+  tables: { id: string; label: string; available: boolean; typeId: string; planItemId: string | null }[];
+  /** The show's floorplan, for picking tables on a map (no vendor names) */
+  floorplan: PublicFloorplan | null;
   /** For invite links: who it was sent to, and whether it's been used */
   invite: { name: string; email: string; used: boolean } | null;
   /** Why booking isn't possible right now, if it isn't */
@@ -1086,6 +1094,8 @@ export const showPageBlockSchema = z.discriminatedUnion("type", [
   }),
   /** A map of the venue */
   z.object({ id: blockId, type: z.literal("map"), title: blockTitle("Getting there") }),
+  /** The show's floorplan with a vendor search (when it has a plan and its visitor map is on) */
+  z.object({ id: blockId, type: z.literal("floormap"), title: blockTitle("Find a vendor") }),
 ]);
 export type ShowPageBlock = z.output<typeof showPageBlockSchema>;
 export type ShowPageBlockInput = z.input<typeof showPageBlockSchema>;
@@ -1131,6 +1141,7 @@ export const showPageSchema = z.object({
       if (new Set(blocks.map((b) => b.id)).size !== blocks.length) ctx.addIssue({ code: "custom", message: "Two blocks share an id" });
       if (blocks.filter((b) => b.type === "tickets").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Tickets block" });
       if (blocks.filter((b) => b.type === "map").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Map block" });
+      if (blocks.filter((b) => b.type === "floormap").length > 1) ctx.addIssue({ code: "custom", message: "The page can only have one Vendor map block" });
     }),
   /** Show the "Book a vendor table" button while the booking link is open */
   showVendorBooking: z.boolean().optional().default(true),
@@ -1200,6 +1211,10 @@ export type PublicShow = {
   tablePriceMaxCents: number;
   /** Set while the show's public booking link is open: the booking page path and open tables */
   booking: { url: string; tablesLeft: number } | null;
+  /** The show's public vendor map, when the organizer has turned it on */
+  mapUrl: string | null;
+  /** The event behind `mapUrl`, for loading its vendor map (null when there's no public map) */
+  mapEventId: string | null;
 };
 
 export type PublicOrganizerPage = {
@@ -1265,4 +1280,201 @@ export type DiscountCodeUse = {
   discountCents: number;
   totalCents: number;
   createdAt: string;
+};
+
+// ── Floorplans ──────────────────────────────────────────────────────────────
+// A plan is one room: its size, and the tables, walls and landmarks placed in it. Every length is a
+// whole number of millimetres, so switching a plan between feet and metres never drifts.
+
+export const FLOORPLAN_UNITS = ["ft", "m"] as const;
+export type FloorplanUnits = (typeof FLOORPLAN_UNITS)[number];
+export const MM_PER_UNIT: Record<FloorplanUnits, number> = { ft: 304.8, m: 1000 };
+
+export const LANDMARK_TYPES = [
+  "walkway",
+  "shelf",
+  "entrance",
+  "exit",
+  "washroom",
+  "stairs",
+  "elevator",
+  "stage",
+  "food",
+  "info",
+  "atm",
+  "first_aid",
+  "storage",
+  "pillar",
+  "other",
+] as const;
+export type LandmarkType = (typeof LANDMARK_TYPES)[number];
+export const landmarkLabels: Record<LandmarkType, string> = {
+  walkway: "Walkway",
+  shelf: "Shelf",
+  entrance: "Entrance",
+  exit: "Exit",
+  washroom: "Washrooms",
+  stairs: "Stairs",
+  elevator: "Elevator",
+  stage: "Stage",
+  food: "Food & drink",
+  info: "Info desk",
+  atm: "ATM",
+  first_aid: "First aid",
+  storage: "Storage",
+  pillar: "Pillar",
+  other: "Other",
+};
+
+export const MAX_FLOORPLAN_ITEMS = 1000;
+/** Rooms from 1 m to 300 m on a side */
+export const FLOORPLAN_MIN_MM = 1000;
+export const FLOORPLAN_MAX_MM = 300_000;
+/** Smallest a table or landmark can be on a side */
+export const FLOORPLAN_ITEM_MIN_MM = 100;
+
+const coord = z.number().int().min(-FLOORPLAN_MAX_MM).max(2 * FLOORPLAN_MAX_MM);
+const size = z.number().int().min(FLOORPLAN_ITEM_MIN_MM).max(FLOORPLAN_MAX_MM);
+const rotation = z.number().int().min(0).max(359);
+const itemId = z.string().min(1).max(40);
+
+/** A table. x/y is its centre; w is its length and h its depth (a round table's diameter is w). */
+export const floorplanTableSchema = z.object({
+  id: itemId,
+  kind: z.literal("table"),
+  label: z.string().trim().min(1, "Every table needs a label").max(12, "Table labels can be up to 12 characters"),
+  shape: z.enum(["rect", "round"]),
+  x: coord,
+  y: coord,
+  w: size,
+  h: size,
+  rotation,
+  /** The table group it belongs to, if any */
+  group: z.string().min(1).max(40).optional(),
+  /** Its table type on the event (events.table_types[].id), for its price; unset or unknown = the first type */
+  type: z.string().min(1).max(40).optional(),
+});
+/** A wall from one point to another. */
+export const floorplanWallSchema = z.object({
+  id: itemId,
+  kind: z.literal("wall"),
+  x1: coord,
+  y1: coord,
+  x2: coord,
+  y2: coord,
+  thickness: z.number().int().min(20).max(2000),
+});
+/** A labelled area: entrance, washrooms, stairs… x/y is its centre. */
+export const floorplanLandmarkSchema = z.object({
+  id: itemId,
+  kind: z.literal("landmark"),
+  type: z.enum(LANDMARK_TYPES),
+  label: z.string().trim().max(40, "Landmark labels can be up to 40 characters"),
+  x: coord,
+  y: coord,
+  w: size,
+  h: size,
+  rotation,
+});
+export const floorplanItemSchema = z.discriminatedUnion("kind", [floorplanTableSchema, floorplanWallSchema, floorplanLandmarkSchema]);
+export type FloorplanTable = z.infer<typeof floorplanTableSchema>;
+export type FloorplanWall = z.infer<typeof floorplanWallSchema>;
+export type FloorplanLandmark = z.infer<typeof floorplanLandmarkSchema>;
+export type FloorplanItem = z.infer<typeof floorplanItemSchema>;
+
+export const MAX_TABLE_GROUPS = 100;
+/**
+ * Tables that belong together (an island, a row) and are numbered as one block. With a prefix, the
+ * group's tables are labelled prefix + 1…N (e.g. A1–A10) instead of taking the main numbers.
+ */
+export const floorplanGroupSchema = z.object({
+  id: itemId,
+  name: z.string().trim().min(1, "Give the group a name").max(40, "Group names can be up to 40 characters"),
+  prefix: z
+    .string()
+    .trim()
+    .max(4, "Prefixes can be up to 4 characters")
+    .regex(/^([A-Za-z][A-Za-z0-9-]*)?$/, "Start the prefix with a letter (e.g. A or Hall-)"),
+});
+export type FloorplanGroup = z.infer<typeof floorplanGroupSchema>;
+
+export const floorplanInputSchema = z
+  .object({
+    name: z.string().trim().min(1, "Give the plan a name").max(80),
+    units: z.enum(FLOORPLAN_UNITS),
+    widthMm: z.number().int().min(FLOORPLAN_MIN_MM, "The room is too small").max(FLOORPLAN_MAX_MM, "The room is too big"),
+    depthMm: z.number().int().min(FLOORPLAN_MIN_MM, "The room is too small").max(FLOORPLAN_MAX_MM, "The room is too big"),
+    items: z.array(floorplanItemSchema).max(MAX_FLOORPLAN_ITEMS, `Up to ${MAX_FLOORPLAN_ITEMS} items per plan`),
+    groups: z.array(floorplanGroupSchema).max(MAX_TABLE_GROUPS, `Up to ${MAX_TABLE_GROUPS} table groups per plan`).optional().default([]),
+  })
+  .superRefine((plan, ctx) => {
+    const ids = new Set<string>();
+    const labels = new Map<string, string>();
+    const groupIds = new Set(plan.groups.map((g) => g.id));
+    if (groupIds.size !== plan.groups.length) ctx.addIssue({ code: "custom", path: ["groups"], message: "Two groups share an id" });
+    for (const item of plan.items) {
+      if (item.kind === "table" && item.group && !groupIds.has(item.group)) {
+        ctx.addIssue({ code: "custom", path: ["items"], message: `Table ${item.label} is in a group that doesn't exist` });
+      }
+      if (ids.has(item.id)) ctx.addIssue({ code: "custom", path: ["items"], message: "Two items share an id" });
+      ids.add(item.id);
+      if (item.kind === "table") {
+        const key = item.label.toLowerCase();
+        if (labels.has(key)) ctx.addIssue({ code: "custom", path: ["items"], message: `Two tables are labelled “${item.label}”` });
+        labels.set(key, item.label);
+      }
+    }
+  });
+export type FloorplanInput = z.input<typeof floorplanInputSchema>;
+
+export type Floorplan = {
+  id: string;
+  name: string;
+  units: FloorplanUnits;
+  widthMm: number;
+  depthMm: number;
+  items: FloorplanItem[];
+  groups: FloorplanGroup[];
+  tableCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Use one of the organizer's library plans for an event (the event gets its own copy). */
+export const useLibraryPlanSchema = z.object({ floorplanId: z.uuid() });
+
+/** Copy an event's plan into the organizer's library. */
+export const savePlanToLibrarySchema = z.object({ name: z.string().trim().min(1, "Give the plan a name").max(80) });
+
+// ── Maps people use: booking, and the public visitor map ─────────────────────
+
+/** A plan's layout without anything private, for the booking page and the visitor map */
+export type PublicFloorplan = { units: FloorplanUnits; widthMm: number; depthMm: number; items: FloorplanItem[] };
+
+/** The public visitor map: off, paid vendors only, or everyone holding a table */
+export const PUBLIC_MAP_MODES = ["off", "paid", "all"] as const;
+export type PublicMapMode = (typeof PUBLIC_MAP_MODES)[number];
+export const publicMapLabels: Record<PublicMapMode, string> = {
+  off: "Off",
+  paid: "Paid vendors only",
+  all: "Everyone with a table",
+};
+export const publicMapSchema = z.object({ publicMap: z.enum(PUBLIC_MAP_MODES) });
+
+/** /map/:eventId: where each vendor is at a show */
+export type PublicEventMap = {
+  event: {
+    name: string;
+    startDate: string;
+    days: EventDay[];
+    venueName: string;
+    address: string;
+    city: string;
+    organizerName: string;
+    /** The organizer's public page, if they have one */
+    organizerUrl: string | null;
+  };
+  floorplan: PublicFloorplan;
+  /** One entry per vendor, with every table they hold */
+  vendors: { name: string; tables: { planItemId: string; label: string }[] }[];
 };

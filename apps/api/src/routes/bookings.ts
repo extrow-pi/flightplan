@@ -177,7 +177,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           .where(inArray(vendors.id, vendorIds))
       : [];
     const body: EventTablesResponse = {
-      tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, typeId: t.typeId, booking: activeByTable.get(t.id) ?? null })),
+      tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, typeId: t.typeId, planItemId: t.planItemId, booking: activeByTable.get(t.id) ?? null })),
       history: bookingRows.filter((b) => !active.includes(b.status as (typeof active)[number])).map(toBooking),
       invites: inviteRows.map(toInvite),
       unassigned: unassignedRows.map(({ createdAt, ...u }): UnassignedVendor => ({ ...u, addedAt: createdAt.toISOString() })),
