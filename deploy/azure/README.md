@@ -108,7 +108,7 @@ In the Azure portal, go to **Cost Management → Budgets → Add**. Scope it to 
 
 ## Dev site
 
-A second copy of the site for testing branches before they go live, at `dev.flightplan.jetlaggedcards.ca`. It runs the same image in the same environment and storage account, with its own app (`flightplan-dev`), uploads share (`uploads-dev`) and Supabase database, so test data never touches the live site.
+A second copy of the site for testing branches before they go live, at `dev-flightplan.jetlaggedcards.com`. It runs the same image in the same environment and storage account, with its own app (`flightplan-dev`), uploads share (`uploads-dev`) and Supabase database, so test data never touches the live site.
 
 - **It sleeps while idle** (`MIN_REPLICAS=0`), so it costs cents a month. The first visit after a quiet spell takes a few seconds to wake it. Payment reminders and the email worker only run while it's awake.
 - **Emails aren't sent.** With no `RESEND_API_KEY`, every email is saved to the Email log instead, so a test invite can't reach a real vendor.
@@ -138,8 +138,8 @@ A second copy of the site for testing branches before they go live, at `dev.flig
    }'
    ```
    Then add the repository variable `AZURE_CONTAINERAPP_DEV` = `flightplan-dev`. GitHub creates the `dev` environment the first time the workflow runs.
-5. **Domain.** Open `flightplan-dev` in the portal → **Custom domains → Add**, with a managed certificate, for `dev.flightplan.jetlaggedcards.ca`. Add the DNS records it shows you (a CNAME and a TXT). Then set `BETTER_AUTH_URL=https://dev.flightplan.jetlaggedcards.ca` in `dev.env` and re-run `bash deploy/azure/setup.sh dev.env`.
-6. **Google sign-in (optional).** Add `https://dev.flightplan.jetlaggedcards.ca/api/auth/callback/google` to the OAuth client's redirect URIs and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `dev.env`. Without them, sign in with email and password.
+5. **Domain.** Open `flightplan-dev` in the portal → **Custom domains → Add**, with a managed certificate, for `dev-flightplan.jetlaggedcards.com`. Add the DNS records it shows you (a CNAME and a TXT). Then set `BETTER_AUTH_URL=https://dev-flightplan.jetlaggedcards.com` in `dev.env` and re-run `bash deploy/azure/setup.sh dev.env`.
+6. **Google sign-in (optional).** Add `https://dev-flightplan.jetlaggedcards.com/api/auth/callback/google` to the OAuth client's redirect URIs and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `dev.env`. Without them, sign in with email and password.
 
 ### Putting a branch on it
 
