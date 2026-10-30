@@ -215,8 +215,9 @@ function VendorRow({ vendor: v, groupName, onOpen }: { vendor: VendorListItem; g
       </button>
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-extrabold">{v.name}</span>
-          {v.businessName && <span className="font-semibold text-ink-soft">{v.businessName}</span>}
+          {/* The business is what organizers know vendors by; the person's name is secondary */}
+          <span className="font-extrabold">{v.businessName || v.name}</span>
+          {v.businessName && <span className="font-semibold text-ink-soft">{v.name}</span>}
           {v.banned && <BannedBadge reason={v.banReason} />}
         </span>
         <span className="mt-0.5 block truncate text-sm text-ink-soft">
