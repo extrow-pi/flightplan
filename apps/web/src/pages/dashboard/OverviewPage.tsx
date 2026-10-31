@@ -290,8 +290,8 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-x-1.5 font-bold">
                   <span>
-                    {a.booking.name}
-                    {a.booking.businessName && <span className="font-semibold text-ink-soft"> · {a.booking.businessName}</span>}
+                    {a.booking.businessName || a.booking.name}
+                    {a.booking.businessName && <span className="font-semibold text-ink-soft"> · {a.booking.name}</span>}
                   </span>
                   {a.vendorBanned && <BannedBadge />}
                 </p>
