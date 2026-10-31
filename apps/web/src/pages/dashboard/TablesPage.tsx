@@ -270,8 +270,8 @@ export default function TablesPage() {
                           {v.favourite && (
                             <StarIcon className="mr-1 inline size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
                           )}
-                          {v.name}
-                          {v.businessName && <span className="font-semibold text-ink-soft"> · {v.businessName}</span>}
+                          {v.businessName || v.name}
+                          {v.businessName && <span className="font-semibold text-ink-soft"> · {v.name}</span>}
                         </p>
                         <p className="truncate text-sm text-ink-soft">{v.email}</p>
                       </div>
@@ -370,8 +370,8 @@ export default function TablesPage() {
                   {tables.data.history.map((b) => (
                     <li key={b.id} className="flex flex-wrap justify-between gap-2 text-ink-soft">
                       <span>
-                        <strong className="text-ink">{b.name}</strong>
-                        {b.businessName && ` · ${b.businessName}`} · table{" "}
+                        <strong className="text-ink">{b.businessName || b.name}</strong>
+                        {b.businessName && ` · ${b.name}`} · table{" "}
                         {all.find((t) => t.id === b.tableId)?.label ?? "(removed)"}
                       </span>
                       <span>
@@ -534,8 +534,8 @@ function RequestCard({
               <StarIcon className="size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
             )}
             <span>
-              {b.name}
-              {b.businessName && <span className="font-semibold text-ink-soft"> · {b.businessName}</span>}
+              {b.businessName || b.name}
+              {b.businessName && <span className="font-semibold text-ink-soft"> · {b.name}</span>}
             </span>
             {flags?.banned && <BannedBadge />}
           </h3>
@@ -1318,8 +1318,8 @@ function UnassignedCard({
               <StarIcon className="size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
             )}
             <span>
-              {u.name}
-              {u.businessName && <span className="font-semibold text-ink-soft"> · {u.businessName}</span>}
+              {u.businessName || u.name}
+              {u.businessName && <span className="font-semibold text-ink-soft"> · {u.name}</span>}
             </span>
             {flags?.banned && <BannedBadge />}
           </h3>
@@ -1461,8 +1461,8 @@ function VendorPicker({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold">
                   {v.favourite && <span className="text-gold-ink">★ </span>}
-                  {v.name}
-                  {v.businessName && <span className="font-semibold text-ink-soft"> · {v.businessName}</span>}
+                  {v.businessName || v.name}
+                  {v.businessName && <span className="font-semibold text-ink-soft"> · {v.name}</span>}
                 </span>
                 <span className="block truncate text-xs text-ink-muted">{v.email}</span>
               </span>
