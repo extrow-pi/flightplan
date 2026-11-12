@@ -9,6 +9,7 @@ import {
   type Booking,
   type EventRecord,
   type EventTable,
+  type Floorplan,
   type Invite,
   type PaymentMethod,
   type UnassignedVendor,
@@ -40,6 +41,8 @@ import BannedBadge from "../../components/BannedBadge";
 import CopyButton from "../../components/CopyButton";
 import { ArrowLeftIcon, CheckIcon, CloseIcon, DownloadIcon, MailIcon, PaperclipIcon, SearchIcon, StarIcon, UploadIcon } from "../../components/Icons";
 import VendorImportDialog from "../../components/VendorImportDialog";
+import MapViewer from "../../components/floorplan/MapViewer";
+import type { TableStyle } from "../../components/floorplan/FloorplanDrawing";
 import {
   ApiRequestError,
   eventToInput,
@@ -55,6 +58,7 @@ import {
   useRevokeInvite,
   useBulkInvite,
   useEventVendors,
+  useEventFloorplan,
   useSaveEvent,
   useVendorGroups,
 } from "../../lib/api";
@@ -70,7 +74,8 @@ export default function TablesPage() {
   // The owner's vendor list, for searching vendors who aren't at this show yet (editors only)
   const vendorList = useEventVendors(id ?? "", Boolean(event && event.status !== "template" && canEdit(event)));
   const [filter, setFilter] = useState<Filter>("all");
-  const [view, setView] = useState<"vendors" | "tables">("vendors");
+  const [view, setView] = useState<"vendors" | "tables" | "map">("vendors");
+  const plan = useEventFloorplan(event && event.status !== "template" ? id : undefined);
   const [query, setQuery] = useState("");
   // A request to point out after clicking "Review" in the table view
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -115,7 +120,7 @@ export default function TablesPage() {
 
   // Filters count tables in the table view and vendors in the vendor view
   const stateOf = (x: EventTable | VendorRequest) => ("requestId" in x ? x.state : tableState(x.booking));
-  const items: (EventTable | VendorRequest)[] = view === "tables" ? shownTables : shownRequests;
+  const items: (EventTable | VendorRequest)[] = view === "vendors" ? shownRequests : shownTables;
   const filters = (["all", ...TABLE_STATES, "unassigned"] as Filter[]).filter((f) =>
     view === "vendors" ? f !== "available" : f !== "unassigned",
   );
@@ -131,6 +136,7 @@ export default function TablesPage() {
   const vendorCount = requests.length + unassigned.length;
   const nothingShown =
     view === "vendors" ? !shownRequests.some(matches) && !(showUnassigned && shownUnassigned.length) : !shownTables.some(matches);
+  const hasMap = Boolean(plan.data);
 
   function reviewRequest(requestId: string) {
     setView("vendors");
@@ -210,8 +216,11 @@ export default function TablesPage() {
                 [
                   ["vendors", `By vendor (${vendorCount})`],
                   ["tables", `By table (${all.length})`],
+                  ["map", "Map"],
                 ] as const
-              ).map(([v, label]) => (
+              )
+                .filter(([v]) => v !== "map" || hasMap)
+                .map(([v, label]) => (
                 <button
                   key={v}
                   type="button"
@@ -245,7 +254,7 @@ export default function TablesPage() {
                     }`}
                   >
                     {f === "all"
-                      ? view === "tables"
+                      ? view !== "vendors"
                         ? "All tables"
                         : "All vendors"
                       : f === "unassigned"
@@ -299,7 +308,17 @@ export default function TablesPage() {
               </section>
             )}
 
-            {all.length === 0 && view === "tables" ? (
+            {view === "map" && plan.data ? (
+              <TablesMap
+                plan={plan.data}
+                tables={all}
+                shown={new Set(shownTables.filter(matches).map((t) => t.id))}
+                searching={Boolean(q) || activeFilter !== "all"}
+                canAssign={editable && !past}
+                onAssign={(tableId) => setAssigning({ tableId })}
+                onReview={reviewRequest}
+              />
+            ) : all.length === 0 && view !== "vendors" ? (
               <p className="rounded-3xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
                 This event has no vendor tables yet. Set the number of tables on the{" "}
                 <Link to={`/dashboard/events/${event.id}`} className="font-bold text-coral-ink hover:underline">
@@ -636,6 +655,9 @@ function TableRow({
         ) : (
           <p className="font-semibold text-ink-muted">Open table</p>
         )}
+        {event.tableTypes.length > 1 && (
+          <p className="truncate text-xs text-ink-muted">{event.tableTypes.find((t) => t.id === table.typeId)?.name}</p>
+        )}
       </div>
       <TableStateBadge state={tableState(b)} />
       <div className="flex min-w-24 flex-wrap items-center justify-end gap-2">
@@ -675,6 +697,81 @@ function TableRow({
         </div>
       )}
     </li>
+  );
+}
+
+// ── Map view ─────────────────────────────────────────────────────────────
+
+// Table colours by state, matching the status badges
+const mapStyles: Record<ReturnType<typeof tableState>, TableStyle> = {
+  available: { fill: "#ffffff", stroke: "#5c6b8a", ink: "#4b5875" },
+  pending: { fill: "#fff4cc", stroke: "#9a7000", ink: "#7a5900" },
+  awaiting_payment: { fill: "#ffe0d8", stroke: "#c0442a", ink: "#9c3420" },
+  overdue: { fill: "#c0442a", stroke: "#8f2f1c", ink: "#ffffff" },
+  paid: { fill: "#e8f8f5", stroke: "#2d7a6a", ink: "#1f5c50" },
+};
+
+/** The show's floorplan with every table coloured by its booking state. */
+function TablesMap({
+  plan,
+  tables,
+  shown,
+  searching,
+  canAssign,
+  onAssign,
+  onReview,
+}: {
+  plan: Floorplan;
+  tables: EventTable[];
+  /** Tables matching the search and filter */
+  shown: Set<string>;
+  searching: boolean;
+  canAssign: boolean;
+  onAssign: (tableId: string) => void;
+  onReview: (requestId: string) => void;
+}) {
+  const byItem = new Map(tables.filter((t) => t.planItemId).map((t) => [t.planItemId!, t]));
+  // Zoom to search results when there are a few
+  const focus = searching ? tables.filter((t) => shown.has(t.id) && t.planItemId).map((t) => t.planItemId!) : [];
+
+  return (
+    <div className="space-y-3">
+      <MapViewer
+        plan={plan}
+        focus={focus.length && focus.length <= 30 ? focus : undefined}
+        label="Floorplan with each table's booking status"
+        tableStyle={(item) => {
+          const t = byItem.get(item.id);
+          if (!t) return { ...mapStyles.available, dim: true };
+          const b = t.booking;
+          const name = b ? b.businessName || b.name : "";
+          return {
+            ...mapStyles[tableState(b)],
+            sublabel: name.length > 14 ? `${name.slice(0, 13)}…` : name || undefined,
+            title: b ? `Table ${t.label}: ${name} · ${tableStateLabel(tableState(b))}` : `Table ${t.label}: open`,
+            dim: searching && !shown.has(t.id),
+          };
+        }}
+        onTableClick={(item) => {
+          const t = byItem.get(item.id);
+          if (!t) return;
+          if (t.booking) onReview(t.booking.requestId);
+          else if (canAssign) onAssign(t.id);
+        }}
+      />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">
+        {TABLE_STATES.map((st) => (
+          <span key={st} className="flex items-center gap-1.5">
+            <span className="size-3 rounded-sm" style={{ background: mapStyles[st].fill, boxShadow: `inset 0 0 0 1.5px ${mapStyles[st].stroke}` }} />
+            {tableStateLabel(st)}
+          </span>
+        ))}
+        <span className="ml-auto">
+          {canAssign ? "Click an open table to assign it, or a booked one to see the vendor." : "Click a booked table to see the vendor."} Ctrl/⌘ +
+          scroll or pinch to zoom.
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -899,7 +996,7 @@ function EmailVendorsDialog({
       <label className="mt-4 flex items-start gap-2 text-sm font-semibold">
         <input type="checkbox" className="mt-0.5 size-4 accent-coral" checked={includeDetails} onChange={(e) => setIncludeDetails(e.target.checked)} />
         <span>
-          Add each vendor's tables and status under the message
+          Add each vendor's tables and the show details (setup time, show hours, venue address) under the message
         </span>
       </label>
 
@@ -1701,7 +1798,8 @@ function AssignDialog({
   const mode = chosenMode ?? (vendors.data?.length ? "existing" : "new");
   const [vendorId, setVendorId] = useState(initialVendorId ?? "");
   const [contact, setContact] = useState(emptyContact);
-  const [paid, setPaid] = useState(event.tablePriceCents === 0);
+  // Free shows are paid straight away
+  const [paid, setPaid] = useState(event.tableTypes.every((t) => t.priceCents === 0));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [discountCode, setDiscountCode] = useState("");
   const firstRef = useDialog(onClose);
@@ -1734,7 +1832,12 @@ function AssignDialog({
   const toggle = (id: string) =>
     setTableIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_TABLES_PER_REQUEST ? [...ids, id] : ids));
   const count = tableIds.length;
-  const charged = event.tablePriceCents > 0;
+  const charged = event.tableTypes.some((t) => t.priceCents > 0);
+  const typeById = new Map(event.tableTypes.map((t) => [t.id, t]));
+  const multiType = event.tableTypes.length > 1;
+  // The picked tables in floor order, each at its type's price
+  const picked = open.filter((t) => tableIds.includes(t.id));
+  const prices = picked.map((t) => typeById.get(t.typeId)?.priceCents ?? 0);
 
   // Without a code the price is worked out here; with one, the server checks the code (debounced)
   const [code, setCode] = useState("");
@@ -1745,10 +1848,15 @@ function AssignDialog({
   const vendorEmail = chosen?.email ?? (mode === "new" ? contact.email.trim().toLowerCase() : "");
   const quote = useAssignQuote(
     event.id,
-    { tableCount: Math.max(count, 1), discountCode: code, email: /^\S+@\S+\.\S+$/.test(vendorEmail) ? vendorEmail : "" },
+    {
+      tableCount: Math.max(count, 1),
+      tableIds: picked.map((t) => t.id),
+      discountCode: code,
+      email: /^\S+@\S+\.\S+$/.test(vendorEmail) ? vendorEmail : "",
+    },
     charged && Boolean(code),
   );
-  const tierPrice = priceRequest({ tablePriceCents: event.tablePriceCents, tableCount: count, tiers: event.bulkDiscounts });
+  const tierPrice = priceRequest({ prices, tiers: event.bulkDiscounts });
   const price = code && quote.data && quote.data.tableCount === count ? quote.data : tierPrice;
   // Tiers this request could reach, and the next one up
   const tiers = event.bulkDiscounts.filter((t) => t.minTables <= MAX_TABLES_PER_REQUEST);
@@ -1803,7 +1911,17 @@ function AssignDialog({
         aria-labelledby="assign-tables-label"
         className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-2xl bg-cream-50 p-2 ring-1 ring-ink/5"
       >
-        {shown.map((t) => {
+        {(multiType ? event.tableTypes : [null]).map((type) => {
+          const ofType = type ? shown.filter((t) => t.typeId === type.id) : shown;
+          if (!ofType.length) return null;
+          return (
+            <div key={type?.id ?? "all"} className="flex basis-full flex-wrap gap-1.5">
+              {type && (
+                <span className="basis-full px-1 text-xs font-bold text-ink-soft">
+                  {type.name} · {type.priceCents ? formatMoney(type.priceCents) : "free"}
+                </span>
+              )}
+        {ofType.map((t) => {
           if (t.booking) {
             // One of the chosen vendor's tables: shown for context, not pickable
             return (
@@ -1832,6 +1950,9 @@ function AssignDialog({
             >
               {t.label}
             </button>
+          );
+        })}
+            </div>
           );
         })}
       </div>
@@ -1878,7 +1999,11 @@ function AssignDialog({
             <div className="mt-3 space-y-1.5 rounded-2xl bg-cream-50 px-4 py-3 text-sm ring-1 ring-ink/5" aria-live="polite">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-semibold text-ink-soft">
-                  {count} × {formatMoney(event.tablePriceCents)}
+                  {/* "2 × $60 + 1 × $80" */}
+                  {[...new Set(prices)]
+                    .sort((a, b) => a - b)
+                    .map((p) => `${prices.filter((x) => x === p).length} × ${formatMoney(p)}`)
+                    .join(" + ")}
                 </span>
                 <span className={price.discountCents ? "text-ink-muted line-through" : "font-extrabold"}>
                   {formatMoney(price.subtotalCents)}
@@ -1933,7 +2058,7 @@ function AssignDialog({
         <input type="checkbox" className="size-4 accent-coral" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
         Already paid
       </label>
-      {paid && event.tablePriceCents > 0 && (
+      {paid && charged && (
         <label className="mt-2 block text-sm font-semibold">
           How did they pay?
           <select

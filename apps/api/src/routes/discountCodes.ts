@@ -10,6 +10,7 @@ import {
 } from "@flightplan/shared";
 import { codeStatus, countsAsUse, usesOf } from "../discounts.js";
 import { db, schema } from "../db/index.js";
+import { isUniqueViolation } from "../db/errors.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 
 // The organizer's discount codes (the Discounts page). Codes work for the organizer's own shows:
@@ -24,10 +25,6 @@ function invalid(error: z.ZodError) {
   return { error: "Please fix the highlighted fields", fieldErrors: z.flattenError(error).fieldErrors } satisfies ApiError;
 }
 
-const isUniqueViolation = (err: unknown) => {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e?.code === "23505" || e?.cause?.code === "23505";
-};
 
 const duplicate = {
   error: "You already have a code with that name",

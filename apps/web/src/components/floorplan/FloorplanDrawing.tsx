@@ -11,6 +11,10 @@ export type TableStyle = { fill: string; stroke: string; ink: string; sublabel?:
 
 export const defaultTableStyle: TableStyle = { fill: "#ffffff", stroke: "#5c6b8a", ink: "#4b5875" };
 
+/** Light fills that tell a show's table types apart on a plan, by the type's position; the first is plain white */
+export const typeFills = ["#ffffff", "#e3ecfb", "#fff0cc", "#dff5ea", "#f3e3fb", "#ffe1dc", "#e0f4f7", "#f0ecdf", "#e9e3fb", "#f9e3ee"];
+export const typeFill = (index: number) => typeFills[Math.max(0, index) % typeFills.length];
+
 /** Space around the room so dimensions and edges have room to breathe */
 export const planPadding = (p: { widthMm: number; depthMm: number }) => Math.max(p.widthMm, p.depthMm) * 0.06;
 
