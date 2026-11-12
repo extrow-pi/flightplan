@@ -3,23 +3,28 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import {
   ACTIVE_BOOKING_STATUSES,
+  ACTIVE_WAITLIST_STATUSES,
   addDays,
+  joinWaitlistSchema,
   quoteRequestSchema,
   vendorBookingSchema,
+  vendorContactSchema,
   type ApiError,
   type BookingSource,
   type PublicBookingPage,
   type PublicBookingResult,
   type PublicEventMap,
   type PublicRequestStatus,
+  type PublicWaitlistResult,
 } from "@flightplan/shared";
 import { createBookings, DiscountCodeError, findOrCreateVendor, requestTotals, TableTakenError } from "../bookings.js";
 import { eventAcceptsCodes, quote } from "../discounts.js";
 import { db, schema } from "../db/index.js";
-import { notifyRequestCreated } from "../email/notifications.js";
+import { notifyRequestCreated, notifyWaitlistJoined } from "../email/notifications.js";
 import { uploadUrl } from "../uploads.js";
+import { waitlistPosition } from "../waitlist.js";
 
-const { bookings, eventDays, events, eventTables, floorplans, organizerProfiles, user, vendorInvites } = schema;
+const { bookings, eventDays, events, eventTables, floorplans, organizerProfiles, user, vendorInvites, waitlistEntries } = schema;
 
 // Tokens are 32 hex characters
 const tokenSchema = z.string().regex(/^[0-9a-f]{32}$/);
@@ -99,6 +104,7 @@ async function loadPage(kind: "event" | "invite", token: string) {
 
   const endDate = event.startDate && days.length ? addDays(event.startDate, Math.max(...days.map((d) => d.dayOffset))) : null;
   const heldIds = new Set(held.map((h) => h.tableId));
+  const closed = closedReason(event, endDate, invite);
 
   const page: PublicBookingPage = {
     event: {
@@ -121,7 +127,9 @@ async function loadPage(kind: "event" | "invite", token: string) {
     tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id), typeId: t.typeId, planItemId: t.planItemId })),
     floorplan: plan ?? null,
     invite: invite ? { name: invite.name, email: invite.email, used: invite.bookingId !== null } : null,
-    closedReason: closedReason(event, endDate, invite),
+    closedReason: closed,
+    // Personal invite links are for a specific vendor, so only the public link offers the waitlist
+    waitlistOpen: !invite && !closed && tables.length > 0 && tables.every((t) => heldIds.has(t.id)),
   };
   return { page, event, invite, tables };
 }
@@ -225,8 +233,59 @@ function bookingHandlers(kind: "event" | "invite") {
     });
 }
 
+// Join a full show's waitlist from its public booking link: /api/public/book/:token/waitlist
+const waitlistHandler = new Hono().post("/:token/waitlist", async (c) => {
+  const loaded = await loadPage("event", c.req.param("token"));
+  if (!loaded) return c.json(notFound, 404);
+  const { page, event } = loaded;
+  if (page.closedReason) return c.json<ApiError>({ error: page.closedReason }, 409);
+  if (!page.waitlistOpen) return c.json<ApiError>({ error: "There are tables available, so you can book one now." }, 409);
+
+  const parsed = joinWaitlistSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json<ApiError>(
+      { error: "Please fix the highlighted fields", fieldErrors: z.flattenError(parsed.error).fieldErrors },
+      400,
+    );
+  }
+  const { tablesWanted, message, ...contact } = parsed.data;
+
+  const joined = await db.transaction(async (tx) => {
+    const vendor = await findOrCreateVendor(tx, event.organizerId, contact);
+    const [entry] = await tx
+      .insert(waitlistEntries)
+      .values({
+        eventId: event.id,
+        vendorId: vendor.id,
+        ...vendorContactSchema.parse(contact),
+        message,
+        tablesWanted: Math.min(tablesWanted, event.maxTablesPerRequest),
+      })
+      // Already in line (the unique index): keep their place rather than adding them twice
+      .onConflictDoNothing()
+      .returning({ id: waitlistEntries.id });
+    if (entry) return { id: entry.id, alreadyOn: false, position: await waitlistPosition(tx, event.id, entry.id) };
+    const [existing] = await tx
+      .select({ id: waitlistEntries.id })
+      .from(waitlistEntries)
+      .where(
+        and(
+          eq(waitlistEntries.eventId, event.id),
+          eq(waitlistEntries.vendorId, vendor.id),
+          inArray(waitlistEntries.status, [...ACTIVE_WAITLIST_STATUSES]),
+        ),
+      );
+    return { id: existing.id, alreadyOn: true, position: await waitlistPosition(tx, event.id, existing.id) };
+  });
+  if (!joined.alreadyOn) void notifyWaitlistJoined(joined.id, joined.position ?? 1);
+  return c.json<PublicWaitlistResult>({ position: joined.position ?? 1, alreadyOn: joined.alreadyOn }, joined.alreadyOn ? 200 : 201);
+});
+
 // Public (no sign-in): /api/public/book/:token and /api/public/invite/:token
-export const publicRoutes = new Hono().route("/book", bookingHandlers("event")).route("/invite", bookingHandlers("invite"));
+export const publicRoutes = new Hono()
+  .route("/book", waitlistHandler)
+  .route("/book", bookingHandlers("event"))
+  .route("/invite", bookingHandlers("invite"));
 
 // ── Vendor status page: /api/public/request/:requestId ───────────────────
 // Linked from every vendor email. The request id is a random UUID known only to the vendor

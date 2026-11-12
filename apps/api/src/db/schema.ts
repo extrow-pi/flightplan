@@ -9,6 +9,7 @@ import {
   FLOORPLAN_UNITS,
   PUBLIC_MAP_MODES,
   PAYMENT_METHODS,
+  WAITLIST_STATUSES,
   type BulkDiscountTier,
   type FloorplanGroup,
   type FloorplanItem,
@@ -309,6 +310,42 @@ export const vendorInvites = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("vendor_invites_event_idx").on(t.eventId)],
+);
+
+// Vendors waiting for a table at a full show, in the order they joined. The organizer offers a
+// spot by sending a personal invite link; any booking at the show marks the vendor as booked.
+export const waitlistEntries = pgTable(
+  "waitlist_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    vendorId: uuid("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
+    status: text("status", { enum: WAITLIST_STATUSES }).notNull().default("waiting"),
+    // Contact details as submitted (the vendor record may change later)
+    name: text("name").notNull(),
+    businessName: text("business_name").notNull().default(""),
+    email: text("email").notNull(),
+    phone: text("phone").notNull().default(""),
+    message: text("message").notNull().default(""),
+    tablesWanted: integer("tables_wanted").notNull().default(1),
+    // The personal booking link sent with the latest offer
+    inviteId: uuid("invite_id").references(() => vendorInvites.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    offeredAt: timestamp("offered_at", { withTimezone: true }),
+    // When they were booked or removed
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [
+    // A vendor is in line at most once per show
+    uniqueIndex("waitlist_entries_active_vendor_idx")
+      .on(t.eventId, t.vendorId)
+      .where(sql`${t.status} in ('waiting', 'offered')`),
+    index("waitlist_entries_event_idx").on(t.eventId, t.createdAt),
+  ],
 );
 
 // An organizer's public page at /o/:handle, listing their published shows. One per organizer.

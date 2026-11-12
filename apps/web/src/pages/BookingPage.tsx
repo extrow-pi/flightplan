@@ -9,11 +9,12 @@ import {
   type PriceQuote,
   type PublicBookingPage,
   type PublicBookingResult,
+  type PublicWaitlistResult,
   type VendorContactInput,
 } from "@flightplan/shared";
 import Logo from "../components/Logo";
 import { CheckIcon, ClockIcon, MapPinIcon } from "../components/Icons";
-import { ApiRequestError, useBookingQuote, usePublicBooking, useSubmitBooking, type BookingLinkKind } from "../lib/api";
+import { ApiRequestError, useBookingQuote, useJoinWaitlist, usePublicBooking, useSubmitBooking, type BookingLinkKind } from "../lib/api";
 import { formatDate, formatDateRange, formatMoney, formatTime, timeRange } from "../lib/format";
 
 // Vendors don't have accounts, so their details are remembered in this browser for next time
@@ -236,6 +237,8 @@ function BookingForm({
 
       {page.closedReason ? (
         <Notice title="Booking isn't available">{page.closedReason}</Notice>
+      ) : page.waitlistOpen ? (
+        <WaitlistForm token={token} page={page} />
       ) : (
         <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" noValidate>
           <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
@@ -495,6 +498,141 @@ function BookingForm({
         </form>
       )}
     </div>
+  );
+}
+
+/** Every table is taken: vendors can join the waitlist, and the organizer emails them if a spot opens. */
+function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage }) {
+  const join = useJoinWaitlist(token);
+  const max = page.event.maxTablesPerRequest;
+  const [details, setDetails] = useState(() => {
+    const remembered = loadRemembered();
+    return {
+      name: remembered.name || "",
+      businessName: remembered.businessName || "",
+      email: remembered.email || "",
+      phone: remembered.phone || "",
+      message: "",
+      tablesWanted: 1,
+    };
+  });
+  const [remember, setRemember] = useState(true);
+  const [joined, setJoined] = useState<PublicWaitlistResult | null>(null);
+  const fieldErrors = join.error instanceof ApiRequestError ? join.error.body.fieldErrors : undefined;
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    const { message, tablesWanted, ...contact } = details;
+    join.mutate(details, {
+      onSuccess: (result) => {
+        saveRemembered(remember ? contact : null);
+        setJoined(result);
+      },
+    });
+  }
+
+  if (joined) {
+    return (
+      <section className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-ink/5 sm:p-10" role="status">
+        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-coral to-gold text-2xl font-extrabold text-white shadow-lg">
+          #{joined.position}
+        </span>
+        <h2 className="mt-6 text-3xl font-extrabold">{joined.alreadyOn ? "You're already on the waitlist" : "You're on the waitlist!"}</h2>
+        <p className="mt-3 text-ink-soft">
+          You're <strong>#{joined.position}</strong> in line for <strong>{page.event.name}</strong>. If a table opens up, the organizer will
+          email you a personal link to book it.
+        </p>
+        {!joined.alreadyOn && <p className="mt-4 text-sm text-ink-soft">We've emailed you a copy of this.</p>}
+      </section>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]" noValidate>
+      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
+        <p className="inline-block rounded-full bg-[#fff4cc] px-3 py-1 text-sm font-bold text-gold-ink">Fully booked</p>
+        <h2 className="mt-3 text-2xl font-extrabold">Every table is taken</h2>
+        <p className="mt-2 text-ink-soft">
+          All {page.tables.length} tables at this show are booked. Join the waitlist, and if a table opens up the organizer will email you a
+          personal link to book it, in the order vendors joined.
+        </p>
+        <ul className="mt-4 space-y-2 text-sm text-ink-soft">
+          <li className="flex gap-2">
+            <CheckIcon className="mt-0.5 size-4 shrink-0 text-coral-ink" /> Free to join, and you don't pay anything unless you book.
+          </li>
+          <li className="flex gap-2">
+            <CheckIcon className="mt-0.5 size-4 shrink-0 text-coral-ink" /> You'll get an email with your place in line.
+          </li>
+        </ul>
+      </section>
+
+      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
+        <h2 className="text-lg font-extrabold">Join the waitlist</h2>
+        <div className="mt-4 space-y-3">
+          <Input label="Your name" id="name" autoComplete="name" value={details.name} error={fieldErrors?.name?.[0]} onChange={(v) => setDetails((d) => ({ ...d, name: v }))} />
+          <Input label="Business name" id="businessName" optional autoComplete="organization" value={details.businessName} onChange={(v) => setDetails((d) => ({ ...d, businessName: v }))} />
+          <Input label="Email" id="email" type="email" autoComplete="email" value={details.email} error={fieldErrors?.email?.[0]} onChange={(v) => setDetails((d) => ({ ...d, email: v }))} />
+          <Input label="Phone" id="phone" type="tel" optional autoComplete="tel" value={details.phone} onChange={(v) => setDetails((d) => ({ ...d, phone: v }))} />
+          {max > 1 && (
+            <div>
+              <label htmlFor="tablesWanted" className="text-sm font-bold">
+                How many tables would you like?
+              </label>
+              <select
+                id="tablesWanted"
+                className={inputClass}
+                value={details.tablesWanted}
+                onChange={(e) => setDetails((d) => ({ ...d, tablesWanted: Number(e.target.value) }))}
+              >
+                {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n} {n > 1 ? "tables" : "table"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label htmlFor="message" className="text-sm font-bold">
+              Note for the organizer <span className="font-normal text-ink-muted">(optional)</span>
+            </label>
+            <textarea
+              id="message"
+              rows={2}
+              className={`${inputClass} resize-y`}
+              placeholder="What you sell, any table size you need…"
+              value={details.message}
+              onChange={(e) => setDetails((d) => ({ ...d, message: e.target.value }))}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-ink-soft">
+            <input type="checkbox" className="size-4 accent-coral" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            Remember my details on this device
+          </label>
+        </div>
+
+        {join.error && !fieldErrors && (
+          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+            {join.error.message}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={join.isPending}
+          className="mt-5 w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3.5 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+        >
+          {join.isPending ? "Joining…" : "Join the waitlist"}
+        </button>
+        <p className="mt-3 text-center text-xs text-ink-muted">
+          Your details go to the show's organizer to manage the waitlist. See our{" "}
+          <Link to="/privacy" className="font-semibold text-coral-ink hover:underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+      </section>
+    </form>
   );
 }
 

@@ -186,6 +186,7 @@ export function EventTabs({ event }: { event: EventRecord }) {
           { to: `${base}/tables`, label: "Tables & vendors", end: false },
           { to: `${base}/floorplan`, label: "Floorplan", end: false },
           { to: `${base}/page`, label: "Show page", end: false },
+          { to: `${base}/waitlist`, label: "Waitlist", end: false },
         ]),
     { to: `${base}/team`, label: "Team", end: false },
   ];

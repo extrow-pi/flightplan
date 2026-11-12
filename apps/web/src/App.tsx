@@ -23,6 +23,7 @@ import EventFloorplanPage from "./pages/dashboard/EventFloorplanPage";
 import VisitorMapPage from "./pages/VisitorMapPage";
 import ShowPage from "./pages/ShowPage";
 import ShowPageTab from "./pages/dashboard/ShowPageTab";
+import WaitlistPage from "./pages/dashboard/WaitlistPage";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -40,6 +41,7 @@ const router = createBrowserRouter([
       { path: "events/:id/team", element: <TeamPage /> },
       { path: "events/:id/floorplan", element: <EventFloorplanPage /> },
       { path: "events/:id/page", element: <ShowPageTab /> },
+      { path: "events/:id/waitlist", element: <WaitlistPage /> },
       { path: "templates", element: <TemplatesPage /> },
       { path: "emails", element: <EmailLogPage /> },
       { path: "vendors", element: <VendorsPage /> },
