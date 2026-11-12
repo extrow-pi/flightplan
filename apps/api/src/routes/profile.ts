@@ -26,7 +26,7 @@ import { pageSettings } from "./showPages.js";
 // An organizer's public page (/o/:handle): a profile and their published shows. Organizers set it up
 // in Settings; it's hidden until they switch it on.
 
-const { bookings, eventDays, events, eventTables, organizerProfiles } = schema;
+const { bookings, eventDays, events, eventTables, organizerProfiles, floorplans } = schema;
 
 const TIME_ZONE = process.env.APP_TIMEZONE ?? "America/Vancouver";
 /** How many past shows the public page lists */
@@ -181,6 +181,11 @@ async function toPublicShows(handle: string, rows: (typeof events.$inferSelect)[
   const daysOf = new Map<string, EventDay[]>();
   for (const { eventId, ...d } of dayRows) daysOf.set(eventId, [...(daysOf.get(eventId) ?? []), d]);
   const tablesOf = new Map(tableCounts.map((t) => [t.eventId, t.n]));
+  const planned = new Set(
+    ids.length
+      ? (await db.select({ eventId: floorplans.eventId }).from(floorplans).where(inArray(floorplans.eventId, ids))).map((p) => p.eventId)
+      : [],
+  );
   const heldOf = new Map(heldCounts.map((h) => [h.eventId, h.n]));
 
   const now = today();
@@ -206,6 +211,8 @@ async function toPublicShows(handle: string, rows: (typeof events.$inferSelect)[
       tablePriceCents: e.tablePriceCents,
       tablePriceMaxCents: Math.max(e.tablePriceCents, ...e.tableTypes.map((t) => t.priceCents)),
       booking: upcoming && e.bookingOpen ? { url: `/book/${e.bookingToken}`, tablesLeft: Math.max(0, tablesLeft) } : null,
+      mapUrl: upcoming && e.publicMap !== "off" && planned.has(e.id) ? `/map/${e.id}` : null,
+      mapEventId: upcoming && e.publicMap !== "off" && planned.has(e.id) ? e.id : null,
       upcoming,
     };
     return show;

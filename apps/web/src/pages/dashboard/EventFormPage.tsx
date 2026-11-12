@@ -506,6 +506,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
           <TableTypesField
             types={form.types}
             error={errors.types}
+            planPath={event?.floorplan ? `${listPath}/${event.id}/floorplan` : null}
             onChange={(types) => {
               update("types", types);
               setErrors((e) => ({ ...e, types: undefined }));
@@ -900,8 +901,23 @@ function RowError({ message }: { message?: string }) {
   return message ? <p className="mt-1 px-1 text-sm font-semibold text-coral-ink">{message}</p> : null;
 }
 
-/** The kinds of table at the show, each with its count, price and optional label prefix. */
-function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?: string; onChange: (types: TypeRow[]) => void }) {
+/**
+ * The kinds of table at the show, each with its count, price and optional label prefix. With a
+ * floorplan (`planPath`), the plan's tables are the show's tables: counts come from the plan and each
+ * table's type is picked in the floorplan editor, so only names and prices are edited here.
+ */
+function TableTypesField({
+  types,
+  error,
+  planPath,
+  onChange,
+}: {
+  types: TypeRow[];
+  error?: string;
+  planPath?: string | null;
+  onChange: (types: TypeRow[]) => void;
+}) {
+  const planned = Boolean(planPath);
   const set = (key: number, patch: Partial<TypeRow>) => onChange(types.map((t) => (t.key === key ? { ...t, ...patch } : t)));
   // How the tables will be numbered: "6 ft table 1–20 · 8 ft table L1–L10"
   const labels = tableLabels(types.map((t) => ({ id: t.id, count: Math.max(0, toInt(t.count) || 0), prefix: t.prefix.trim() })));
@@ -913,12 +929,23 @@ function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?:
       return `${t.name.trim() || "Table"}: ${range}`;
     })
     .filter(Boolean);
-  const cell = "w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-base text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:outline-none";
+  const cell =
+    "w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-base text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:outline-none disabled:bg-cream-50 disabled:text-ink-soft";
 
   return (
     <div className="sm:col-span-2">
       <p className="text-sm font-bold">Vendor tables</p>
       <p className="mt-0.5 text-sm text-ink-soft">One row per kind of table, e.g. 6 ft and 8 ft tables at different prices. Prices are for the whole show.</p>
+      {planned && (
+        <p className="mt-2 rounded-xl bg-[#eef3fb] px-3 py-2 text-sm text-slate-deep">
+          This show has a floorplan, so its tables come from the plan: counts below are the plan's tables of each type. Set each
+          table's type in the{" "}
+          <Link to={planPath!} className="font-bold underline">
+            floorplan editor
+          </Link>
+          .
+        </p>
+      )}
       <div className="mt-3 hidden grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
         <span>Type</span>
         <span>Tables</span>
@@ -947,6 +974,8 @@ function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?:
               inputMode="numeric"
               min={0}
               value={t.count}
+              disabled={planned}
+              title={planned ? "Set by the floorplan" : undefined}
               onChange={(e) => set(t.key, { count: e.target.value })}
             />
             <div className="relative">
@@ -968,7 +997,9 @@ function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?:
               aria-label={`Table type ${i + 1}: label prefix (optional)`}
               placeholder="e.g. L"
               maxLength={4}
-              value={t.prefix}
+              value={planned ? "" : t.prefix}
+              disabled={planned}
+              title={planned ? "The floorplan labels its tables" : undefined}
               onChange={(e) => set(t.key, { prefix: e.target.value.toUpperCase() })}
             />
             <button
@@ -994,7 +1025,7 @@ function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?:
         {types.length < MAX_TABLE_TYPES && (
           <button
             type="button"
-            onClick={() => onChange([...types, typeRow({ id: crypto.randomUUID(), name: "", count: "", price: "", prefix: "" })])}
+            onClick={() => onChange([...types, typeRow({ id: crypto.randomUUID(), name: "", count: planned ? "0" : "", price: "", prefix: "" })])}
             className="inline-flex items-center gap-2 rounded-full border-2 border-dashed border-coral/40 px-4 py-2 text-sm font-bold text-coral-ink transition hover:border-coral hover:bg-peach/40"
           >
             + Add a table type
@@ -1003,11 +1034,11 @@ function TableTypesField({ types, error, onChange }: { types: TypeRow[]; error?:
         {labels.length > 0 && (
           <span className="text-sm text-ink-soft">
             {labels.length} {labels.length === 1 ? "table" : "tables"}
-            {types.length > 1 && `, numbered ${ranges.join(" · ")}`}
+            {planned ? " on the floorplan" : types.length > 1 && `, numbered ${ranges.join(" · ")}`}
           </span>
         )}
       </div>
-      {types.length > 1 && (
+      {types.length > 1 && !planned && (
         <p className="mt-2 text-xs text-ink-muted">
           Tables are numbered in this order. A prefix gives a type its own numbers (L1, L2…), so adding tables to an earlier type later
           doesn't renumber it.

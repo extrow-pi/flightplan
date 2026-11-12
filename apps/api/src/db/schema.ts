@@ -6,8 +6,12 @@ import {
   COLLABORATOR_ROLES,
   DISCOUNT_CODE_KINDS,
   EVENT_STATUSES,
+  FLOORPLAN_UNITS,
+  PUBLIC_MAP_MODES,
   PAYMENT_METHODS,
   type BulkDiscountTier,
+  type FloorplanGroup,
+  type FloorplanItem,
   type StoredShowPage,
   type TableType,
 } from "@flightplan/shared";
@@ -46,6 +50,8 @@ export const events = pgTable(
     // First day of the show (local date). Null for templates.
     startDate: date("start_date", { mode: "string" }),
     vendorTables: integer("vendor_tables").notNull().default(0),
+    // Who appears on the public visitor map: off, paid vendors only, or everyone holding a table
+    publicMap: text("public_map", { enum: PUBLIC_MAP_MODES }).notNull().default("off"),
     // Worked out from table_types on save: the lowest price (for "from $60") and the total count (vendor_tables)
     tablePriceCents: integer("table_price_cents").notNull().default(0),
     // Kinds of table (6 ft, 8 ft…) with their price, count and optional label prefix
@@ -110,6 +116,8 @@ export const eventTables = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     number: integer("number").notNull(),
     label: text("label").notNull(),
+    // The table on the event's floorplan this is (null when the event has no plan)
+    planItemId: text("plan_item_id"),
     // Which of the event's table types this is (events.table_types[].id)
     typeId: text("type_id").notNull().default("standard"),
   },
@@ -418,4 +426,31 @@ export const emailAttachments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("email_attachments_uploader_idx").on(t.uploadedBy)],
+);
+
+// Floorplans: a room's size and the tables, walls and landmarks in it, all in millimetres.
+// Library plans (event_id null) belong to an organizer and are reused as templates; a plan with an
+// event_id is that event's (or event template's) own copy.
+export const floorplans = pgTable(
+  "floorplans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizerId: text("organizer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    units: text("units", { enum: FLOORPLAN_UNITS }).notNull().default("ft"),
+    widthMm: integer("width_mm").notNull(),
+    depthMm: integer("depth_mm").notNull(),
+    items: jsonb("items").$type<FloorplanItem[]>().notNull().default([]),
+    // Table groups (islands, rows) that are numbered together
+    groups: jsonb("groups").$type<FloorplanGroup[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("floorplans_organizer_idx").on(t.organizerId), uniqueIndex("floorplans_event_idx").on(t.eventId)],
 );

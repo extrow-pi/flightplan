@@ -17,6 +17,10 @@ import VendorsPage from "./pages/dashboard/VendorsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import DiscountsPage from "./pages/dashboard/DiscountsPage";
 import OrganizerPage from "./pages/OrganizerPage";
+import FloorplansPage from "./pages/dashboard/FloorplansPage";
+import FloorplanEditorPage from "./pages/dashboard/FloorplanEditorPage";
+import EventFloorplanPage from "./pages/dashboard/EventFloorplanPage";
+import VisitorMapPage from "./pages/VisitorMapPage";
 import ShowPage from "./pages/ShowPage";
 import ShowPageTab from "./pages/dashboard/ShowPageTab";
 
@@ -34,15 +38,19 @@ const router = createBrowserRouter([
       { path: "events/:id", element: <EventFormPage /> },
       { path: "events/:id/tables", element: <TablesPage /> },
       { path: "events/:id/team", element: <TeamPage /> },
+      { path: "events/:id/floorplan", element: <EventFloorplanPage /> },
       { path: "events/:id/page", element: <ShowPageTab /> },
       { path: "templates", element: <TemplatesPage /> },
       { path: "emails", element: <EmailLogPage /> },
       { path: "vendors", element: <VendorsPage /> },
       { path: "discounts", element: <DiscountsPage /> },
+      { path: "floorplans", element: <FloorplansPage /> },
+      { path: "floorplans/:id", element: <FloorplanEditorPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "templates/new", element: <EventFormPage kind="template" /> },
       { path: "templates/:id", element: <EventFormPage kind="template" /> },
       { path: "templates/:id/team", element: <TeamPage /> },
+      { path: "templates/:id/floorplan", element: <EventFloorplanPage /> },
     ],
   },
   // Public vendor booking pages (no sign-in)
@@ -51,6 +59,8 @@ const router = createBrowserRouter([
   { path: "/booking/:requestId", element: <RequestStatusPage /> },
   // Organizer public pages (no sign-in)
   { path: "/o/:handle", element: <OrganizerPage /> },
+  // A show's public vendor map
+  { path: "/map/:eventId", element: <VisitorMapPage /> },
   { path: "/o/:handle/:slug", element: <ShowPage /> },
   // Accept an invitation to collaborate on an event (asks to sign in first)
   { path: "/collaborate/:token", element: <AcceptInvitePage /> },

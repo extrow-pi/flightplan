@@ -114,6 +114,29 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 
 **Vendors don't have accounts.** Each organizer has a vendor list keyed by email, so a vendor who books several shows with the same email is one vendor with several bookings. Booking forms never overwrite a vendor's saved details; each booking keeps its own copy of what was submitted. The booking page remembers a vendor's details in their browser (localStorage) for next time.
 
+### Floorplans (in development on `dev`)
+
+`/dashboard/floorplans` is the organizer's floorplan library: venue layouts designed once and reused.
+
+- **A plan** is one room: its width and depth, plus tables (rectangular or round, each with a label, size and rotation), walls, walkways (any length and width, drawn dashed and kept under everything else when added), shelves, and landmarks (entrance, exit, washrooms, stairs, elevator, stage, food & drink, info desk, ATM, first aid, storage, pillar, other).
+- **Units:** each plan shows feet or metres. Every length is stored as whole millimetres, so switching units never changes the plan.
+- **Editor:** an SVG canvas. Click to select, Shift+click for several; drag to move; drag the corner handle to resize and the top handle to rotate (15° steps, Shift for any angle); drag the floor to pan and scroll to zoom. Walls are drawn by dragging (Shift keeps them straight) and their ends can be dragged. **Row of tables** adds several tables at once, and **Renumber tables** labels them 1…N row by row. Things snap to 6 inches (or 10 cm) unless Snap is off. **Layer** buttons (to front, to back, forward, backward; Ctrl+] / Ctrl+[ with Shift for front/back) set which items sit on top; items are drawn in the plan's order, and forward/backward step past the next item the selection overlaps. Undo/redo, keyboard shortcuts (T, W, R, arrows, Ctrl+D/Z/S, Delete), and a warning before leaving with unsaved changes.
+- **Table groups:** select tables and **Group tables** (Ctrl+G) to make an island or row that's numbered together. Clicking a grouped table selects the whole group (Alt+click for one table), so it moves and rotates as one. A group can have a label prefix (A → A1…A10) that keeps it out of the main numbers. **Renumber tables** numbers each group as one block in reading order; **Renumber group** reorders just that group. Row of tables can create its tables as a group, and duplicating a whole group makes a new one.
+- **Rules:** table labels are unique per plan; up to 1,000 items and 100 groups; rooms 1–300 m on a side.
+
+**On events and event templates:** each has a **Floorplan** tab. A show can use a copy of a library plan, or start a plan with its current tables laid out in rows. The show's plan is its own copy: **Save to library** copies it back, **Use a library plan instead** replaces it, and **Remove floorplan** detaches it (the tables stay as numbered tables).
+
+- **The plan's tables are the show's bookable tables.** Saving the plan adds, renames and removes the show's tables to match, listed in label order. Tables are matched to the plan's tables by plan item, then by label, so a booking stays on its table when the plan is first added, when a table is relabelled, or when another library plan with the same label is used.
+- A table with an active booking can't be removed from the plan; saving says which table and why.
+- While a show has a plan, the Details tab's table count is locked to the plan.
+- New events from a template, and **Save as template**, copy the plan.
+
+**Maps:** one map viewer is shared by the three places plans are used. Drag to pan; pinch, Ctrl/⌘ + scroll or the +/− buttons to zoom (plain scrolling still scrolls the page); **Fit** shows the whole room. The map box takes the room's shape.
+
+- **Tables & vendors → Map** (shows with a plan): tables coloured by state (open, needs approval, awaiting payment, overdue, paid) with the vendor's name. Click an open table to assign it, or a booked one to jump to the vendor's card. Search and filters dim the other tables and zoom to the matches.
+- **Booking page:** vendors tap open tables on the map to pick them; taken tables are greyed out, and no vendor names are shown. The table chips stay as a fallback.
+- **Public visitor map** (`/map/:eventId`): set on the show's Floorplan tab: **Off** (default), **Paid vendors only**, or **Everyone with a table**. Only for published shows with a plan. Visitors search by vendor or table, and tap a vendor to highlight and zoom to their tables. Vendors are shown by business name (or name); no emails or phone numbers. Linked from the organizer's public page as **Vendor map**, and refreshes every minute.
+
 ### Public organizer page
 
 Each organizer can have a public page at `/o/<handle>`, set up in **Settings** and hidden until switched on.
@@ -302,6 +325,14 @@ If someone signs in with Google using the same email as an existing email/passwo
 | POST | `/api/bookings/:id/keep` | Keep an overdue request: `{ "extendDays": 7 }` or `{ "extendDays": null }` for no deadline |
 | GET | `/api/alerts` | Overdue payments and requests awaiting approval |
 | GET / POST | `/api/discount-codes` | The organizer's codes (with uses and status) / create one |
+| GET / POST | `/api/floorplans` | The organizer's floorplan library / create a plan |
+| GET / PUT / DELETE | `/api/floorplans/:id` | One library plan: read, save, delete |
+| POST | `/api/floorplans/:id/duplicate` | Copy a library plan |
+| GET / PUT / DELETE | `/api/events/:id/floorplan` | An event's (or template's) own plan: read, save (syncs the event's tables), remove |
+| POST | `/api/events/:id/floorplan/from-library` | Use a copy of a library plan: `{ floorplanId }` |
+| POST | `/api/events/:id/floorplan/to-library` | Copy the event's plan into the library: `{ name }` |
+| PUT | `/api/events/:id/public-map` | Who's on the public visitor map: `{ publicMap: "off" | "paid" | "all" }` |
+| GET | `/api/public/map/:eventId` | Public: the show's plan and where each vendor is (published shows with the map turned on) |
 | PUT / DELETE | `/api/discount-codes/:id` | Update or delete a code (past bookings keep their discount) |
 | GET | `/api/discount-codes/:id/uses` | Requests that used a code |
 | POST | `/api/public/book/:token/quote` · `/api/public/invite/:token/quote` | Price preview: `{ tableCount, discountCode?, email? }` gives the subtotal, discount, total, and any code error (no sign-in) |

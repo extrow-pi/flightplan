@@ -10,6 +10,7 @@ import {
   type BookingSource,
   type PublicBookingPage,
   type PublicBookingResult,
+  type PublicEventMap,
   type PublicRequestStatus,
 } from "@flightplan/shared";
 import { createBookings, DiscountCodeError, findOrCreateVendor, requestTotals, TableTakenError } from "../bookings.js";
@@ -18,7 +19,7 @@ import { db, schema } from "../db/index.js";
 import { notifyRequestCreated } from "../email/notifications.js";
 import { uploadUrl } from "../uploads.js";
 
-const { bookings, eventDays, events, eventTables, user, vendorInvites } = schema;
+const { bookings, eventDays, events, eventTables, floorplans, organizerProfiles, user, vendorInvites } = schema;
 
 // Tokens are 32 hex characters
 const tokenSchema = z.string().regex(/^[0-9a-f]{32}$/);
@@ -81,7 +82,7 @@ async function loadPage(kind: "event" | "invite", token: string) {
       .where(eq(eventDays.eventId, event.id))
       .orderBy(asc(eventDays.dayOffset)),
     db
-      .select({ id: eventTables.id, label: eventTables.label, typeId: eventTables.typeId })
+      .select({ id: eventTables.id, label: eventTables.label, typeId: eventTables.typeId, planItemId: eventTables.planItemId })
       .from(eventTables)
       .where(eq(eventTables.eventId, event.id))
       .orderBy(asc(eventTables.number)),
@@ -91,6 +92,10 @@ async function loadPage(kind: "event" | "invite", token: string) {
       .where(and(eq(bookings.eventId, event.id), inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES]))),
     eventAcceptsCodes(event.organizerId, event.id),
   ]);
+  const [plan] = await db
+    .select({ units: floorplans.units, widthMm: floorplans.widthMm, depthMm: floorplans.depthMm, items: floorplans.items })
+    .from(floorplans)
+    .where(eq(floorplans.eventId, event.id));
 
   const endDate = event.startDate && days.length ? addDays(event.startDate, Math.max(...days.map((d) => d.dayOffset))) : null;
   const heldIds = new Set(held.map((h) => h.tableId));
@@ -113,7 +118,8 @@ async function loadPage(kind: "event" | "invite", token: string) {
       bulkDiscounts: event.bulkDiscounts,
       acceptsCodes,
     },
-    tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id), typeId: t.typeId })),
+    tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id), typeId: t.typeId, planItemId: t.planItemId })),
+    floorplan: plan ?? null,
     invite: invite ? { name: invite.name, email: invite.email, used: invite.bookingId !== null } : null,
     closedReason: closedReason(event, endDate, invite),
   };
@@ -278,3 +284,59 @@ const requestStatusRoutes = new Hono().get("/:requestId", async (c) => {
 });
 
 publicRoutes.route("/request", requestStatusRoutes);
+
+// The public visitor map: where each vendor is at a published show. Only when the organizer has
+// turned it on (paid vendors only, or everyone holding a table) and the show has a floorplan.
+publicRoutes.get("/map/:eventId", async (c) => {
+  const notFound = { error: "This map isn't available" } satisfies ApiError;
+  const id = c.req.param("eventId");
+  if (!z.uuid().safeParse(id).success) return c.json(notFound, 404);
+  const [row] = await db
+    .select({ event: events, plan: floorplans, organizerName: user.name, handle: organizerProfiles.handle, profilePublished: organizerProfiles.published })
+    .from(events)
+    .innerJoin(floorplans, eq(floorplans.eventId, events.id))
+    .innerJoin(user, eq(user.id, events.organizerId))
+    .leftJoin(organizerProfiles, eq(organizerProfiles.userId, events.organizerId))
+    .where(eq(events.id, id));
+  if (!row || row.event.status !== "published" || row.event.publicMap === "off" || !row.event.startDate) return c.json(notFound, 404);
+  const { event, plan } = row;
+
+  const statuses = event.publicMap === "paid" ? (["paid"] as const) : ACTIVE_BOOKING_STATUSES;
+  const [days, held] = await Promise.all([
+    db
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .from(eventDays)
+      .where(eq(eventDays.eventId, event.id))
+      .orderBy(asc(eventDays.dayOffset)),
+    db
+      .select({ vendorId: bookings.vendorId, name: bookings.name, businessName: bookings.businessName, label: eventTables.label, planItemId: eventTables.planItemId })
+      .from(bookings)
+      .innerJoin(eventTables, eq(eventTables.id, bookings.tableId))
+      .where(and(eq(bookings.eventId, event.id), inArray(bookings.status, [...statuses])))
+      .orderBy(asc(eventTables.number)),
+  ]);
+
+  // One entry per vendor, shown by business name when they have one
+  const byVendor = new Map<string, PublicEventMap["vendors"][number]>();
+  for (const h of held) {
+    if (!h.planItemId) continue;
+    const v = byVendor.get(h.vendorId) ?? { name: h.businessName || h.name, tables: [] };
+    v.tables.push({ planItemId: h.planItemId, label: h.label });
+    byVendor.set(h.vendorId, v);
+  }
+  const body: PublicEventMap = {
+    event: {
+      name: event.name,
+      startDate: event.startDate!,
+      days,
+      venueName: event.venueName,
+      address: event.address,
+      city: event.city,
+      organizerName: row.organizerName,
+      organizerUrl: row.handle && row.profilePublished ? `/o/${row.handle}` : null,
+    },
+    floorplan: { units: plan.units, widthMm: plan.widthMm, depthMm: plan.depthMm, items: plan.items },
+    vendors: [...byVendor.values()].sort((a, b) => a.name.localeCompare(b.name)),
+  };
+  return c.json(body);
+});
