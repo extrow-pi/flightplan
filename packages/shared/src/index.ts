@@ -796,6 +796,8 @@ export type PublicBookingPage = {
   invite: { name: string; email: string; used: boolean } | null;
   /** Why booking isn't possible right now, if it isn't */
   closedReason: string | null;
+  /** Every table is taken, so vendors can join the waitlist instead (public links only) */
+  waitlistOpen: boolean;
 };
 
 export type PublicBookingResult = {
@@ -839,6 +841,60 @@ export type PublicRequestStatus = {
   discountCents: number;
   totalCents: number;
   discountLabel: string;
+};
+
+// ── Waitlist (vendors waiting for a table at a full show) ───────────────────
+
+// waiting: in line · offered: sent a personal booking link · booked: got a table at the show
+// removed: taken off the list by the organizer
+export const WAITLIST_STATUSES = ["waiting", "offered", "booked", "removed"] as const;
+export type WaitlistStatus = (typeof WAITLIST_STATUSES)[number];
+
+/** Statuses still in line for a table */
+export const ACTIVE_WAITLIST_STATUSES = ["waiting", "offered"] as const satisfies readonly WaitlistStatus[];
+
+/** A vendor joining a full show's waitlist from its public booking link. */
+export const joinWaitlistSchema = vendorContactSchema.extend({
+  tablesWanted: z.number().int().min(1).max(MAX_TABLES_PER_REQUEST).optional().default(1),
+  message: z.string().trim().max(1000).optional().default(""),
+});
+export type JoinWaitlistInput = z.input<typeof joinWaitlistSchema>;
+
+export type PublicWaitlistResult = {
+  /** Place in line, 1 = next */
+  position: number;
+  /** They were already on the list (nothing changed) */
+  alreadyOn: boolean;
+};
+
+export type WaitlistEntry = {
+  id: string;
+  vendorId: string;
+  name: string;
+  businessName: string;
+  email: string;
+  phone: string;
+  message: string;
+  tablesWanted: number;
+  status: WaitlistStatus;
+  /** Place in line among waiting and offered vendors; null once booked or removed */
+  position: number | null;
+  /** On the owner's ban list */
+  banned: boolean;
+  createdAt: string;
+  offeredAt: string | null;
+  /** Offered, but the booking link was cancelled since (e.g. from Tables & vendors), so it can be offered again */
+  offerCancelled: boolean;
+  closedAt: string | null;
+};
+
+/** Everything the Waitlist tab needs for one event. */
+export type EventWaitlistResponse = {
+  /** In line (oldest first), then booked and removed (newest first) */
+  entries: WaitlistEntry[];
+  /** Tables with no active booking right now */
+  openTables: number;
+  totalTables: number;
 };
 
 // ── Email log ───────────────────────────────────────────────────────────────

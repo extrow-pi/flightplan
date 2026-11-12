@@ -5,7 +5,7 @@ import { requestTotals } from "../bookings.js";
 import { enqueueEmails, type OutgoingEmail } from "./outbox.js";
 import { button, details, esc, layout, note, p, type EmailContent } from "./templates.js";
 
-const { bookings, eventCollaborators, eventDays, events, eventTables, user, vendors } = schema;
+const { bookings, eventCollaborators, eventDays, events, eventTables, user, vendors, waitlistEntries } = schema;
 
 // Links in emails point at the web app
 const APP_URL = (process.env.APP_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:5173").replace(/\/$/, "");
@@ -567,6 +567,124 @@ export async function sendVendorInvites(args: {
     );
   } catch (err) {
     console.error(`Couldn't queue vendor invites for event ${event.id}:`, err);
+  }
+}
+
+// ── Waitlist ─────────────────────────────────────────────────────────────
+
+/** A waitlist entry with its show, the organizer and the team, for waitlist emails. */
+async function loadWaitlistEntry(entryId: string) {
+  const [entry] = await db.select().from(waitlistEntries).where(eq(waitlistEntries.id, entryId));
+  if (!entry) return null;
+  const [event] = await db.select().from(events).where(eq(events.id, entry.eventId));
+  const [organizer] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, event.organizerId));
+  const collaborators = await db
+    .select({ email: user.email })
+    .from(eventCollaborators)
+    .innerJoin(user, eq(user.id, eventCollaborators.userId))
+    .where(eq(eventCollaborators.eventId, event.id))
+    .orderBy(asc(eventCollaborators.createdAt));
+  const days = await db
+    .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
+    .from(eventDays)
+    .where(eq(eventDays.eventId, event.id))
+    .orderBy(asc(eventDays.dayOffset));
+  return { entry, event, organizer, team: [organizer.email, ...collaborators.map((c) => c.email)], days };
+}
+
+const showRows = (w: NonNullable<Awaited<ReturnType<typeof loadWaitlistEntry>>>): [string, string][] => [
+  ["Show", w.event.name],
+  ...scheduleRows(w.event.startDate, w.days),
+  ["Where", venueLine(w.event)],
+];
+
+const tablesCount = (n: number) => `${n} ${n > 1 ? "tables" : "table"}`;
+
+/** A vendor joined a full show's waitlist: confirm it to them, and tell the organizer's team. */
+export async function notifyWaitlistJoined(entryId: string, position: number) {
+  try {
+    const w = await loadWaitlistEntry(entryId);
+    if (!w) return;
+    const { entry, event, organizer } = w;
+    const vendor = entry.businessName || entry.name;
+    const out: OutgoingEmail[] = [
+      {
+        kind: "vendor.waitlist_joined",
+        to: entry.email,
+        replyTo: organizer.email,
+        organizerId: event.organizerId,
+        eventId: event.id,
+        ...layout(
+          `You're on the waitlist for ${event.name}`,
+          "You're on the waitlist",
+          [
+            p(
+              `Hi ${firstName(entry.name)}, <strong>${esc(event.name)}</strong> is full right now, so you're on the waitlist for ${esc(tablesCount(entry.tablesWanted))}. You're <strong>#${position}</strong> in line.`,
+            ),
+            details(showRows(w)),
+            p(`If a table opens up, ${esc(organizer.name)} will email you a personal link to book it. You don't need to do anything until then.`),
+          ],
+          `You're receiving this because you joined the waitlist for ${event.name}. Reply to this email to contact the organizer, ${organizer.name}.`,
+        ),
+      },
+      ...w.team.map((to) => ({
+        kind: "organizer.waitlist_joined",
+        to,
+        replyTo: entry.email,
+        organizerId: event.organizerId,
+        eventId: event.id,
+        ...layout(
+          `Waitlist: ${vendor} (${event.name})`,
+          "A vendor joined the waitlist",
+          [
+            p(`${esc(entry.name)} joined the waitlist for <strong>${esc(event.name)}</strong> and is #${position} in line.`),
+            details([
+              ["Vendor", entry.businessName ? `${entry.name} · ${entry.businessName}` : entry.name],
+              ["Email", entry.email],
+              ...(entry.phone ? ([["Phone", entry.phone]] as [string, string][]) : []),
+              ["Wants", tablesCount(entry.tablesWanted)],
+              ...(entry.message ? ([["Note", entry.message]] as [string, string][]) : []),
+            ]),
+            button("Open the waitlist", `${APP_URL}/dashboard/events/${event.id}/waitlist`),
+          ],
+          `You're receiving this because you organize ${event.name} on Flightplan. Reply to this email to contact the vendor.`,
+        ),
+      })),
+    ];
+    await enqueueEmails(out);
+  } catch (err) {
+    console.error(`Couldn't queue waitlist emails for entry ${entryId}:`, err);
+  }
+}
+
+/** The organizer offered a waitlisted vendor a table: email them their personal booking link. */
+export async function sendWaitlistOffer(entryId: string, inviteToken: string, sender: { name: string; email: string }) {
+  try {
+    const w = await loadWaitlistEntry(entryId);
+    if (!w) return;
+    const { entry, event } = w;
+    await enqueueEmails([
+      {
+        kind: "vendor.waitlist_offer",
+        to: entry.email,
+        replyTo: sender.email,
+        organizerId: event.organizerId,
+        eventId: event.id,
+        ...layout(
+          `A table opened up at ${event.name}`,
+          "A table opened up for you",
+          [
+            p(`Hi ${firstName(entry.name)}, good news: a spot opened up at <strong>${esc(event.name)}</strong>, and ${esc(sender.name)} is offering it to you from the waitlist.`),
+            details(showRows(w)),
+            button("Pick your table", `${APP_URL}/invite/${inviteToken}`),
+            p("This link is just for you and can be used once. Tables go fast, so please book soon if you'd like it."),
+          ],
+          `You're receiving this because you joined the waitlist for ${event.name}. Reply to this email to contact ${sender.name}.`,
+        ),
+      },
+    ]);
+  } catch (err) {
+    console.error(`Couldn't queue waitlist offer for entry ${entryId}:`, err);
   }
 }
 

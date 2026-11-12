@@ -49,6 +49,9 @@ import type {
   VendorMessageResult,
   VendorImportResult,
   VendorBookingInput,
+  EventWaitlistResponse,
+  JoinWaitlistInput,
+  PublicWaitlistResult,
 } from "@flightplan/shared";
 
 export class ApiRequestError extends Error {
@@ -638,6 +641,41 @@ export function useSubmitBooking(kind: BookingLinkKind, token: string) {
       request<PublicBookingResult>(`/public/${kind}/${token}`, { method: "POST", body: input }),
     // Refresh availability either way (e.g. someone else took the table)
     onSettled: () => qc.invalidateQueries({ queryKey: ["public", kind, token] }),
+  });
+}
+
+/** Join a full show's waitlist from its public booking link. */
+export function useJoinWaitlist(token: string) {
+  return useMutation({
+    mutationFn: (input: JoinWaitlistInput) => request<PublicWaitlistResult>(`/public/book/${token}/waitlist`, { method: "POST", body: input }),
+  });
+}
+
+// ── Waitlist (organizer) ─────────────────────────────────────────────────
+
+const waitlistKey = (eventId: string) => ["events", eventId, "waitlist"] as const;
+
+export function useEventWaitlist(eventId: string | undefined) {
+  return useQuery({
+    queryKey: waitlistKey(eventId ?? ""),
+    queryFn: () => request<EventWaitlistResponse>(`/events/${eventId}/waitlist`),
+    enabled: Boolean(eventId),
+  });
+}
+
+export type WaitlistAction = "offer" | "withdraw" | "remove";
+
+/** Offer a table (emails a booking link), withdraw an offer, or take someone off the waitlist. */
+export function useWaitlistAction(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ entryId, action }: { entryId: string; action: WaitlistAction }) =>
+      action === "remove"
+        ? request<void>(`/events/${eventId}/waitlist/${entryId}`, { method: "DELETE" })
+        : request<void>(`/events/${eventId}/waitlist/${entryId}/${action}`, { method: "POST" }),
+    // Offers create invite links, which show on Tables & vendors too
+    onSettled: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: waitlistKey(eventId) }), qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) })]),
   });
 }
 
