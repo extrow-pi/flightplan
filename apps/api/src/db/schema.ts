@@ -7,9 +7,13 @@ import {
   DISCOUNT_CODE_KINDS,
   EVENT_STATUSES,
   FLOORPLAN_UNITS,
+  PUBLIC_MAP_MODES,
   PAYMENT_METHODS,
   type BulkDiscountTier,
+  type FloorplanGroup,
   type FloorplanItem,
+  type StoredShowPage,
+  type TableType,
 } from "@flightplan/shared";
 import { user } from "./auth-schema.js";
 
@@ -46,7 +50,12 @@ export const events = pgTable(
     // First day of the show (local date). Null for templates.
     startDate: date("start_date", { mode: "string" }),
     vendorTables: integer("vendor_tables").notNull().default(0),
+    // Who appears on the public visitor map: off, paid vendors only, or everyone holding a table
+    publicMap: text("public_map", { enum: PUBLIC_MAP_MODES }).notNull().default("off"),
+    // Worked out from table_types on save: the lowest price (for "from $60") and the total count (vendor_tables)
     tablePriceCents: integer("table_price_cents").notNull().default(0),
+    // Kinds of table (6 ft, 8 ft…) with their price, count and optional label prefix
+    tableTypes: jsonb("table_types").$type<TableType[]>().notNull().default([]),
     ticketPriceCents: integer("ticket_price_cents").notNull().default(0),
     status: text("status", { enum: EVENT_STATUSES }).notNull().default("draft"),
     // Vendor booking settings
@@ -58,6 +67,11 @@ export const events = pgTable(
     maxTablesPerRequest: integer("max_tables_per_request").notNull().default(4),
     // Multi-table discount tiers, validated by bulkDiscountTierSchema
     bulkDiscounts: jsonb("bulk_discounts").$type<BulkDiscountTier[]>().notNull().default([]),
+    // The show's public page (/o/:handle/:slug): its address (null = the event id), cover image and
+    // the organizer's content and ticket widget. Settings are validated by showPageSchema.
+    pageSlug: text("page_slug"),
+    coverFile: text("cover_file"),
+    pageSettings: jsonb("page_settings").$type<StoredShowPage>().notNull().default({}),
     // Secret for the public booking link /book/:token
     bookingToken: text("booking_token")
       .notNull()
@@ -69,7 +83,10 @@ export const events = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [index("events_organizer_start_date_idx").on(t.organizerId, t.startDate)],
+  (t) => [
+    index("events_organizer_start_date_idx").on(t.organizerId, t.startDate),
+    uniqueIndex("events_organizer_page_slug_idx").on(t.organizerId, t.pageSlug),
+  ],
 );
 
 // One row per show day. The date is events.start_date + day_offset; times are local wall-clock.
@@ -81,6 +98,8 @@ export const eventDays = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
     dayOffset: integer("day_offset").notNull(),
+    // When vendors can start setting up, "HH:MM" ("" = not set)
+    setupTime: text("setup_time").notNull().default(""),
     startTime: text("start_time").notNull(),
     endTime: text("end_time").notNull(),
   },
@@ -97,6 +116,10 @@ export const eventTables = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     number: integer("number").notNull(),
     label: text("label").notNull(),
+    // The table on the event's floorplan this is (null when the event has no plan)
+    planItemId: text("plan_item_id"),
+    // Which of the event's table types this is (events.table_types[].id)
+    typeId: text("type_id").notNull().default("standard"),
   },
   (t) => [uniqueIndex("event_tables_event_number_idx").on(t.eventId, t.number)],
 );
@@ -421,6 +444,8 @@ export const floorplans = pgTable(
     widthMm: integer("width_mm").notNull(),
     depthMm: integer("depth_mm").notNull(),
     items: jsonb("items").$type<FloorplanItem[]>().notNull().default([]),
+    // Table groups (islands, rows) that are numbered together
+    groups: jsonb("groups").$type<FloorplanGroup[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

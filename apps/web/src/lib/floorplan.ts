@@ -1,5 +1,6 @@
 import {
   MM_PER_UNIT,
+  type FloorplanGroup,
   type FloorplanItem,
   type FloorplanLandmark,
   type FloorplanTable,
@@ -64,14 +65,82 @@ export function nextTableLabel(items: FloorplanItem[]) {
   return String(n);
 }
 
-/** Number every table 1…N, in reading order: rows from the top, then left to right. */
-export function renumberTables(items: FloorplanItem[]): FloorplanItem[] {
+/**
+ * Sort things in reading order: rows from the top, then left to right. Things whose tops are within
+ * `tolerance` of a row's first thing count as part of that row.
+ */
+function readingOrder<T>(list: T[], at: (t: T) => { x: number; y: number }, tolerance: number): T[] {
+  const byY = [...list].sort((p, q) => at(p).y - at(q).y);
+  const rows: T[][] = [];
+  for (const t of byY) {
+    const row = rows.at(-1);
+    if (row && at(t).y - at(row[0]).y <= tolerance) row.push(t);
+    else rows.push([t]);
+  }
+  return rows.flatMap((row) => row.sort((p, q) => at(p).x - at(q).x));
+}
+
+/** Natural order for labels: 2 before 10, A2 before A10 */
+const byLabel = (p: string, q: string) => p.localeCompare(q, undefined, { numeric: true, sensitivity: "base" });
+
+/**
+ * Number the tables in reading order. Each table group counts as one block, so an island's tables are
+ * numbered together; a group with a prefix is labelled prefix + 1…N (A1–A10) and doesn't use up the
+ * main numbers. With `onlyGroup`, just that group is renumbered: a prefixed group gets prefix + 1…N,
+ * and other groups shuffle the numbers they already have into reading order.
+ */
+export function renumberTables(items: FloorplanItem[], groups: FloorplanGroup[] = [], onlyGroup?: string): FloorplanItem[] {
   const tables = items.filter(isTable);
-  // Tables whose centres are within half a table's depth of each other count as one row
-  const rowTolerance = Math.max(300, Math.min(...tables.map((t) => t.h), 1000) / 2);
-  const sorted = [...tables].sort((a, b) => (Math.abs(a.y - b.y) <= rowTolerance ? a.x - b.x : a.y - b.y));
-  const labels = new Map(sorted.map((t, i) => [t.id, String(i + 1)]));
-  return items.map((i) => (isTable(i) ? { ...i, label: labels.get(i.id)! } : i));
+  if (!tables.length) return items;
+  const groupById = new Map(groups.map((g) => [g.id, g]));
+  // Half a typical table's depth decides what counts as the same row
+  const tolerance = Math.max(300, Math.min(...tables.map((t) => t.h), 1000) / 2);
+  const inside = (ts: FloorplanTable[]) => readingOrder(ts, (t) => t, tolerance);
+  const labels = new Map<string, string>();
+
+  if (onlyGroup) {
+    const members = inside(tables.filter((t) => t.group === onlyGroup));
+    const prefix = groupById.get(onlyGroup)?.prefix;
+    const reuse = [...members.map((t) => t.label)].sort(byLabel);
+    members.forEach((t, n) => labels.set(t.id, prefix ? `${prefix}${n + 1}` : reuse[n]));
+  } else {
+    // Blocks: each group (placed by its top-left corner) and each table on its own
+    type Block = { tables: FloorplanTable[]; group?: FloorplanGroup; x: number; y: number };
+    const blocks: Block[] = [];
+    const grouped = new Map<string, FloorplanTable[]>();
+    for (const t of tables) {
+      if (t.group && groupById.has(t.group)) grouped.set(t.group, [...(grouped.get(t.group) ?? []), t]);
+      else blocks.push({ tables: [t], x: t.x, y: t.y });
+    }
+    for (const [id, ts] of grouped) {
+      const bounds = ts.map(itemBounds);
+      const minX = Math.min(...bounds.map((b) => b.minX)), minY = Math.min(...bounds.map((b) => b.minY));
+      const first = inside(ts)[0];
+      // Use the first table's centre so a group lines up with single tables in the same row
+      blocks.push({ tables: ts, group: groupById.get(id), x: Math.max(minX, first.x - first.w / 2), y: Math.max(minY, first.y - first.h / 2) + first.h / 2 });
+    }
+    let next = 1;
+    for (const block of readingOrder(blocks, (b) => b, tolerance)) {
+      const prefix = block.group?.prefix;
+      inside(block.tables).forEach((t, n) => labels.set(t.id, prefix ? `${prefix}${n + 1}` : String(next++)));
+    }
+  }
+  return items.map((i) => (isTable(i) && labels.has(i.id) ? { ...i, label: labels.get(i.id)! } : i));
+}
+
+/** Drop groups that no longer have any tables. */
+export function tidyGroups(items: FloorplanItem[], groups: FloorplanGroup[]) {
+  const used = new Set(items.filter(isTable).map((t) => t.group));
+  return groups.filter((g) => used.has(g.id));
+}
+
+/** "Group A", "Group B"… the first name not taken */
+export function nextGroupName(groups: FloorplanGroup[]) {
+  const taken = new Set(groups.map((g) => g.name.toLowerCase()));
+  for (let n = 0; ; n++) {
+    const letter = n < 26 ? String.fromCharCode(65 + n) : `${String.fromCharCode(65 + (n % 26))}${Math.floor(n / 26)}`;
+    if (!taken.has(`group ${letter}`.toLowerCase())) return `Group ${letter}`;
+  }
 }
 
 /** Axis-aligned box around an item (rotation included), for fitting the view and placing things. */

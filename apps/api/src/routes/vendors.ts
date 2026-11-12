@@ -15,6 +15,7 @@ import {
 } from "@flightplan/shared";
 import { toVendor } from "../bookings.js";
 import { db, schema } from "../db/index.js";
+import { isUniqueViolation } from "../db/errors.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { importVendors } from "../vendorImport.js";
 
@@ -32,10 +33,6 @@ function invalid(error: z.ZodError) {
 }
 
 /** Postgres unique-constraint violation (drizzle wraps the driver error in `cause`) */
-const isUniqueViolation = (err: unknown) => {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e?.code === "23505" || e?.cause?.code === "23505";
-};
 
 async function ownVendor(id: string, organizerId: string) {
   if (!idSchema.safeParse(id).success) return null;

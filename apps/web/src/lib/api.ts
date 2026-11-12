@@ -3,6 +3,8 @@ import type {
   AddEventVendorInput,
   ApiError,
   Floorplan,
+  PublicEventMap,
+  PublicMapMode,
   FloorplanInput,
   AssignTableInput,
   Booking,
@@ -28,6 +30,9 @@ import type {
   OrganizerProfileInput,
   PaymentMethod,
   PublicOrganizerPage,
+  PublicShowPage,
+  ShowPageInput,
+  ShowPageResponse,
   EmailLogEntry,
   EventInput,
   EventRecord,
@@ -370,6 +375,66 @@ export function usePublicOrganizer(handle: string | undefined) {
     queryKey: ["public", "organizer", handle],
     queryFn: () => request<PublicOrganizerPage>(`/public/organizers/${handle}`),
     enabled: Boolean(handle),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+  });
+}
+
+// ── Show pages (/o/:handle/:slug) ────────────────────────────────────────
+
+const showPageKey = (eventId: string) => ["events", eventId, "page"] as const;
+
+/** A show's public page settings, for its Show page tab */
+export function useShowPage(eventId: string | undefined) {
+  return useQuery({
+    queryKey: showPageKey(eventId ?? ""),
+    queryFn: () => request<ShowPageResponse>(`/events/${eventId}/page`),
+    enabled: Boolean(eventId),
+  });
+}
+
+export function useSaveShowPage(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ShowPageInput) => request<ShowPageResponse>(`/events/${eventId}/page`, { method: "PUT", body: input }),
+    onSuccess: (page) => qc.setQueryData(showPageKey(eventId), page),
+  });
+}
+
+export function useShowCover(eventId: string) {
+  const qc = useQueryClient();
+  const onSuccess = (page: ShowPageResponse) => qc.setQueryData(showPageKey(eventId), page);
+  return {
+    upload: useMutation({
+      mutationFn: (file: File) => {
+        const form = new FormData();
+        form.append("file", file);
+        return request<ShowPageResponse>(`/events/${eventId}/page/cover`, { method: "POST", body: form });
+      },
+      onSuccess,
+    }),
+    remove: useMutation({
+      mutationFn: () => request<ShowPageResponse>(`/events/${eventId}/page/cover`, { method: "DELETE" }),
+      onSuccess,
+    }),
+  };
+}
+
+/** Upload a flyer, gallery photo or sponsor logo; the page uses it once it's saved. */
+export function useUploadPageImage(eventId: string) {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<{ file: string; url: string }>(`/events/${eventId}/page/images`, { method: "POST", body: form });
+    },
+  });
+}
+
+export function usePublicShow(handle: string | undefined, slug: string | undefined) {
+  return useQuery({
+    queryKey: ["public", "organizer", handle, "show", slug],
+    queryFn: () => request<PublicShowPage>(`/public/organizers/${handle}/shows/${slug}`),
+    enabled: Boolean(handle && slug),
     retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
   });
 }
@@ -739,5 +804,84 @@ export function useDeleteFloorplan() {
   return useMutation({
     mutationFn: (id: string) => request(`/floorplans/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
+  });
+}
+
+// ── An event's own floorplan ─────────────────────────────────────────────
+
+const eventPlanKey = (eventId: string) => ["events", eventId, "floorplan"] as const;
+
+export function useEventFloorplan(eventId: string | undefined) {
+  return useQuery({
+    queryKey: eventPlanKey(eventId ?? ""),
+    queryFn: () => request<{ floorplan: Floorplan | null }>(`/events/${eventId}/floorplan`).then((r) => r.floorplan),
+    enabled: Boolean(eventId),
+  });
+}
+
+/** After a plan change: the plan, the event (its table count and plan summary) and its tables */
+function planChanged(qc: ReturnType<typeof useQueryClient>, eventId: string, plan: Floorplan | null) {
+  qc.setQueryData(eventPlanKey(eventId), plan);
+  void qc.invalidateQueries({ queryKey: eventKeys.detail(eventId), exact: true });
+  void qc.invalidateQueries({ queryKey: eventKeys.all, exact: true });
+  void qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) });
+}
+
+export function useSaveEventFloorplan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: FloorplanInput) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan`, { method: "PUT", body: input }).then((r) => r.floorplan),
+    onSuccess: (plan) => planChanged(qc, eventId, plan),
+  });
+}
+
+export function useUseLibraryPlan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (floorplanId: string) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan/from-library`, { method: "POST", body: { floorplanId } }).then((r) => r.floorplan),
+    onSuccess: (plan) => planChanged(qc, eventId, plan),
+  });
+}
+
+export function useSavePlanToLibrary(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      request<{ floorplan: Floorplan }>(`/events/${eventId}/floorplan/to-library`, { method: "POST", body: { name } }).then((r) => r.floorplan),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list, exact: true }),
+  });
+}
+
+export function useRemoveEventFloorplan(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request(`/events/${eventId}/floorplan`, { method: "DELETE" }),
+    onSuccess: () => planChanged(qc, eventId, null),
+  });
+}
+
+/** The public vendor map for a show (no sign-in) */
+export function usePublicEventMap(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["public", "map", eventId],
+    queryFn: () => request<PublicEventMap>(`/public/map/${eventId}`),
+    enabled: Boolean(eventId),
+    retry: (count, err) => !(err instanceof ApiRequestError && err.status === 404) && count < 2,
+    // Vendors get added while the show is on
+    refetchInterval: 60_000,
+  });
+}
+
+/** Who appears on a show's public visitor map */
+export function useSetPublicMap(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (publicMap: PublicMapMode) => request(`/events/${eventId}/public-map`, { method: "PUT", body: { publicMap } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: eventKeys.detail(eventId), exact: true });
+      void qc.invalidateQueries({ queryKey: eventKeys.all, exact: true });
+    },
   });
 }

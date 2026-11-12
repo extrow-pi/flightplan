@@ -22,7 +22,7 @@ export default function OverviewPage() {
   const publishedUpcoming = upcoming.filter((e) => e.status === "published");
   const tablesOnSale = publishedUpcoming.reduce((sum, e) => sum + e.vendorTables, 0);
   const laterShows = upcoming.filter((e) => e !== nextShow);
-  const tableRevenuePotential = publishedUpcoming.reduce((sum, e) => sum + e.vendorTables * e.tablePriceCents, 0);
+  const tableRevenuePotential = publishedUpcoming.reduce((sum, e) => sum + e.tableTypes.reduce((n, t) => n + t.count * t.priceCents, 0), 0);
 
   return (
     <>

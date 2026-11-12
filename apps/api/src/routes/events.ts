@@ -12,15 +12,23 @@ import {
   type EventRecord,
 } from "@flightplan/shared";
 import { accessColumns, accessibleEvents, canEdit, collaboratorJoin, editableEvents, eventAccess, forbidden, roleOf } from "../access.js";
-import { syncTables, TablesInUseError, type Tx } from "../bookings.js";
+import { syncTables, TablesInUseError, TablesRenumberedError, type Tx } from "../bookings.js";
 import { db, schema } from "../db/index.js";
+import { checkPlanTypes, copyEventPlan, PlanTablesInUseError, PlanTypeInUseError, syncTablesFromPlan, TooManyTablesError } from "../eventPlans.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { deleteUpload, saveImage, UploadError, uploadUrl } from "../uploads.js";
+import { ensureShowSlug, pageImages } from "./showPages.js";
 
-const { events, eventDays, eventCollaborators, user } = schema;
+const { events, eventDays, eventCollaborators, floorplans, user } = schema;
 
-// Everything except organizer_id is returned to the client
-const { organizerId: _organizerId, ...publicColumns } = getTableColumns(events);
+// Everything except organizer_id and the show page (its own routes, showPages.ts) is returned to the client
+const {
+  organizerId: _organizerId,
+  pageSlug: _pageSlug,
+  coverFile: _coverFile,
+  pageSettings: _pageSettings,
+  ...publicColumns
+} = getTableColumns(events);
 
 const idSchema = z.uuid();
 const statusSchema = z.object({ status: z.enum(["draft", "published"]) });
@@ -36,12 +44,15 @@ const notFound = { error: "Event not found" } satisfies ApiError;
 /** Attach days to event rows and swap the stored floor map file name for its URL. */
 async function withDays<T extends { id: string; floorMapFile: string | null }>(
   rows: T[],
-): Promise<(Omit<T, "floorMapFile"> & { days: EventDay[]; floorMapUrl: string | null })[]> {
+): Promise<
+  (Omit<T, "floorMapFile"> & { days: EventDay[]; floorMapUrl: string | null; floorplan: EventRecord["floorplan"] })[]
+> {
   if (!rows.length) return [];
   const days = await db
     .select({
       eventId: eventDays.eventId,
       dayOffset: eventDays.dayOffset,
+      setupTime: eventDays.setupTime,
       startTime: eventDays.startTime,
       endTime: eventDays.endTime,
     })
@@ -58,10 +69,23 @@ async function withDays<T extends { id: string; floorMapFile: string | null }>(
   for (const { eventId, ...day } of days) {
     byEvent.set(eventId, [...(byEvent.get(eventId) ?? []), day]);
   }
+  const plans = await db
+    .select({ eventId: floorplans.eventId, items: floorplans.items, updatedAt: floorplans.updatedAt })
+    .from(floorplans)
+    .where(
+      inArray(
+        floorplans.eventId,
+        rows.map((r) => r.id),
+      ),
+    );
+  const planOf = new Map(
+    plans.map((p) => [p.eventId, { tableCount: p.items.filter((i) => i.kind === "table").length, updatedAt: p.updatedAt.toISOString() }]),
+  );
   return rows.map(({ floorMapFile, ...r }) => ({
     ...r,
     days: byEvent.get(r.id) ?? [],
     floorMapUrl: uploadUrl(floorMapFile),
+    floorplan: planOf.get(r.id) ?? null,
   }));
 }
 
@@ -92,13 +116,16 @@ async function insertEvent(
   organizerId: string,
   { days, ...fields }: EventOutput,
   floorMapFile: string | null = null,
+  /** Copy this event's floorplan (and so its tables) to the new event */
+  planFrom: string | null = null,
 ) {
   const [row] = await tx
     .insert(events)
     .values({ ...fields, organizerId, floorMapFile })
     .returning({ id: events.id });
   await tx.insert(eventDays).values(days.map((d) => ({ ...d, eventId: row.id })));
-  await syncTables(tx, row.id, fields.vendorTables);
+  await syncTables(tx, row.id, fields.tableTypes);
+  if (planFrom) await copyEventPlan(tx, planFrom, row.id, organizerId);
   return row.id;
 }
 
@@ -112,7 +139,14 @@ async function deleteFloorMapIfUnused(file: string | null) {
   if (count === 0) await deleteUpload(file);
 }
 
-const tablesInUse = (err: unknown) => (err instanceof TablesInUseError ? ({ error: err.message } satisfies ApiError) : null);
+const tablesInUse = (err: unknown) =>
+  err instanceof TablesInUseError ||
+  err instanceof TablesRenumberedError ||
+  err instanceof PlanTablesInUseError ||
+  err instanceof TooManyTablesError ||
+  err instanceof PlanTypeInUseError
+    ? ({ error: err.message } satisfies ApiError)
+    : null;
 
 // Routes cover the signed-in organizer's own events and templates, plus ones shared with them
 // (see access.ts for what each role can do)
@@ -124,22 +158,26 @@ export const eventRoutes = new Hono<AuthEnv>()
     return c.json({ events: await loadEvents(c.var.user.id, accessibleEvents(c.var.user.id)) });
   })
 
-  // ?floorMapFrom=<event id> reuses the floor map of an event they can edit (used by "Save as template")
+  // ?floorMapFrom=<event id> reuses the floor map image and copies the floorplan of an event they can edit
+  // (used by "Save as template")
   .post("/", async (c) => {
     const parsed = eventInputSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json(invalid(parsed.error), 400);
 
     let floorMapFile: string | null = null;
+    let planFrom: string | null = null;
     const from = c.req.query("floorMapFrom");
     if (from && idSchema.safeParse(from).success) {
       const [source] = await db
-        .select({ floorMapFile: events.floorMapFile })
+        .select({ id: events.id, floorMapFile: events.floorMapFile })
         .from(events)
         .where(and(eq(events.id, from), editableEvents(c.var.user.id)));
       floorMapFile = source?.floorMapFile ?? null;
+      planFrom = source?.id ?? null;
     }
 
-    const id = await db.transaction((tx) => insertEvent(tx, c.var.user.id, parsed.data, floorMapFile));
+    const id = await db.transaction((tx) => insertEvent(tx, c.var.user.id, parsed.data, floorMapFile, planFrom));
+    await ensureShowSlug(id);
     return c.json({ event: await findAccessible(id, c.var.user.id) }, 201);
   })
 
@@ -169,16 +207,21 @@ export const eventRoutes = new Hono<AuthEnv>()
     const { days, ...fields } = parsed.data;
     try {
       await db.transaction(async (tx) => {
+        const [plan] = await tx.select({ items: floorplans.items }).from(floorplans).where(eq(floorplans.eventId, id));
+        if (plan) checkPlanTypes(plan.items, existing.tableTypes, fields.tableTypes);
         await tx.update(events).set(fields).where(eq(events.id, id));
         await tx.delete(eventDays).where(eq(eventDays.eventId, id));
         await tx.insert(eventDays).values(days.map((d) => ({ ...d, eventId: id })));
-        await syncTables(tx, id, fields.vendorTables);
+        // With a floorplan its tables are the event's tables: each type's count comes from the plan
+        if (plan) await syncTablesFromPlan(tx, id, plan.items);
+        else await syncTables(tx, id, fields.tableTypes);
       });
     } catch (err) {
       const conflict = tablesInUse(err);
       if (conflict) return c.json(conflict, 409);
       throw err;
     }
+    await ensureShowSlug(id);
     return c.json({ event: await findAccessible(id, c.var.user.id) });
   })
 
@@ -198,6 +241,7 @@ export const eventRoutes = new Hono<AuthEnv>()
       .where(and(eq(events.id, id), sql`${events.status} <> 'template'`))
       .returning({ id: events.id });
     if (!updated) return c.json(notFound, 404);
+    await ensureShowSlug(id);
     return c.json({ event: await findAccessible(id, c.var.user.id) });
   })
 
@@ -230,7 +274,7 @@ export const eventRoutes = new Hono<AuthEnv>()
     const draft: EventInput = { ...copy, status: "draft", startDate: parsed.data.startDate, bookingOpen: false };
     const me = c.var.user.id;
     const newId = await db.transaction(async (tx) => {
-      const newId = await insertEvent(tx, me, eventInputSchema.parse(draft), floorMapFile);
+      const newId = await insertEvent(tx, me, eventInputSchema.parse(draft), floorMapFile, id);
       const team = await tx
         .select({ userId: eventCollaborators.userId, role: eventCollaborators.role })
         .from(eventCollaborators)
@@ -240,6 +284,7 @@ export const eventRoutes = new Hono<AuthEnv>()
       if (members.length) await tx.insert(eventCollaborators).values(members);
       return newId;
     });
+    await ensureShowSlug(newId);
     return c.json({ event: await findAccessible(newId, me) }, 201);
   })
 
@@ -255,9 +300,10 @@ export const eventRoutes = new Hono<AuthEnv>()
     const deleted = await db
       .delete(events)
       .where(eq(events.id, id))
-      .returning({ id: events.id, floorMapFile: events.floorMapFile });
+      .returning({ id: events.id, floorMapFile: events.floorMapFile, coverFile: events.coverFile, pageSettings: events.pageSettings });
     if (!deleted.length) return c.json(notFound, 404);
     await deleteFloorMapIfUnused(deleted[0].floorMapFile);
+    for (const file of [deleted[0].coverFile, ...pageImages(deleted[0].pageSettings)]) if (file) await deleteUpload(file);
     return c.body(null, 204);
   })
 
