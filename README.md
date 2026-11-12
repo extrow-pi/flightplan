@@ -95,6 +95,7 @@ Settings (per event, and copied from templates):
 - **Personal invites** `/invite/:token`: single-use links for specific vendors. They work while the public link is closed, and on drafts.
 - **Payment instructions:** shown to vendors after they book. Payments happen outside the app; the organizer clicks **Mark paid** and picks how the vendor paid (e-transfer, cash, Square, card, PayPal, other, or not recorded). The method can be changed later, and it shows in the vendor's history.
 - **Max tables per vendor request** (default 4, up to 20): vendors can pick several tables at once.
+- **Table types:** a show can have several kinds of table, each with a name, count, price and optional label prefix (e.g. 12 × "6 ft table" at $60 and 6 × "8 ft table" at $85 with prefix L). Tables are numbered in one sequence, type by type (1–12, then 13–18), except prefixed types, which get their own numbers (L1–L6). The booking page and the Assign dialog group tables by type with their prices, and each table is priced at its type's price. Multi-table discounts count every table together: a percent tier applies to the mixed total, and "$ off each table" to each table. Changing counts can't remove or renumber a table that has a booking: the form says which table and suggests adding to the last type or using a prefix. Existing shows have one "Table" type with their old count and price; `vendorTables` and `tablePriceCents` are now worked out from the types (total count, lowest price).
 
 **Multi-table requests:** a vendor's request is one booking per table, all sharing a `request_id`. The request is all-or-nothing: if any picked table is taken, nothing is booked and the vendor is told which tables to change. Approve, reject, mark paid and keep apply to the whole request, with one payment deadline. Release can free a single table or the whole request.
 
@@ -105,7 +106,9 @@ When a payment deadline passes, the booking shows as **Payment overdue** in *Nee
 
 **Search and assigning:** the search box on the Tables & vendors tab finds vendors by name, business, email, phone or table number. Vendors from the list who aren't at the show yet appear under **Not at this show yet** with **Add** and **Assign** buttons. In the Assign dialog the vendor picker is searchable and shows each vendor's tables at this show (e.g. "Tables 3, 4 · Paid"), and the chosen vendor's tables appear ticked in the table grid.
 
-**Emailing a show's vendors:** **Email vendors** (in the Vendor list card) sends one message to everyone at the show in the groups picked: Paid, Awaiting payment (including overdue), Needs approval, No table yet. Each vendor gets their own copy starting "Hi [first name],", optionally followed by their tables and status, with replies going to the organizer who sent it. **Send me a test** sends one copy to yourself first. Sending the same subject to the same show again within 2 minutes is blocked. Messages show in the Email log.
+**Emailing a show's vendors:** **Email vendors** (in the Vendor list card) sends one message to everyone at the show in the groups picked: Paid, Awaiting payment (including overdue), Needs approval, No table yet. Each vendor gets their own copy starting "Hi [first name],", optionally followed by a details box (their tables, the setup time, show hours and venue address), with replies going to the organizer who sent it. **Send me a test** sends one copy to yourself first. Sending the same subject to the same show again within 2 minutes is blocked. Messages show in the Email log.
+
+**Setup time:** each day of a show's schedule can have an optional vendor setup time (before opening). It appears on the booking page and in vendor emails (booking emails, invites and messages) as "Setup: Sat, Nov 14: from 9am".
 
 **Attachments:** up to 5 files per message (PDF, PNG, JPEG, WebP or GIF; 5 MB each, 10 MB together), checked by their contents rather than their names. Images can be shown in the email (**Top of email**, for a banner or logo, or **Below message**) or just attached; PDFs are always attached. Files are stored once in the uploads folder (`attachments/`, not publicly served) and read when each copy is sent; the Email log lists them and its preview shows the in-email images.
 
@@ -142,6 +145,19 @@ Each organizer can have a public page at `/o/<handle>`, set up in **Settings** a
 - **Shows:** upcoming published shows with dates, hours, venue, description and admission price, and past shows (the 12 most recent). Drafts and templates never appear.
 - **Booking:** while a show's public booking link is open, its card shows tables left and a **Book a vendor table** button. Shows are listed as "upcoming" through their last day, in `APP_TIMEZONE`.
 - **Handles:** 3–30 lowercase letters, numbers and single hyphens, and unique across organizers. Settings suggests a free one based on the organizer's name.
+
+### Show pages and tickets
+
+Each published show has its own landing page for attendees at `/o/<handle>/<show-address>`, linked from the organizer page (title, **Show details** and **Get tickets**). Organizers customize it on the event's **Show page** tab:
+
+- **Address:** made from the show's name when it's first saved (`spring-card-show`, then `spring-card-show-2`…), and editable. It stays the same if the show is renamed. The event id works as an address too.
+- **Look:** a theme (Warm, Light or Dark), an accent colour for buttons and highlights (button text switches between white and dark to stay readable), a tagline, a cover image (a 3:1 banner, saved straight away) and a **flyer** shown under the show's name (tap for full size).
+- **Blocks:** up to 20, in the organizer's order, under the show details: **Tickets** (where the widget goes), **Text**, **FAQ** (expandable questions), **Photo gallery**, **Video** (YouTube, via youtube-nocookie, or Vimeo), **Link buttons**, **Sponsors** (logos with optional names and links) and **Venue map** (Google Maps of the address). The page ends with an "Organized by" card with the organizer's logo, links and **More shows**.
+- **Images:** the flyer, gallery photos and sponsor logos are uploaded to `/api/events/:id/page/images` (PNG, JPEG or WebP, checked by their bytes) and used once the page is saved. A page can only use images uploaded for that show; images it stops using are deleted on save, and all of them when the show is deleted.
+- **Tickets (TicketsCandy):** paste the widget code from TicketsCandy (*Sell Online → Website Widget → Embed on Page*). Their code is a loader script plus `TCCheckout.createWidget({ eventId: '21593', … })`; we keep just the event's checkout frame, `https://ticketscandy.com/checkout-widget/frame/21593`, and embed it ourselves in a sandboxed iframe, so no pasted HTML or script runs on Flightplan. The page answers the frame's messages the way their loader does, so the checkout grows to fit (the height setting is only its size while loading), and declines its analytics. A plain TicketsCandy link works too. A link below opens the tickets in a new tab. Ticket sales and attendee data stay in TicketsCandy (it has no public API). The widget is hidden once the show is over.
+- **Vendors:** a switch for whether the page shows **Book a vendor table** (still only while the booking link is open).
+
+The page is visible when the organizer page is switched on and the show is published. The tab says why if it isn't.
 
 ### Vendors page
 
@@ -294,6 +310,9 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET / PUT / DELETE | `/api/events/:id` | Read / update (including the day schedule) / delete one of the organizer's events or templates |
 | POST | `/api/events/:id/spawn` | Create a draft from a template: body `{ "startDate": "2026-11-13" }` |
 | POST / DELETE | `/api/events/:id/floor-map` | Upload (multipart `file`) or remove the floor map |
+| GET / PUT | `/api/events/:id/page` | A show's public page settings: address, tagline, accent, sections, vendor button and TicketsCandy widget |
+| POST / DELETE | `/api/events/:id/page/cover` | Upload (multipart `file`) or remove the show page's cover image |
+| POST | `/api/events/:id/page/images` | Upload a flyer, gallery photo or sponsor logo (multipart `file`); returns its file name for the page settings |
 | GET | `/api/events/:id/tables` | Tables with their active bookings, past bookings, invites and vendors without a table |
 | POST | `/api/events/:id/unassigned` | Add a vendor to the show without a table: `{ vendorId }` or `{ contact }`, optional `note` (409 if they already hold a table there) |
 | DELETE | `/api/events/:id/unassigned/:vendorId` | Take a vendor without a table off the show |
@@ -321,6 +340,7 @@ If someone signs in with Google using the same email as an existing email/passwo
 | GET | `/api/profile/handle-available?handle=` | Whether a handle is valid and free |
 | POST / DELETE | `/api/profile/logo` | Upload (multipart `file`) or remove the page logo |
 | GET | `/api/public/organizers/:handle` | A published organizer page: profile, upcoming and past shows (no sign-in) |
+| GET | `/api/public/organizers/:handle/shows/:slug` | A published show's page: details, the organizer's sections and the ticket widget (no sign-in) |
 | GET / POST | `/api/vendors` | The organizer's own vendors (with groups and stats) / add one by hand |
 | POST | `/api/vendors/import` | Import vendor rows read from a CSV: `{ rows, overwrite: [emails] or "all", preview }` |
 | POST | `/api/events/:id/import` | Same, and adds the vendors to the show without a table |

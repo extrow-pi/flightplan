@@ -17,7 +17,6 @@ import {
   ATTACHMENT_MAX_BYTES,
   ATTACHMENTS_TOTAL_MAX_BYTES,
   type MessageAttachment,
-  vendorAudienceLabels,
   type VendorAudience,
   type VendorMessageResult,
   releaseBookingSchema,
@@ -87,6 +86,7 @@ async function findEvent(id: string, userId: string) {
       status: events.status,
       requiresApproval: events.requiresApproval,
       tablePriceCents: events.tablePriceCents,
+      tableTypes: events.tableTypes,
       paymentDueDays: events.paymentDueDays,
       bulkDiscounts: events.bulkDiscounts,
     })
@@ -177,7 +177,7 @@ export const eventBookingRoutes = new Hono<AuthEnv>()
           .where(inArray(vendors.id, vendorIds))
       : [];
     const body: EventTablesResponse = {
-      tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, planItemId: t.planItemId, booking: activeByTable.get(t.id) ?? null })),
+      tables: tableRows.map((t) => ({ id: t.id, number: t.number, label: t.label, typeId: t.typeId, planItemId: t.planItemId, booking: activeByTable.get(t.id) ?? null })),
       history: bookingRows.filter((b) => !active.includes(b.status as (typeof active)[number])).map(toBooking),
       invites: inviteRows.map(toInvite),
       unassigned: unassignedRows.map(({ createdAt, ...u }): UnassignedVendor => ({ ...u, addedAt: createdAt.toISOString() })),
@@ -339,7 +339,7 @@ eventBookingRoutes.post("/:id/invites/bulk", async (c) => {
       .from(events)
       .where(eq(events.id, event.id));
     const days = await db
-      .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
       .from(eventDays)
       .where(eq(eventDays.eventId, event.id))
       .orderBy(asc(eventDays.dayOffset));
@@ -405,7 +405,7 @@ eventBookingRoutes.post("/:id/quote", async (c) => {
   const parsed = quoteRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json(invalid(parsed.error), 400);
   return c.json(
-    await quote({ event, tableCount: parsed.data.tableCount, codeText: parsed.data.discountCode, email: parsed.data.email }),
+    await quote({ event, tableIds: parsed.data.tableIds, tableCount: parsed.data.tableCount, codeText: parsed.data.discountCode, email: parsed.data.email }),
   );
 });
 
@@ -461,7 +461,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
   const user = c.var.user;
 
   // Where each vendor stands: the tables they hold (in floor order) and their requests' statuses
-  const [held, waiting, [details]] = await Promise.all([
+  const [held, waiting, [details], days] = await Promise.all([
     db
       .select({ vendorId: bookings.vendorId, status: bookings.status, label: eventTables.label })
       .from(bookings)
@@ -469,7 +469,15 @@ eventBookingRoutes.post("/:id/message", async (c) => {
       .where(and(eq(bookings.eventId, event.id), inArray(bookings.status, active)))
       .orderBy(asc(eventTables.number)),
     db.select({ vendorId: eventVendors.vendorId }).from(eventVendors).where(eq(eventVendors.eventId, event.id)),
-    db.select({ name: events.name }).from(events).where(eq(events.id, event.id)),
+    db
+      .select({ name: events.name, startDate: events.startDate, venueName: events.venueName, address: events.address, city: events.city })
+      .from(events)
+      .where(eq(events.id, event.id)),
+    db
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .from(eventDays)
+      .where(eq(eventDays.eventId, event.id))
+      .orderBy(asc(eventDays.dayOffset)),
   ]);
   const standing = new Map<string, { tables: string[]; audiences: Set<VendorAudience> }>();
   const at = (id: string) => standing.get(id) ?? standing.set(id, { tables: [], audiences: new Set() }).get(id)!;
@@ -507,11 +515,10 @@ eventBookingRoutes.post("/:id/message", async (c) => {
     if (cid) images[a.placement as "top" | "bottom"].push({ cid, alt: f.filename.replace(/\.[^.]+$/, "") });
   });
 
-  const statusOf = (s: { audiences: Set<VendorAudience> }) => [...s.audiences].map((a) => vendorAudienceLabels[a]).join(", ");
 
-  const build = (vendor: { name: string; tables: string[]; status: string }, subject: string) =>
+  const build = (vendor: { name: string; tables: string[] }, subject: string) =>
     vendorMessageEmail({
-      event: { name: details.name },
+      event: { ...details, days },
       sender: { name: user.name },
       vendor,
       subject,
@@ -531,7 +538,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
         attachments: refs,
         organizerId: event.access.ownerId,
         eventId: event.id,
-        ...build({ name: sample.name, tables: s.tables, status: statusOf(s) }, `[Test] ${input.subject}`),
+        ...build({ name: sample.name, tables: s.tables }, `[Test] ${input.subject}`),
       },
     ]);
     return c.json<VendorMessageResult>({ sent: 1, test: true });
@@ -562,7 +569,7 @@ eventBookingRoutes.post("/:id/message", async (c) => {
         replyTo: user.email,
         organizerId: event.access.ownerId,
         eventId: event.id,
-        ...build({ name: v.name, tables: s.tables, status: statusOf(s) }, input.subject),
+        ...build({ name: v.name, tables: s.tables }, input.subject),
       };
     }),
   );
@@ -629,7 +636,16 @@ export const bookingRoutes = new Hono<AuthEnv>()
     const found = await findBooking(c.req.param("id"), c.var.user.id);
     if (!found) return c.json(notFound("Booking"), 404);
     if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
-    const rows = await transitionRequest(found.booking.requestId, ["pending"], approvedFields(found.event));
+    // A request of free tables is paid as soon as it's approved
+    const [{ listed }] = await db
+      .select({ listed: sql<number>`coalesce(sum(${bookings.basePriceCents}), 0)::int` })
+      .from(bookings)
+      .where(eq(bookings.requestId, found.booking.requestId));
+    const rows = await transitionRequest(
+      found.booking.requestId,
+      ["pending"],
+      approvedFields({ free: listed === 0, paymentDueDays: found.event.paymentDueDays }),
+    );
     if (!rows.length) return c.json(cantDo("approve", found.booking.status), 409);
     void notifyApproved(found.booking.requestId);
     return c.json({ bookings: rows.map(toBooking) });

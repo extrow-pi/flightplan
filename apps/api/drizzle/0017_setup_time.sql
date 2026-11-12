@@ -1,0 +1,1 @@
+ALTER TABLE "event_days" ADD COLUMN "setup_time" text DEFAULT '' NOT NULL;

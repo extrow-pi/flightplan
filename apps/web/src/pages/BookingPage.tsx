@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import MapViewer from "../components/floorplan/MapViewer";
+import { typeFill } from "../components/floorplan/FloorplanDrawing";
 import {
   addDays,
   discountLabel,
@@ -13,7 +14,7 @@ import {
 import Logo from "../components/Logo";
 import { CheckIcon, ClockIcon, MapPinIcon } from "../components/Icons";
 import { ApiRequestError, useBookingQuote, usePublicBooking, useSubmitBooking, type BookingLinkKind } from "../lib/api";
-import { formatDate, formatDateRange, formatMoney, timeRange } from "../lib/format";
+import { formatDate, formatDateRange, formatMoney, formatTime, timeRange } from "../lib/format";
 
 // Vendors don't have accounts, so their details are remembered in this browser for next time
 const REMEMBER_KEY = "flightplan.vendorDetails";
@@ -68,6 +69,9 @@ export default function BookingPage({ kind }: { kind: BookingLinkKind }) {
   );
 }
 
+/** Whether any table at the show costs something */
+const paidShow = (event: PublicBookingPage["event"]) => event.tableTypes.some((t) => t.priceCents > 0);
+
 function EventHeader({ page }: { page: PublicBookingPage }) {
   const { event } = page;
   const end = addDays(event.startDate, Math.max(...event.days.map((d) => d.dayOffset)));
@@ -93,15 +97,24 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
           <li key={d.dayOffset} className="rounded-lg bg-cream-50 px-2.5 py-1 text-sm ring-1 ring-ink/5">
             <span className="font-bold">{formatDate(addDays(event.startDate, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}</span>{" "}
             · {timeRange(d.startTime, d.endTime)}
+            {d.setupTime && <span className="text-ink-soft"> · vendor setup from {formatTime(d.setupTime)}</span>}
           </li>
         ))}
       </ul>
       {event.description && <p className="mt-4 text-ink-soft">{event.description}</p>}
       <div className="mt-5 flex flex-wrap gap-3 text-sm">
-        <span className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
-          {event.tablePriceCents ? `${formatMoney(event.tablePriceCents)} per table` : "Free tables"}
-        </span>
-        {event.tablePriceCents > 0 &&
+        {event.tableTypes.length > 1 ? (
+          event.tableTypes.map((t) => (
+            <span key={t.id} className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
+              {t.name} · {t.priceCents ? formatMoney(t.priceCents) : "free"}
+            </span>
+          ))
+        ) : (
+          <span className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
+            {event.tablePriceCents ? `${formatMoney(event.tablePriceCents)} per table` : "Free tables"}
+          </span>
+        )}
+        {paidShow(event) &&
           // Tiers above the per-request limit can never apply here
           event.bulkDiscounts.filter((t) => t.minTables <= event.maxTablesPerRequest).map((t) => (
             <span key={t.minTables} className="rounded-full bg-[#e8f8f5] px-3 py-1.5 font-bold text-[#2d7a6a]">
@@ -111,7 +124,7 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
         {event.requiresApproval && (
           <span className="rounded-full bg-[#fff4cc] px-3 py-1.5 font-bold text-gold-ink">Organizer approves each request</span>
         )}
-        {event.tablePriceCents > 0 && event.paymentDueDays && (
+        {paidShow(event) && event.paymentDueDays && (
           <span className="rounded-full bg-cream px-3 py-1.5 font-bold text-ink-soft">
             Pay within {event.paymentDueDays} day{event.paymentDueDays > 1 ? "s" : ""}
             {event.requiresApproval ? " of approval" : " of booking"}
@@ -160,15 +173,29 @@ function BookingForm({
   const availableCount = page.tables.filter((t) => t.available).length;
   const fieldErrors = submit.error instanceof ApiRequestError ? submit.error.body.fieldErrors : undefined;
   const labels = selected.map((t) => t.label).join(", ");
-  const paid = page.event.tablePriceCents > 0;
+  const paid = paidShow(page.event);
+  const priceOf = new Map(page.event.tableTypes.map((t) => [t.id, t.priceCents]));
+  // With several table types, the map tints open tables by type and shows each one's price
+  const typeIndex = new Map(page.event.tableTypes.map((t, i) => [t.id, i]));
+  const multiType = page.event.tableTypes.length > 1;
+  const typeName = (t: { typeId: string }) => page.event.tableTypes[typeIndex.get(t.typeId) ?? 0]?.name ?? "";
+  const priceLabel = (t: { typeId: string }) => {
+    const p = priceOf.get(t.typeId) ?? 0;
+    return p ? formatMoney(p) : "Free";
+  };
 
-  // Price: multi-table tiers are worked out right here; with a code, the server checks it and
-  // picks whichever discount saves more (the same rule it uses when booking)
-  const tierOnly = priceRequest({ tablePriceCents: page.event.tablePriceCents, tableCount: selected.length, tiers: page.event.bulkDiscounts });
+  // Price: multi-table tiers are worked out right here, each table at its type's price; with a code,
+  // the server checks it and picks whichever discount saves more (the same rule it uses when booking)
+  const tierOnly = priceRequest({ prices: selected.map((t) => priceOf.get(t.typeId) ?? 0), tiers: page.event.bulkDiscounts });
   const quote = useBookingQuote(
     kind,
     token,
-    { tableCount: Math.max(1, selected.length), discountCode: appliedCode, email: details.email.includes("@") ? details.email : "" },
+    {
+      tableCount: Math.max(1, selected.length),
+      tableIds: selected.map((t) => t.id),
+      discountCode: appliedCode,
+      email: details.email.includes("@") ? details.email : "",
+    },
     Boolean(appliedCode) && selected.length > 0 && paid,
   );
   const price: PriceQuote = appliedCode && quote.data && selected.length ? { ...quote.data, tableCount: selected.length } : tierOnly;
@@ -226,15 +253,33 @@ function BookingForm({
                   tableStyle={(item) => {
                     const t = byItem.get(item.id);
                     if (!t || !t.available) return { fill: "#efe8dc", stroke: "#c9bba5", ink: "#9a8070", title: t ? `Table ${t.label}: taken` : undefined };
+                    const about = multiType ? ` · ${typeName(t)}, ${priceLabel(t)}` : "";
                     return selected.some((x) => x.id === t.id)
-                      ? { fill: "#e8856a", stroke: "#c0442a", ink: "#ffffff", title: `Table ${t.label}: your pick` }
-                      : { fill: "#ffffff", stroke: "#5c6b8a", ink: "#4b5875", title: `Table ${t.label}: available` };
+                      ? { fill: "#e8856a", stroke: "#c0442a", ink: "#ffffff", title: `Table ${t.label}: your pick${about}`, sublabel: multiType ? priceLabel(t) : undefined }
+                      : {
+                          fill: multiType ? typeFill(typeIndex.get(t.typeId) ?? 0) : "#ffffff",
+                          stroke: "#5c6b8a",
+                          ink: "#4b5875",
+                          title: `Table ${t.label}: available${about}`,
+                          sublabel: multiType ? priceLabel(t) : undefined,
+                        };
                   }}
                   onTableClick={(item) => {
                     const t = byItem.get(item.id);
                     if (t?.available) toggle(t.id);
                   }}
                 />
+                {multiType && (
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="Table types">
+                    {page.event.tableTypes.map((type, i) => (
+                      <li key={type.id} className="flex items-center gap-1.5">
+                        <span className="size-3.5 rounded ring-1 ring-slate/50" style={{ background: typeFill(i) }} aria-hidden="true" />
+                        <span className="font-bold">{type.name}</span>
+                        <span className="text-ink-muted">{type.priceCents ? formatMoney(type.priceCents) : "Free"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="mt-2 text-xs text-ink-muted">Tap a table to pick it. Drag to move around; pinch or use + and − to zoom.</p>
               </div>
             ) : page.event.floorMapUrl && (
@@ -248,8 +293,23 @@ function BookingForm({
                 <img src={page.event.floorMapUrl} alt="Floor map with table numbers" className="w-full bg-cream-50 object-contain" />
               </a>
             )}
-            <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-2" role="group" aria-label="Tables">
-              {page.tables.map((t) => {
+            {/* Grouped by table type when there's more than one */}
+            {(page.event.tableTypes.length > 1 ? page.event.tableTypes : [null]).map((type) => {
+              const ofType = type ? page.tables.filter((t) => t.typeId === type.id) : page.tables;
+              if (!ofType.length) return null;
+              return (
+                <div key={type?.id ?? "all"} className="mt-4">
+                  {type && (
+                    <p className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm">
+                      <span className="font-extrabold">{type.name}</span>
+                      <span className="font-bold text-coral-ink">{type.priceCents ? formatMoney(type.priceCents) : "Free"}</span>
+                      <span className="text-ink-muted">
+                        {ofType.filter((t) => t.available).length} of {ofType.length} available
+                      </span>
+                    </p>
+                  )}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-2" role="group" aria-label={type ? `${type.name} tables` : "Tables"}>
+              {ofType.map((t) => {
                 const isSelected = selected.some((s) => s.id === t.id);
                 return (
                   <button
@@ -272,6 +332,9 @@ function BookingForm({
                 );
               })}
             </div>
+                </div>
+              );
+            })}
             <div className="mt-3 flex gap-4 text-xs text-ink-soft">
               <span className="flex items-center gap-1.5">
                 <span className="size-3 rounded bg-white ring-2 ring-ink/10" /> Available

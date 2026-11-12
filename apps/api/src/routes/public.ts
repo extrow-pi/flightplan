@@ -77,12 +77,12 @@ async function loadPage(kind: "event" | "invite", token: string) {
 
   const [days, tables, held, acceptsCodes] = await Promise.all([
     db
-      .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
       .from(eventDays)
       .where(eq(eventDays.eventId, event.id))
       .orderBy(asc(eventDays.dayOffset)),
     db
-      .select({ id: eventTables.id, label: eventTables.label, planItemId: eventTables.planItemId })
+      .select({ id: eventTables.id, label: eventTables.label, typeId: eventTables.typeId, planItemId: eventTables.planItemId })
       .from(eventTables)
       .where(eq(eventTables.eventId, event.id))
       .orderBy(asc(eventTables.number)),
@@ -114,10 +114,11 @@ async function loadPage(kind: "event" | "invite", token: string) {
       paymentDueDays: event.paymentDueDays,
       floorMapUrl: uploadUrl(event.floorMapFile),
       maxTablesPerRequest: event.maxTablesPerRequest,
+      tableTypes: event.tableTypes.map(({ id, name, priceCents }) => ({ id, name, priceCents })),
       bulkDiscounts: event.bulkDiscounts,
       acceptsCodes,
     },
-    tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id), planItemId: t.planItemId })),
+    tables: tables.map((t) => ({ id: t.id, label: t.label, available: !heldIds.has(t.id), typeId: t.typeId, planItemId: t.planItemId })),
     floorplan: plan ?? null,
     invite: invite ? { name: invite.name, email: invite.email, used: invite.bookingId !== null } : null,
     closedReason: closedReason(event, endDate, invite),
@@ -143,6 +144,8 @@ function bookingHandlers(kind: "event" | "invite") {
       return c.json(
         await quote({
           event: loaded.event,
+          // Only this show's tables count
+          tableIds: parsed.data.tableIds.filter((id) => loaded.tables.some((t) => t.id === id)),
           tableCount: parsed.data.tableCount,
           codeText: parsed.data.discountCode,
           email: parsed.data.email,
@@ -247,7 +250,7 @@ const requestStatusRoutes = new Hono().get("/:requestId", async (c) => {
   const [event] = await db.select().from(events).where(eq(events.id, first.eventId));
   const [organizer] = await db.select({ name: user.name }).from(user).where(eq(user.id, event.organizerId));
   const days = await db
-    .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+    .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
     .from(eventDays)
     .where(eq(eventDays.eventId, event.id))
     .orderBy(asc(eventDays.dayOffset));
@@ -301,7 +304,7 @@ publicRoutes.get("/map/:eventId", async (c) => {
   const statuses = event.publicMap === "paid" ? (["paid"] as const) : ACTIVE_BOOKING_STATUSES;
   const [days, held] = await Promise.all([
     db
-      .select({ dayOffset: eventDays.dayOffset, startTime: eventDays.startTime, endTime: eventDays.endTime })
+      .select({ dayOffset: eventDays.dayOffset, setupTime: eventDays.setupTime, startTime: eventDays.startTime, endTime: eventDays.endTime })
       .from(eventDays)
       .where(eq(eventDays.eventId, event.id))
       .orderBy(asc(eventDays.dayOffset)),

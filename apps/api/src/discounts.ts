@@ -2,10 +2,12 @@ import { and, countDistinct, eq, inArray, notInArray, or, sql, type SQL } from "
 import {
   priceRequest,
   type BulkDiscountTier,
+  type TableType,
   type DiscountCode,
   type QuoteResponse,
 } from "@flightplan/shared";
 import { db, schema } from "./db/index.js";
+import { tablePrices } from "./bookings.js";
 
 // Discount codes and multi-table discounts. Prices are worked out by priceRequest (shared with the
 // booking page's preview); this module checks codes and counts their uses.
@@ -114,18 +116,21 @@ export async function eventAcceptsCodes(organizerId: string, eventId: string) {
 
 /** Price a request, checking the code if one was given. Used for the booking page preview. */
 export async function quote(args: {
-  event: { id: string; organizerId: string; tablePriceCents: number; bulkDiscounts: BulkDiscountTier[] };
+  event: { id: string; organizerId: string; tableTypes: TableType[]; bulkDiscounts: BulkDiscountTier[] };
+  /** The picked tables, each priced by its type; without them, tableCount tables at the lowest price */
+  tableIds: string[];
   tableCount: number;
   codeText: string;
   email?: string;
 }): Promise<QuoteResponse> {
   const { event } = args;
+  const lowest = event.tableTypes.length ? Math.min(...event.tableTypes.map((t) => t.priceCents)) : 0;
+  const prices = args.tableIds.length ? await tablePrices(db, event, args.tableIds) : Array.from({ length: args.tableCount }, () => lowest);
   const checked = args.codeText
     ? await validateCode({ organizerId: event.organizerId, eventId: event.id, text: args.codeText, email: args.email })
     : null;
   const priced = priceRequest({
-    tablePriceCents: event.tablePriceCents,
-    tableCount: args.tableCount,
+    prices,
     tiers: event.bulkDiscounts,
     code: checked?.code ?? null,
   });
