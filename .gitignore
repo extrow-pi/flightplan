@@ -9,4 +9,5 @@ dist/
 apps/api/.data/
 # Azure deploy settings (secrets) and the generated spec
 deploy/azure/production.env
+deploy/azure/dev.env
 deploy/azure/.containerapp.yaml
