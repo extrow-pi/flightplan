@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   ACTIVE_BOOKING_STATUSES,
+  ACTIVE_WAITLIST_STATUSES,
   type Booking,
   type BookingSource,
   type BookingStatus,
@@ -17,7 +18,7 @@ import {
 import { db, schema } from "./db/index.js";
 import { validateCode } from "./discounts.js";
 
-const { bookings, eventTables, eventVendors, vendors } = schema;
+const { bookings, eventTables, eventVendors, vendors, waitlistEntries } = schema;
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type BookingRow = typeof bookings.$inferSelect;
@@ -266,6 +267,16 @@ export async function createBookings(
   }
   // Once booked on a table they're no longer waiting for one
   await tx.delete(eventVendors).where(and(eq(eventVendors.eventId, event.id), eq(eventVendors.vendorId, args.vendorId)));
+  await tx
+    .update(waitlistEntries)
+    .set({ status: "booked", closedAt: now })
+    .where(
+      and(
+        eq(waitlistEntries.eventId, event.id),
+        eq(waitlistEntries.vendorId, args.vendorId),
+        inArray(waitlistEntries.status, [...ACTIVE_WAITLIST_STATUSES]),
+      ),
+    );
   return rows;
 }
 

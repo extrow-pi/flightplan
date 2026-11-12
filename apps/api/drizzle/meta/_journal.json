@@ -148,6 +148,13 @@
       "when": 1793146396810,
       "tag": "0020_floorplans",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794516551932,
+      "tag": "0021_waitlist",
+      "breakpoints": true
     }
   ]
 }
