@@ -501,7 +501,7 @@ function BookingForm({
   );
 }
 
-/** Every table is taken: vendors can join the waitlist, and the organizer emails them if a spot opens. */
+/** Every table is taken: vendors can join the waitlist, and the organizer assigns them a table if one opens. */
 function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage }) {
   const join = useJoinWaitlist(token);
   const max = page.event.maxTablesPerRequest;
@@ -540,7 +540,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
         <h2 className="mt-6 text-3xl font-extrabold">{joined.alreadyOn ? "You're already on the waitlist" : "You're on the waitlist!"}</h2>
         <p className="mt-3 text-ink-soft">
           You're <strong>#{joined.position}</strong> in line for <strong>{page.event.name}</strong>. If a table opens up, the organizer will
-          email you a personal link to book it.
+          assign you one and email you the details.
         </p>
         {!joined.alreadyOn && <p className="mt-4 text-sm text-ink-soft">We've emailed you a copy of this.</p>}
       </section>
@@ -553,8 +553,8 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
         <p className="inline-block rounded-full bg-[#fff4cc] px-3 py-1 text-sm font-bold text-gold-ink">Fully booked</p>
         <h2 className="mt-3 text-2xl font-extrabold">Every table is taken</h2>
         <p className="mt-2 text-ink-soft">
-          All {page.tables.length} tables at this show are booked. Join the waitlist, and if a table opens up the organizer will email you a
-          personal link to book it, in the order vendors joined.
+          All {page.tables.length} tables at this show are booked. Join the waitlist, and if a table opens up the organizer can assign it to
+          you and email you the details.
         </p>
         <ul className="mt-4 space-y-2 text-sm text-ink-soft">
           <li className="flex gap-2">

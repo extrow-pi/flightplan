@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import {
   MAX_TABLES_PER_REQUEST,
   PAYMENT_METHODS,
@@ -81,7 +81,12 @@ export default function TablesPage() {
   const [query, setQuery] = useState("");
   // A request to point out after clicking "Review" in the table view
   const [highlight, setHighlight] = useState<string | null>(null);
-  const [assigning, setAssigning] = useState<{ tableId?: string; vendorId?: string } | null>(null);
+  // ?assign=<vendorId> (from the Waitlist tab) opens the assign dialog for that vendor
+  const [params, setParams] = useSearchParams();
+  const [assigning, setAssigning] = useState<{ tableId?: string; vendorId?: string } | null>(() => {
+    const vendorId = params.get("assign");
+    return vendorId ? { vendorId } : null;
+  });
   const [adding, setAdding] = useState<{ vendorId?: string } | null>(null);
 
   if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
@@ -422,14 +427,17 @@ export default function TablesPage() {
         </div>
       )}
 
-      {assigning && (
+      {assigning && tables.data && (
         <AssignDialog
           event={event}
           tables={all}
           atShow={atShow}
           initialTableId={assigning.tableId}
           initialVendorId={assigning.vendorId}
-          onClose={() => setAssigning(null)}
+          onClose={() => {
+            setAssigning(null);
+            if (params.has("assign")) setParams({}, { replace: true });
+          }}
         />
       )}
       {adding && (

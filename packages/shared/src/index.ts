@@ -374,7 +374,8 @@ export const spawnFromTemplateSchema = z.object({ startDate: z.iso.date("Pick a 
 
 // pending: waiting for organizer approval · awaiting_payment: approved, vendor hasn't paid yet
 // paid: confirmed · rejected / released / cancelled: the table is free again
-export const BOOKING_STATUSES = ["pending", "awaiting_payment", "paid", "rejected", "released", "cancelled"] as const;
+// waitlisted: the organizer moved the application to the waitlist instead (table freed too)
+export const BOOKING_STATUSES = ["pending", "awaiting_payment", "paid", "rejected", "released", "cancelled", "waitlisted"] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 /** Statuses that hold a table. A table can have at most one booking in these. */

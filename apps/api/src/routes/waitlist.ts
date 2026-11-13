@@ -12,7 +12,6 @@ import {
 } from "@flightplan/shared";
 import { canEdit, eventAccess, forbidden } from "../access.js";
 import { db, schema } from "../db/index.js";
-import { sendWaitlistOffer } from "../email/notifications.js";
 import { requireUser, type AuthEnv } from "../middleware.js";
 import { waitlistOrder } from "../waitlist.js";
 import { visibleVendors } from "./bookings.js";
@@ -48,8 +47,6 @@ async function findEntry(eventId: string, entryId: string) {
 }
 
 type InviteRow = typeof vendorInvites.$inferSelect;
-
-class LeftWaitlistError extends Error {}
 
 /** An offer whose booking link can still be used */
 const liveOffer = (invite: InviteRow | null) => Boolean(invite && !invite.revokedAt && !invite.bookingId);
@@ -185,46 +182,6 @@ export const waitlistRoutes = new Hono<AuthEnv>()
     });
     if (changed) return c.json<ApiError>({ error: "The waitlist changed since you opened it. Refresh and try again." }, 409);
     return c.json({ ok: true });
-  })
-
-  // Offer a table: email the vendor a personal, single-use booking link
-  .post("/:id/waitlist/:entryId/offer", async (c) => {
-    const event = await findShow(c.req.param("id"), c.var.user.id);
-    if (!event) return c.json(notFound(), 404);
-    if (!canEdit(event.access)) return c.json(forbidden("offer tables"), 403);
-    const found = await findEntry(event.id, c.req.param("entryId"));
-    if (!found) return c.json(notFound("Waitlist entry"), 404);
-    const { entry, invite } = found;
-    if (entry.status === "booked" || entry.status === "removed") {
-      return c.json<ApiError>({ error: `${entry.name} isn't on the waitlist any more.` }, 409);
-    }
-    if (entry.status === "offered" && liveOffer(invite)) {
-      return c.json<ApiError>({ error: `${entry.name} already has a booking link. Withdraw it first to send a new one.` }, 409);
-    }
-
-    let created: { id: string; token: string };
-    try {
-      created = await db.transaction(async (tx) => {
-        const [link] = await tx
-          .insert(vendorInvites)
-          .values({ eventId: event.id, name: entry.name, email: entry.email })
-          .returning({ id: vendorInvites.id, token: vendorInvites.token });
-        // Only if nobody else booked or removed them in the meantime
-        const [updated] = await tx
-          .update(waitlistEntries)
-          .set({ status: "offered", offeredAt: new Date(), inviteId: link.id })
-          .where(and(eq(waitlistEntries.id, entry.id), inArray(waitlistEntries.status, ["waiting", "offered"])))
-          .returning({ id: waitlistEntries.id });
-        if (!updated) throw new LeftWaitlistError();
-        return link;
-      });
-    } catch (err) {
-      if (err instanceof LeftWaitlistError) return c.json<ApiError>({ error: `${entry.name} isn't on the waitlist any more.` }, 409);
-      throw err;
-    }
-
-    await sendWaitlistOffer(entry.id, created.token, { name: c.var.user.name, email: c.var.user.email });
-    return c.json({ ok: true, link: `/invite/${created.token}` });
   })
 
   // Take back an offer: cancel the link and put the vendor back in line where they were

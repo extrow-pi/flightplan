@@ -77,7 +77,7 @@ export default function WaitlistPage() {
           <div className="min-w-0 space-y-6">
             {data.openTables > 0 && inLine.some((e) => e.status === "waiting") && canEdit(event) && (
               <p className="rounded-2xl bg-[#e8f8f5] px-5 py-4 font-semibold text-[#2d7a6a]" role="status">
-                {data.openTables === 1 ? "A table is" : `${data.openTables} tables are`} open. Offer{" "}
+                {data.openTables === 1 ? "A table is" : `${data.openTables} tables are`} open. Assign{" "}
                 {data.openTables === 1 ? "it" : "them"} to the next vendors in line.
               </p>
             )}
@@ -149,13 +149,14 @@ export default function WaitlistPage() {
               <ol className="list-decimal space-y-2 pl-5 text-sm text-ink-soft">
                 <li>
                   Vendors join from your booking link once every table is taken, and get an email with their place in line. You can
-                  also add vendors from your list yourself.
+                  also add vendors from your list, or move an application here with <strong className="text-ink">Move to waitlist</strong>.
                 </li>
                 <li>New vendors go to the back of the line. Use the arrows to move someone up or down.</li>
                 <li>
-                  When a table frees up, <strong className="text-ink">Offer a table</strong> emails that vendor a personal link that works once.
+                  When a table frees up, <strong className="text-ink">Assign tables</strong> gives them one, and they're emailed the
+                  details like any table you assign.
                 </li>
-                <li>When they book, they move to <em>Booked</em> here. If they don't, withdraw the offer and offer it to the next vendor.</li>
+                <li>Once they have tables, they move to <em>Booked</em> here.</li>
               </ol>
             </Card>
           </aside>
@@ -391,23 +392,21 @@ function EntryRow({
             </>
           ) : (
             <>
-              {liveOffer ? (
+              <Link
+                to={`/dashboard/events/${event.id}/tables?assign=${e.vendorId}`}
+                className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
+              >
+                Assign tables
+              </Link>
+              {/* Booking links sent from the waitlist before tables were assigned directly */}
+              {liveOffer && (
                 <button
                   type="button"
                   onClick={() => run("withdraw")}
                   disabled={act.isPending}
                   className="rounded-full border-2 border-slate/30 px-3 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-60"
                 >
-                  Withdraw offer
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => run("offer")}
-                  disabled={act.isPending}
-                  className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep disabled:opacity-60"
-                >
-                  {act.isPending ? "Sending…" : e.offerCancelled ? "Offer again" : "Offer a table"}
+                  Withdraw link
                 </button>
               )}
               <button

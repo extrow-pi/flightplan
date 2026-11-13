@@ -25,7 +25,7 @@ export function todayInAppTz() {
 }
 
 /** Bookings that count as uses of a code */
-export const countsAsUse = notInArray(bookings.status, ["rejected", "cancelled"]);
+export const countsAsUse = notInArray(bookings.status, ["rejected", "cancelled", "waitlisted"]);
 
 // Queries here run either on `db` or inside a caller's transaction: with PGlite's single connection,
 // a query on `db` while a transaction is open would wait forever.

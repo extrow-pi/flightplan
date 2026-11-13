@@ -43,6 +43,7 @@ const closedCopy: Record<string, { title: string; body: string }> = {
   rejected: { title: "Request not approved", body: "The organizer wasn't able to approve this request." },
   released: { title: "Tables released", body: "These tables are no longer reserved for you." },
   cancelled: { title: "Booking cancelled", body: "This booking was cancelled." },
+  waitlisted: { title: "On the waitlist", body: "The organizer put you on the waitlist for this show. If a table opens up, they'll assign you one and email you." },
 };
 
 function Status({ data }: { data: PublicRequestStatus }) {
