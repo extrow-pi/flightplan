@@ -50,6 +50,7 @@ import type {
   VendorImportResult,
   VendorBookingInput,
   EventWaitlistResponse,
+  AddWaitlistEntryInput,
   JoinWaitlistInput,
   PublicWaitlistResult,
 } from "@flightplan/shared";
@@ -676,6 +677,39 @@ export function useWaitlistAction(eventId: string) {
     // Offers create invite links, which show on Tables & vendors too
     onSettled: () =>
       Promise.all([qc.invalidateQueries({ queryKey: waitlistKey(eventId) }), qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) })]),
+  });
+}
+
+/** Put someone from the vendor list at the back of the waitlist (not emailed). */
+export function useAddWaitlistEntry(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AddWaitlistEntryInput) => request<{ id: string }>(`/events/${eventId}/waitlist`, { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: waitlistKey(eventId) }),
+  });
+}
+
+/** Save a new order for everyone in line (first in line first). Moves on screen right away. */
+export function useReorderWaitlist(eventId: string) {
+  const qc = useQueryClient();
+  const key = waitlistKey(eventId);
+  return useMutation({
+    mutationFn: (entryIds: string[]) => request<void>(`/events/${eventId}/waitlist/order`, { method: "PUT", body: { entryIds } }),
+    onMutate: async (entryIds) => {
+      await qc.cancelQueries({ queryKey: key });
+      const before = qc.getQueryData<EventWaitlistResponse>(key);
+      if (before) {
+        const byId = new Map(before.entries.map((e) => [e.id, e]));
+        const inLine = entryIds.flatMap((id, i) => {
+          const e = byId.get(id);
+          return e ? [{ ...e, position: i + 1 }] : [];
+        });
+        qc.setQueryData<EventWaitlistResponse>(key, { ...before, entries: [...inLine, ...before.entries.filter((e) => e.position === null)] });
+      }
+      return { before };
+    },
+    onError: (_err, _ids, ctx) => ctx?.before && qc.setQueryData(key, ctx.before),
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
   });
 }
 

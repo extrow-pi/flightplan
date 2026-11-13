@@ -860,6 +860,19 @@ export const joinWaitlistSchema = vendorContactSchema.extend({
 });
 export type JoinWaitlistInput = z.input<typeof joinWaitlistSchema>;
 
+/** An organizer putting someone from their vendor list on a show's waitlist. */
+export const addWaitlistEntrySchema = z.object({
+  vendorId: z.uuid(),
+  tablesWanted: z.number().int().min(1).max(MAX_TABLES_PER_REQUEST).optional().default(1),
+  message: z.string().trim().max(1000).optional().default(""),
+});
+export type AddWaitlistEntryInput = z.input<typeof addWaitlistEntrySchema>;
+
+/** The new order of everyone in line, first in line first. */
+export const reorderWaitlistSchema = z.object({
+  entryIds: z.array(z.uuid()).min(1).max(1000),
+});
+
 export type PublicWaitlistResult = {
   /** Place in line, 1 = next */
   position: number;
@@ -890,11 +903,13 @@ export type WaitlistEntry = {
 
 /** Everything the Waitlist tab needs for one event. */
 export type EventWaitlistResponse = {
-  /** In line (oldest first), then booked and removed (newest first) */
+  /** In line (first in line first), then booked and removed (newest first) */
   entries: WaitlistEntry[];
   /** Tables with no active booking right now */
   openTables: number;
   totalTables: number;
+  /** Tables each vendor already holds at this show (vendor id → count; vendors with none are left out) */
+  tablesByVendor: Record<string, number>;
 };
 
 // ── Email log ───────────────────────────────────────────────────────────────

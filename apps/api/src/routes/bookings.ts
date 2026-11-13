@@ -99,7 +99,7 @@ async function findEvent(id: string, userId: string) {
  * Vendors from the event owner's list that the user may see. Owners see their whole list;
  * collaborators only see vendors who have booked (or been added to) one of that owner's events shared with them.
  */
-function visibleVendors(access: Access, userId: string) {
+export function visibleVendors(access: Access, userId: string) {
   const ofOwner = eq(vendors.organizerId, access.ownerId);
   if (access.role === "owner") return ofOwner;
   const sharedEvent = and(eq(events.organizerId, access.ownerId), accessibleEvents(userId));
