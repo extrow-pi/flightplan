@@ -163,7 +163,7 @@ export const discountCodeRoutes = new Hono<AuthEnv>()
       .orderBy(desc(bookings.createdAt), asc(eventTables.number));
 
     const byRequest = new Map<string, DiscountCodeUse>();
-    const rank: Record<BookingStatus, number> = { paid: 0, awaiting_payment: 1, pending: 2, released: 3, rejected: 4, cancelled: 5 };
+    const rank: Record<BookingStatus, number> = { paid: 0, awaiting_payment: 1, pending: 2, released: 3, rejected: 4, cancelled: 5, waitlisted: 6 };
     for (const r of rows) {
       const b = r.booking;
       const existing = byRequest.get(b.requestId);

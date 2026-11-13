@@ -600,13 +600,19 @@ const showRows = (w: NonNullable<Awaited<ReturnType<typeof loadWaitlistEntry>>>)
 
 const tablesCount = (n: number) => `${n} ${n > 1 ? "tables" : "table"}`;
 
-/** A vendor joined a full show's waitlist: confirm it to them, and tell the organizer's team. */
-export async function notifyWaitlistJoined(entryId: string, position: number) {
+/**
+ * A vendor is now on a show's waitlist: confirm it to them. When they joined from a full show's
+ * booking link, also tell the organizer's team (when the organizer moved their application there, the team already knows).
+ */
+export async function notifyWaitlistJoined(entryId: string, position: number, { movedByOrganizer = false } = {}) {
   try {
     const w = await loadWaitlistEntry(entryId);
     if (!w) return;
     const { entry, event, organizer } = w;
     const vendor = entry.businessName || entry.name;
+    const why = movedByOrganizer
+      ? `${esc(organizer.name)} can't give you a table at <strong>${esc(event.name)}</strong> right now, so they've put your request on the waitlist`
+      : `<strong>${esc(event.name)}</strong> is full right now, so you're on the waitlist`;
     const out: OutgoingEmail[] = [
       {
         kind: "vendor.waitlist_joined",
@@ -618,16 +624,14 @@ export async function notifyWaitlistJoined(entryId: string, position: number) {
           `You're on the waitlist for ${event.name}`,
           "You're on the waitlist",
           [
-            p(
-              `Hi ${firstName(entry.name)}, <strong>${esc(event.name)}</strong> is full right now, so you're on the waitlist for ${esc(tablesCount(entry.tablesWanted))}. You're <strong>#${position}</strong> in line.`,
-            ),
+            p(`Hi ${firstName(entry.name)}, ${why} for ${esc(tablesCount(entry.tablesWanted))}. You're <strong>#${position}</strong> in line.`),
             details(showRows(w)),
-            p(`If a table opens up, ${esc(organizer.name)} will email you a personal link to book it. You don't need to do anything until then.`),
+            p(`If a table opens up, ${esc(organizer.name)} will assign you one and email you the details. You don't need to do anything until then.`),
           ],
-          `You're receiving this because you joined the waitlist for ${event.name}. Reply to this email to contact the organizer, ${organizer.name}.`,
+          `You're receiving this because you asked for a table at ${event.name}. Reply to this email to contact the organizer, ${organizer.name}.`,
         ),
       },
-      ...w.team.map((to) => ({
+      ...(movedByOrganizer ? [] : w.team).map((to) => ({
         kind: "organizer.waitlist_joined",
         to,
         replyTo: entry.email,
@@ -654,37 +658,6 @@ export async function notifyWaitlistJoined(entryId: string, position: number) {
     await enqueueEmails(out);
   } catch (err) {
     console.error(`Couldn't queue waitlist emails for entry ${entryId}:`, err);
-  }
-}
-
-/** The organizer offered a waitlisted vendor a table: email them their personal booking link. */
-export async function sendWaitlistOffer(entryId: string, inviteToken: string, sender: { name: string; email: string }) {
-  try {
-    const w = await loadWaitlistEntry(entryId);
-    if (!w) return;
-    const { entry, event } = w;
-    await enqueueEmails([
-      {
-        kind: "vendor.waitlist_offer",
-        to: entry.email,
-        replyTo: sender.email,
-        organizerId: event.organizerId,
-        eventId: event.id,
-        ...layout(
-          `A table opened up at ${event.name}`,
-          "A table opened up for you",
-          [
-            p(`Hi ${firstName(entry.name)}, good news: a spot opened up at <strong>${esc(event.name)}</strong>, and ${esc(sender.name)} is offering it to you from the waitlist.`),
-            details(showRows(w)),
-            button("Pick your table", `${APP_URL}/invite/${inviteToken}`),
-            p("This link is just for you and can be used once. Tables go fast, so please book soon if you'd like it."),
-          ],
-          `You're receiving this because you joined the waitlist for ${event.name}. Reply to this email to contact ${sender.name}.`,
-        ),
-      },
-    ]);
-  } catch (err) {
-    console.error(`Couldn't queue waitlist offer for entry ${entryId}:`, err);
   }
 }
 

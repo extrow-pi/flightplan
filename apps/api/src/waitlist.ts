@@ -11,7 +11,7 @@ export async function waitlistOrder(ex: Tx | typeof db, eventId: string) {
     .select({ id: waitlistEntries.id })
     .from(waitlistEntries)
     .where(and(eq(waitlistEntries.eventId, eventId), inArray(waitlistEntries.status, [...ACTIVE_WAITLIST_STATUSES])))
-    .orderBy(asc(waitlistEntries.createdAt), asc(waitlistEntries.id));
+    .orderBy(asc(waitlistEntries.sortOrder), asc(waitlistEntries.createdAt), asc(waitlistEntries.id));
   return rows.map((r) => r.id);
 }
 

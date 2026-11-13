@@ -374,7 +374,8 @@ export const spawnFromTemplateSchema = z.object({ startDate: z.iso.date("Pick a 
 
 // pending: waiting for organizer approval · awaiting_payment: approved, vendor hasn't paid yet
 // paid: confirmed · rejected / released / cancelled: the table is free again
-export const BOOKING_STATUSES = ["pending", "awaiting_payment", "paid", "rejected", "released", "cancelled"] as const;
+// waitlisted: the organizer moved the application to the waitlist instead (table freed too)
+export const BOOKING_STATUSES = ["pending", "awaiting_payment", "paid", "rejected", "released", "cancelled", "waitlisted"] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 /** Statuses that hold a table. A table can have at most one booking in these. */
@@ -860,6 +861,19 @@ export const joinWaitlistSchema = vendorContactSchema.extend({
 });
 export type JoinWaitlistInput = z.input<typeof joinWaitlistSchema>;
 
+/** An organizer putting someone from their vendor list on a show's waitlist. */
+export const addWaitlistEntrySchema = z.object({
+  vendorId: z.uuid(),
+  tablesWanted: z.number().int().min(1).max(MAX_TABLES_PER_REQUEST).optional().default(1),
+  message: z.string().trim().max(1000).optional().default(""),
+});
+export type AddWaitlistEntryInput = z.input<typeof addWaitlistEntrySchema>;
+
+/** The new order of everyone in line, first in line first. */
+export const reorderWaitlistSchema = z.object({
+  entryIds: z.array(z.uuid()).min(1).max(1000),
+});
+
 export type PublicWaitlistResult = {
   /** Place in line, 1 = next */
   position: number;
@@ -890,11 +904,13 @@ export type WaitlistEntry = {
 
 /** Everything the Waitlist tab needs for one event. */
 export type EventWaitlistResponse = {
-  /** In line (oldest first), then booked and removed (newest first) */
+  /** In line (first in line first), then booked and removed (newest first) */
   entries: WaitlistEntry[];
   /** Tables with no active booking right now */
   openTables: number;
   totalTables: number;
+  /** Tables each vendor already holds at this show (vendor id → count; vendors with none are left out) */
+  tablesByVendor: Record<string, number>;
 };
 
 // ── Email log ───────────────────────────────────────────────────────────────

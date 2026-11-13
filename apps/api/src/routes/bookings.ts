@@ -48,6 +48,7 @@ import {
   notifyRejected,
   notifyReleased,
   notifyRequestCreated,
+  notifyWaitlistJoined,
   sendVendorInvites,
   vendorMessageEmail,
 } from "../email/notifications.js";
@@ -65,8 +66,9 @@ import {
   roleOf,
   type Access,
 } from "../access.js";
+import { waitlistPosition } from "../waitlist.js";
 
-const { bookings, emailAttachments, emails, eventCollaborators, eventDays, events, eventTables, eventVendors, vendorGroupMembers, vendorGroups, vendorInvites, vendors } = schema;
+const { bookings, emailAttachments, emails, eventCollaborators, eventDays, events, eventTables, eventVendors, vendorGroupMembers, vendorGroups, vendorInvites, vendors, waitlistEntries } = schema;
 
 const idSchema = z.uuid();
 const notFound = (what = "Event") => ({ error: `${what} not found` }) satisfies ApiError;
@@ -99,7 +101,7 @@ async function findEvent(id: string, userId: string) {
  * Vendors from the event owner's list that the user may see. Owners see their whole list;
  * collaborators only see vendors who have booked (or been added to) one of that owner's events shared with them.
  */
-function visibleVendors(access: Access, userId: string) {
+export function visibleVendors(access: Access, userId: string) {
   const ofOwner = eq(vendors.organizerId, access.ownerId);
   if (access.role === "owner") return ofOwner;
   const sharedEvent = and(eq(events.organizerId, access.ownerId), accessibleEvents(userId));
@@ -659,6 +661,44 @@ export const bookingRoutes = new Hono<AuthEnv>()
     if (!rows.length) return c.json(cantDo("reject", found.booking.status), 409);
     void notifyRejected(found.booking.requestId);
     return c.json({ bookings: rows.map(toBooking) });
+  })
+
+  // Not now: free the requested tables and put the vendor at the back of the waitlist instead.
+  // They're emailed their place in line rather than a rejection.
+  .post("/:id/waitlist", async (c) => {
+    const found = await findBooking(c.req.param("id"), c.var.user.id);
+    if (!found) return c.json(notFound("Booking"), 404);
+    if (!canEdit(found.access)) return c.json(forbidden("change bookings"), 403);
+    const b = found.booking;
+
+    const moved = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(bookings)
+        .set({ status: "waitlisted", closedAt: new Date() })
+        .where(and(eq(bookings.requestId, b.requestId), eq(bookings.status, "pending")))
+        .returning();
+      if (!rows.length) return null;
+      const [entry] = await tx
+        .insert(waitlistEntries)
+        .values({
+          eventId: b.eventId,
+          vendorId: b.vendorId,
+          name: b.name,
+          businessName: b.businessName,
+          email: b.email,
+          phone: b.phone,
+          message: b.message,
+          tablesWanted: rows.length,
+        })
+        // Already in line: they keep their place
+        .onConflictDoNothing()
+        .returning({ id: waitlistEntries.id });
+      const position = entry ? await waitlistPosition(tx, b.eventId, entry.id) : null;
+      return { rows, entryId: entry?.id ?? null, position };
+    });
+    if (!moved) return c.json(cantDo("move", b.status), 409);
+    if (moved.entryId) void notifyWaitlistJoined(moved.entryId, moved.position ?? 1, { movedByOrganizer: true });
+    return c.json({ bookings: moved.rows.map(toBooking) });
   })
 
   // Optional body: { paymentMethod } to record how they paid
