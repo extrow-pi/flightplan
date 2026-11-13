@@ -489,6 +489,7 @@ const statusText: Record<BookingStatus, string> = {
   rejected: closedLabel("rejected"),
   released: closedLabel("released"),
   cancelled: closedLabel("cancelled"),
+  waitlisted: closedLabel("waitlisted"),
 };
 
 function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; groups: VendorGroup[]; onClose: () => void }) {

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import {
   BOOKING_SOURCES,
   BOOKING_STATUSES,
@@ -334,6 +334,11 @@ export const waitlistEntries = pgTable(
     tablesWanted: integer("tables_wanted").notNull().default(1),
     // The personal booking link sent with the latest offer
     inviteId: uuid("invite_id").references(() => vendorInvites.id, { onDelete: "set null" }),
+    // Place in line, lowest first. Starts as the join time (epoch seconds), so newcomers go to the
+    // back; reordering shuffles the existing values between entries, so it never passes a newcomer.
+    sortOrder: doublePrecision("sort_order")
+      .notNull()
+      .default(sql`extract(epoch from now())`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     offeredAt: timestamp("offered_at", { withTimezone: true }),
     // When they were booked or removed

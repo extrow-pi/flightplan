@@ -171,6 +171,18 @@ export const ArrowLeftIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const ChevronUpIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m18 15-6-6-6 6" />
+  </Icon>
+);
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Icon>
+);
+
 export const CopyIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="8" y="8" width="14" height="14" rx="2" />

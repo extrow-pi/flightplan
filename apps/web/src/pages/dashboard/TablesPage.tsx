@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useParams } from "react-router";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
 import {
   MAX_TABLES_PER_REQUEST,
   PAYMENT_METHODS,
@@ -41,6 +41,8 @@ import BannedBadge from "../../components/BannedBadge";
 import CopyButton from "../../components/CopyButton";
 import { ArrowLeftIcon, CheckIcon, CloseIcon, DownloadIcon, MailIcon, PaperclipIcon, SearchIcon, StarIcon, UploadIcon } from "../../components/Icons";
 import VendorImportDialog from "../../components/VendorImportDialog";
+import { Dialog, errorMessage, smallInput, useDialog } from "../../components/Dialog";
+import VendorPicker from "../../components/VendorPicker";
 import MapViewer from "../../components/floorplan/MapViewer";
 import type { TableStyle } from "../../components/floorplan/FloorplanDrawing";
 import {
@@ -79,7 +81,12 @@ export default function TablesPage() {
   const [query, setQuery] = useState("");
   // A request to point out after clicking "Review" in the table view
   const [highlight, setHighlight] = useState<string | null>(null);
-  const [assigning, setAssigning] = useState<{ tableId?: string; vendorId?: string } | null>(null);
+  // ?assign=<vendorId> (from the Waitlist tab) opens the assign dialog for that vendor
+  const [params, setParams] = useSearchParams();
+  const [assigning, setAssigning] = useState<{ tableId?: string; vendorId?: string } | null>(() => {
+    const vendorId = params.get("assign");
+    return vendorId ? { vendorId } : null;
+  });
   const [adding, setAdding] = useState<{ vendorId?: string } | null>(null);
 
   if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
@@ -420,14 +427,17 @@ export default function TablesPage() {
         </div>
       )}
 
-      {assigning && (
+      {assigning && tables.data && (
         <AssignDialog
           event={event}
           tables={all}
           atShow={atShow}
           initialTableId={assigning.tableId}
           initialVendorId={assigning.vendorId}
-          onClose={() => setAssigning(null)}
+          onClose={() => {
+            setAssigning(null);
+            if (params.has("assign")) setParams({}, { replace: true });
+          }}
         />
       )}
       {adding && (
@@ -466,6 +476,12 @@ function atShowLabel(s: VendorAtShow) {
   if (s.state === "unassigned") return "No table yet";
   return `${s.tables.length > 1 ? "Tables" : "Table"} ${s.tables.join(", ")} · ${tableStateLabel(s.state)}`;
 }
+
+/** The picker badge for where a vendor stands at this show */
+const atShowBadge = (atShow: Map<string, VendorAtShow>) => (v: Vendor) => {
+  const status = atShow.get(v.id);
+  return status ? <AtShowBadge status={status} /> : null;
+};
 
 function AtShowBadge({ status }: { status: VendorAtShow }) {
   return (
@@ -1486,91 +1502,6 @@ function UnassignedCard({
   );
 }
 
-// ── Picking a vendor ─────────────────────────────────────────────────────
-
-/** Search the vendor list and pick one. Each vendor shows where they stand at this show. */
-function VendorPicker({
-  vendors,
-  value,
-  onChange,
-  atShow,
-  isDisabled,
-}: {
-  vendors: Vendor[];
-  value: string;
-  onChange: (id: string) => void;
-  atShow: Map<string, VendorAtShow>;
-  /** Vendors that can't be picked here, with the reason */
-  isDisabled?: (v: Vendor) => string | null;
-}) {
-  const [search, setSearch] = useState("");
-  const listRef = useRef<HTMLDivElement>(null);
-  const q = search.trim().toLowerCase();
-  // A vendor picked before the dialog opened may be far down the list
-  useEffect(() => {
-    const list = listRef.current;
-    const picked = list?.querySelector<HTMLElement>('[aria-checked="true"]');
-    if (list && picked) list.scrollTop = picked.offsetTop - list.offsetTop - 6;
-  }, []);
-  const shown = vendors.filter(
-    (v) => !q || [v.name, v.businessName, v.email, v.phone].some((f) => f.toLowerCase().includes(q)),
-  );
-
-  return (
-    <div className="mt-3">
-      <label className="relative block">
-        <span className="sr-only">Search your vendors</span>
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, business or email"
-          className={`${smallInput} mt-0 pl-9`}
-        />
-      </label>
-      <div
-        ref={listRef}
-        role="radiogroup"
-        aria-label="Vendor"
-        className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-2xl bg-cream-50 p-1.5 ring-1 ring-ink/5"
-      >
-        {shown.map((v) => {
-          const status = atShow.get(v.id);
-          const reason = isDisabled?.(v) ?? null;
-          const on = v.id === value;
-          return (
-            <button
-              key={v.id}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              disabled={Boolean(reason)}
-              title={reason ?? undefined}
-              onClick={() => onChange(v.id)}
-              className={`flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-3 py-2 text-left transition disabled:opacity-50 ${
-                on ? "bg-white ring-2 ring-coral" : "hover:bg-white"
-              }`}
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold">
-                  {v.favourite && <span className="text-gold-ink">★ </span>}
-                  {v.businessName || v.name}
-                  {v.businessName && <span className="font-semibold text-ink-soft"> · {v.name}</span>}
-                </span>
-                <span className="block truncate text-xs text-ink-muted">{v.email}</span>
-              </span>
-              {v.banned && <span className="rounded-full bg-coral-ink px-2 py-0.5 text-xs font-bold text-white">Banned</span>}
-              {status && <AtShowBadge status={status} />}
-            </button>
-          );
-        })}
-        {!shown.length && <p className="px-3 py-2 text-sm text-ink-muted">No vendors match “{search.trim()}”.</p>}
-      </div>
-    </div>
-  );
-}
-
 /** Contact fields for a vendor who isn't in the list yet. */
 function NewVendorFields({
   contact,
@@ -1625,53 +1556,6 @@ function VendorModeToggle({ mode, onChange }: { mode: "existing" | "new"; onChan
   );
 }
 
-/** Close on Escape and focus the first thing in the dialog. */
-function useDialog(onClose: () => void) {
-  const firstRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    firstRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return firstRef;
-}
-
-function Dialog({
-  title,
-  intro,
-  onClose,
-  onSubmit,
-  children,
-}: {
-  title: string;
-  intro: string;
-  onClose: () => void;
-  onSubmit: (e: FormEvent) => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
-      <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <form onSubmit={onSubmit} className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
-        <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
-          <CloseIcon className="size-5" />
-        </button>
-        <h2 id="dialog-title" className="pr-8 text-2xl font-extrabold">
-          {title}
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">{intro}</p>
-        {children}
-      </form>
-    </div>
-  );
-}
-
-function errorMessage(error: Error) {
-  const fieldErrors = error instanceof ApiRequestError ? error.body.fieldErrors : undefined;
-  return fieldErrors ? (Object.values(fieldErrors).flat()[0] ?? error.message) : error.message;
-}
-
 const emptyContact = { name: "", businessName: "", email: "", phone: "" };
 
 // ── Add vendor (no table) dialog ─────────────────────────────────────────
@@ -1723,7 +1607,7 @@ function AddVendorDialog({
               vendors={vendors.data}
               value={vendorId}
               onChange={setVendorId}
-              atShow={atShow}
+              badge={atShowBadge(atShow)}
               isDisabled={(v) => {
                 const s = atShow.get(v.id);
                 return s && s.state !== "unassigned" ? "Already has tables at this show" : null;
@@ -1874,7 +1758,7 @@ function AssignDialog({
         <VendorModeToggle mode={mode} onChange={setMode} />
         {mode === "existing" ? (
           vendors.data?.length ? (
-            <VendorPicker vendors={vendors.data} value={vendorId} onChange={setVendorId} atShow={atShow} />
+            <VendorPicker vendors={vendors.data} value={vendorId} onChange={setVendorId} badge={atShowBadge(atShow)} />
           ) : (
             <p className="mt-3 text-sm text-ink-soft">
               {vendors.isPending ? "Loading your vendors…" : "No vendors yet. They're added automatically as they book."}
@@ -2102,5 +1986,3 @@ function formatBytes(n: number) {
   return n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-const smallInput =
-  "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";

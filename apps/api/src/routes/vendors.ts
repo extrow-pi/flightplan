@@ -193,7 +193,7 @@ export const vendorRoutes = new Hono<AuthEnv>()
 
     // One entry per request. Its status is that of a table it still holds, if any.
     const byRequest = new Map<string, VendorRequestHistory>();
-    const rank: Record<BookingStatus, number> = { paid: 0, awaiting_payment: 1, pending: 2, released: 3, rejected: 4, cancelled: 5 };
+    const rank: Record<BookingStatus, number> = { paid: 0, awaiting_payment: 1, pending: 2, released: 3, rejected: 4, cancelled: 5, waitlisted: 6 };
     for (const r of rows) {
       const existing = byRequest.get(r.requestId);
       if (existing) {

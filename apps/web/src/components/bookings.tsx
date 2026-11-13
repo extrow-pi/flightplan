@@ -35,6 +35,7 @@ const closedLabels: Record<string, string> = {
   rejected: "Rejected",
   released: "Released",
   cancelled: "Cancelled",
+  waitlisted: "Moved to waitlist",
 };
 
 export function closedLabel(status: Booking["status"]) {
@@ -125,6 +126,15 @@ export function BookingActions({
         <>
           <button type="button" className={btn.primary} disabled={busy} onClick={() => run({ bookingId: id, action: "approve" })}>
             Approve{all}
+          </button>
+          <button
+            type="button"
+            className={btn.secondary}
+            disabled={busy}
+            title="Free the tables and put the vendor on this show's waitlist. They're emailed their place in line."
+            onClick={() => run({ bookingId: id, action: "waitlist" })}
+          >
+            Move to waitlist
           </button>
           <button type="button" className={btn.danger} disabled={busy} onClick={() => run({ bookingId: id, action: "reject" })}>
             Reject{all}

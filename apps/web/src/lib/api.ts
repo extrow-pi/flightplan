@@ -50,6 +50,7 @@ import type {
   VendorImportResult,
   VendorBookingInput,
   EventWaitlistResponse,
+  AddWaitlistEntryInput,
   JoinWaitlistInput,
   PublicWaitlistResult,
 } from "@flightplan/shared";
@@ -235,6 +236,10 @@ function invalidateBookings(qc: ReturnType<typeof useQueryClient>, eventId?: str
     eventId
       ? qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) })
       : qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "events" && q.queryKey[2] === "tables" }),
+    // Assigning tables takes vendors off the waitlist, and applications can be moved onto it
+    eventId
+      ? qc.invalidateQueries({ queryKey: waitlistKey(eventId) })
+      : qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "events" && q.queryKey[2] === "waitlist" }),
     qc.invalidateQueries({ queryKey: bookingKeys.alerts }),
     qc.invalidateQueries({ queryKey: bookingKeys.vendors }),
   ]);
@@ -278,10 +283,10 @@ export function useRemoveEventVendor(eventId: string) {
   });
 }
 
-// approve / reject / mark-paid / keep apply to the booking's whole request;
+// approve / reject / waitlist / mark-paid / keep apply to the booking's whole request;
 // release frees one table unless wholeRequest is set
 export type BookingAction =
-  | { action: "approve" | "reject" }
+  | { action: "approve" | "reject" | "waitlist" }
   | { action: "mark-paid"; paymentMethod?: PaymentMethod | null }
   | { action: "payment-method"; paymentMethod: PaymentMethod | null }
   | { action: "release"; wholeRequest?: boolean }
@@ -663,9 +668,9 @@ export function useEventWaitlist(eventId: string | undefined) {
   });
 }
 
-export type WaitlistAction = "offer" | "withdraw" | "remove";
+export type WaitlistAction = "withdraw" | "remove";
 
-/** Offer a table (emails a booking link), withdraw an offer, or take someone off the waitlist. */
+/** Withdraw an earlier offer link, or take someone off the waitlist. */
 export function useWaitlistAction(eventId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -673,9 +678,42 @@ export function useWaitlistAction(eventId: string) {
       action === "remove"
         ? request<void>(`/events/${eventId}/waitlist/${entryId}`, { method: "DELETE" })
         : request<void>(`/events/${eventId}/waitlist/${entryId}/${action}`, { method: "POST" }),
-    // Offers create invite links, which show on Tables & vendors too
+    // Withdrawing cancels an invite link, which shows on Tables & vendors too
     onSettled: () =>
       Promise.all([qc.invalidateQueries({ queryKey: waitlistKey(eventId) }), qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) })]),
+  });
+}
+
+/** Put someone from the vendor list at the back of the waitlist (not emailed). */
+export function useAddWaitlistEntry(eventId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AddWaitlistEntryInput) => request<{ id: string }>(`/events/${eventId}/waitlist`, { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: waitlistKey(eventId) }),
+  });
+}
+
+/** Save a new order for everyone in line (first in line first). Moves on screen right away. */
+export function useReorderWaitlist(eventId: string) {
+  const qc = useQueryClient();
+  const key = waitlistKey(eventId);
+  return useMutation({
+    mutationFn: (entryIds: string[]) => request<void>(`/events/${eventId}/waitlist/order`, { method: "PUT", body: { entryIds } }),
+    onMutate: async (entryIds) => {
+      await qc.cancelQueries({ queryKey: key });
+      const before = qc.getQueryData<EventWaitlistResponse>(key);
+      if (before) {
+        const byId = new Map(before.entries.map((e) => [e.id, e]));
+        const inLine = entryIds.flatMap((id, i) => {
+          const e = byId.get(id);
+          return e ? [{ ...e, position: i + 1 }] : [];
+        });
+        qc.setQueryData<EventWaitlistResponse>(key, { ...before, entries: [...inLine, ...before.entries.filter((e) => e.position === null)] });
+      }
+      return { before };
+    },
+    onError: (_err, _ids, ctx) => ctx?.before && qc.setQueryData(key, ctx.before),
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
   });
 }
 
