@@ -108,6 +108,7 @@ export default function WaitlistPage() {
                       event={event}
                       entry={e}
                       tablesHeld={data.tablesByVendor[e.vendorId] ?? 0}
+                      openTables={data.openTables}
                       onMoveUp={i > 0 ? () => move(i, -1) : undefined}
                       onMoveDown={i < inLine.length - 1 ? () => move(i, 1) : undefined}
                     />
@@ -311,6 +312,7 @@ function EntryRow({
   event,
   entry: e,
   tablesHeld = 0,
+  openTables = 0,
   onMoveUp,
   onMoveDown,
 }: {
@@ -318,6 +320,8 @@ function EntryRow({
   entry: WaitlistEntry;
   /** Tables they already have at this show */
   tablesHeld?: number;
+  /** Tables free at the show right now; Assign tables is greyed out at 0 */
+  openTables?: number;
   /** Missing at the top (or bottom) of the line */
   onMoveUp?: () => void;
   onMoveDown?: () => void;
@@ -392,12 +396,23 @@ function EntryRow({
             </>
           ) : (
             <>
-              <Link
-                to={`/dashboard/events/${event.id}/tables?assign=${e.vendorId}`}
-                className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
-              >
-                Assign tables
-              </Link>
+              {openTables > 0 ? (
+                <Link
+                  to={`/dashboard/events/${event.id}/tables?assign=${e.vendorId}`}
+                  className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
+                >
+                  Assign tables
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="Every table is taken. Free one up on Tables & vendors first."
+                  className="cursor-not-allowed rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white opacity-40"
+                >
+                  Assign tables
+                </button>
+              )}
               {/* Booking links sent from the waitlist before tables were assigned directly */}
               {liveOffer && (
                 <button
