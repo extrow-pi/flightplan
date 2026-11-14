@@ -170,7 +170,7 @@ export default function SignupForm() {
                 key={n}
                 className={`cursor-pointer rounded-xl border-2 py-3 text-center font-bold transition has-focus-visible:ring-4 has-focus-visible:ring-coral/25 ${
                   selected
-                    ? "border-coral bg-coral text-white shadow-sm"
+                    ? "border-coral bg-primary hover:bg-primary-hover text-white shadow-sm"
                     : "border-cream bg-white text-ink-soft hover:border-coral/50"
                 }`}
               >
@@ -213,7 +213,7 @@ export default function SignupForm() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-8 py-3.5 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_-6px_rgba(232,133,106,0.8)] focus-visible:ring-4 focus-visible:ring-coral/30 focus-visible:outline-none disabled:translate-y-0 disabled:opacity-60 sm:w-auto"
+          className="w-full rounded-full bg-primary hover:bg-primary-hover px-8 py-3.5 font-bold text-white transition focus-visible:ring-4 focus-visible:ring-coral/30 focus-visible:outline-none disabled:opacity-60 sm:w-auto"
         >
           {mutation.isPending ? "Checking you in…" : "Request early access"}
         </button>

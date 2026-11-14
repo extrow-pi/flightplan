@@ -177,7 +177,7 @@ function PageStatus({ page }: { page: ShowPageResponse }) {
         </p>
       ) : (
         <p className="min-w-0 text-sm sm:flex-1">
-          <span className="font-bold text-[#2d7a6a]">Live</span>
+          <span className="font-bold text-success">Live</span>
           <span className="text-ink-soft"> at </span>
           <a href={page.url!} target="_blank" rel="noreferrer" className="font-bold break-all text-coral-ink hover:underline">
             {absolute?.replace(/^https?:\/\//, "")}
@@ -406,7 +406,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                 </p>
               )}
               {form.tickets.trim() && !errors.tickets && (
-                <p className={`text-sm font-semibold ${ticketsUrl ? "text-[#2d7a6a]" : "text-coral-ink"}`}>
+                <p className={`text-sm font-semibold ${ticketsUrl ? "text-success" : "text-coral-ink"}`}>
                   {ticketsUrl ? (
                     <>
                       <CheckIcon className="mr-1 inline size-4 -translate-y-px" />

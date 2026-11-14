@@ -426,7 +426,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
       )}
 
       {fromTemplate && !isTemplateForm && (
-        <div className="mt-6 flex items-start gap-3 rounded-2xl bg-[#e8f8f5] px-5 py-4 text-[#2d7a6a]" role="status">
+        <div className="mt-6 flex items-start gap-3 rounded-2xl bg-success-soft px-5 py-4 text-success" role="status">
           <CopyIcon className="mt-0.5 size-5 shrink-0" />
           <p className="font-semibold">
             Draft created from template “{fromTemplate}”. Customize anything below, then publish when you're ready.
@@ -634,7 +634,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         )}
 
         {savedTemplate && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-[#e8f8f5] px-5 py-4 font-semibold text-[#2d7a6a]" role="status">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-success-soft px-5 py-4 font-semibold text-success" role="status">
             <CopyIcon className="size-5" />
             Saved “{savedTemplate.name}” as a template.
             <Link to="/dashboard/templates" className="font-bold underline">
@@ -937,7 +937,7 @@ function TableTypesField({
       <p className="text-sm font-bold">Vendor tables</p>
       <p className="mt-0.5 text-sm text-ink-soft">One row per kind of table, e.g. 6 ft and 8 ft tables at different prices. Prices are for the whole show.</p>
       {planned && (
-        <p className="mt-2 rounded-xl bg-[#eef3fb] px-3 py-2 text-sm text-slate-deep">
+        <p className="mt-2 rounded-xl bg-info-soft px-3 py-2 text-sm text-slate-deep">
           This show has a floorplan, so its tables come from the plan: counts below are the plan's tables of each type. Set each
           table's type in the{" "}
           <Link to={planPath!} className="font-bold underline">

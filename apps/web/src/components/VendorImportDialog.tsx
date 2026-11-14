@@ -220,7 +220,7 @@ export default function VendorImportDialog({
                 type="button"
                 onClick={onImport}
                 disabled={!preview || importer.isPending || toImport === 0}
-                className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+                className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
               >
                 {importer.isPending && preview ? "Importing…" : preview ? `Import ${plural(toImport, "vendor")}` : "Import"}
               </button>
@@ -247,7 +247,7 @@ function Done({ result, event, onClose }: { result: VendorImportResult; event?: 
         {result.invalid.length > 0 && <Summary n={result.invalid.length} text="rows skipped" tone="bad" />}
       </ul>
       <div className="mt-6 flex justify-end">
-        <button type="button" onClick={onClose} className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white">
+        <button type="button" onClick={onClose} className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white">
           Done
         </button>
       </div>
@@ -261,7 +261,7 @@ function Summary({ n, text, tone }: { n: number; text: string; tone?: "warn" | "
     <li className="flex items-baseline gap-2">
       <span
         className={`min-w-9 rounded-full px-2 py-0.5 text-center text-xs font-extrabold ${
-          tone === "bad" ? "bg-coral-ink text-white" : tone === "warn" ? "bg-[#fff4cc] text-gold-ink" : "bg-cream text-ink"
+          tone === "bad" ? "bg-coral-ink text-white" : tone === "warn" ? "bg-warning-soft text-gold-ink" : "bg-cream text-ink"
         }`}
       >
         {n}

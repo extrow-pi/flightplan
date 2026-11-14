@@ -88,7 +88,7 @@ export default function OverviewPage() {
             <aside className="space-y-6">
               <Checklist events={dated} templates={templates.length} />
               {drafts.length > 0 && (
-                <div className="rounded-3xl bg-[#fff4cc] p-5">
+                <div className="rounded-3xl bg-warning-soft p-5">
                   <p className="font-extrabold text-gold-ink">
                     {drafts.length} draft{drafts.length > 1 ? "s" : ""} waiting
                   </p>
@@ -213,7 +213,7 @@ function Checklist({ events, templates }: { events: EventRecord[]; templates: nu
           <li key={s.label} className="flex items-center gap-3 text-sm">
             <span
               className={`flex size-6 shrink-0 items-center justify-center rounded-full ${
-                s.done ? "bg-coral text-white" : "border-2 border-cream bg-white"
+                s.done ? "bg-primary hover:bg-primary-hover text-white" : "border-2 border-cream bg-white"
               }`}
             >
               {s.done && <CheckIcon className="size-3.5" strokeWidth={3} />}
@@ -248,7 +248,7 @@ function FirstEventCard({ templates }: { templates: number }) {
       )}
       <Link
         to="/dashboard/events/new"
-        className="mt-6 inline-flex items-center gap-2 rounded-full bg-coral px-6 py-3 font-bold text-white transition hover:bg-coral-deep"
+        className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-bold text-white transition hover:bg-primary-hover"
       >
         <PlusIcon className="size-4" strokeWidth={3} />
         Create your first event
@@ -267,7 +267,7 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
   return (
     <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-2 ring-coral/40" aria-labelledby="alerts-title">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-full bg-coral text-white">
+        <span className="flex size-10 items-center justify-center rounded-full bg-primary hover:bg-primary-hover text-white">
           <BellIcon className="size-5" />
         </span>
         <div>

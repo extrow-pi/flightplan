@@ -70,7 +70,7 @@ function Header() {
           {session ? (
             <Link
               to="/dashboard"
-              className="ml-3 rounded-full bg-coral px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-coral-deep"
+              className="ml-3 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover"
             >
               Go to dashboard
             </Link>
@@ -84,7 +84,7 @@ function Header() {
               </Link>
               <Link
                 to="/signup"
-                className="ml-1 rounded-full bg-coral px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-coral-deep"
+                className="ml-1 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover"
               >
                 Become an organizer
               </Link>
@@ -117,7 +117,7 @@ function Header() {
             </a>
           ))}
           {session ? (
-            <Link to="/dashboard" className="mt-2 block rounded-full bg-coral px-5 py-3 text-center font-bold text-white">
+            <Link to="/dashboard" className="mt-2 block rounded-full bg-primary hover:bg-primary-hover px-5 py-3 text-center font-bold text-white">
               Go to dashboard
             </Link>
           ) : (
@@ -128,7 +128,7 @@ function Header() {
               >
                 Log in
               </Link>
-              <Link to="/signup" className="block rounded-full bg-coral px-5 py-3 text-center font-bold text-white">
+              <Link to="/signup" className="block rounded-full bg-primary hover:bg-primary-hover px-5 py-3 text-center font-bold text-white">
                 Sign up
               </Link>
             </div>
@@ -174,7 +174,7 @@ function Hero() {
           <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link
               to="/signup"
-              className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-coral to-coral-deep px-7 py-3.5 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"
+              className="group inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-hover px-7 py-3.5 font-bold text-white transition"
             >
               Start organizing
               <ArrowRightIcon className="size-4 transition group-hover:translate-x-0.5" />
@@ -343,7 +343,7 @@ function SignupSection() {
               "Help decide which features we build next",
             ].map((t) => (
               <li key={t} className="flex items-start gap-3 font-semibold">
-                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-coral text-white">
+                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary hover:bg-primary-hover text-white">
                   <CheckIcon className="size-3.5" strokeWidth={3} />
                 </span>
                 {t}

@@ -160,7 +160,7 @@ function PlanBar({ event, plan, dirty, onReplaced }: { event: EventRecord; plan:
       {!isTemplate(event) && <VisitorMapSetting event={event} />}
 
       {savedName && mode === "idle" && (
-        <p className="mt-3 text-sm font-semibold text-[#2d7a6a]" role="status">
+        <p className="mt-3 text-sm font-semibold text-success" role="status">
           Saved “{savedName}” to your{" "}
           <Link to="/dashboard/floorplans" className="underline">
             floorplan library
@@ -299,7 +299,7 @@ function StartFromTables({ event, onChosen }: { event: EventRecord; onChosen: ()
         type="button"
         onClick={start}
         disabled={save.isPending || tables.isPending}
-        className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+        className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
       >
         {save.isPending ? "Creating…" : labels.length ? `Start a plan with these ${labels.length} tables` : "Start an empty plan"}
       </button>

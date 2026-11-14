@@ -102,9 +102,9 @@ export function StatusBadge({ event }: { event: EventRecord }) {
     return <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink-soft">Past</span>;
   }
   return event.status === "published" ? (
-    <span className="rounded-full bg-[#e8f8f5] px-2.5 py-1 text-xs font-bold text-[#2d7a6a]">Published</span>
+    <span className="rounded-full bg-success-soft px-2.5 py-1 text-xs font-bold text-success">Published</span>
   ) : (
-    <span className="rounded-full bg-[#fff4cc] px-2.5 py-1 text-xs font-bold text-gold-ink">Draft</span>
+    <span className="rounded-full bg-warning-soft px-2.5 py-1 text-xs font-bold text-gold-ink">Draft</span>
   );
 }
 
@@ -306,7 +306,7 @@ export function EventRow({ event }: { event: EventRecord }) {
                 className={`rounded-full px-4 py-2 text-sm font-bold transition disabled:opacity-60 ${
                   event.status === "published"
                     ? "border-2 border-slate/30 text-slate hover:border-slate"
-                    : "bg-coral text-white hover:bg-coral-deep"
+                    : "bg-primary text-white hover:bg-primary-hover"
                 }`}
               >
                 {event.status === "published" ? "Unpublish" : "Publish"}
@@ -364,7 +364,7 @@ export function TemplateRow({ event }: { event: EventRecord }) {
               <button
                 type="button"
                 onClick={() => setSpawning(true)}
-                className="inline-flex items-center gap-2 rounded-full bg-coral px-4 py-2 text-sm font-bold text-white transition hover:bg-coral-deep"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-hover"
               >
                 <CopyIcon className="size-4" /> Use template
               </button>
@@ -482,7 +482,7 @@ export function SpawnDialog({ template, onClose }: { template: EventRecord; onCl
             type="button"
             onClick={create}
             disabled={spawn.isPending}
-            className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] disabled:opacity-60"
+            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-60"
           >
             {spawn.isPending ? "Creating draft…" : "Create draft"}
           </button>

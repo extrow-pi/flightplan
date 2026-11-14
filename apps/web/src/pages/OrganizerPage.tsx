@@ -210,7 +210,7 @@ function ShowCard({ show: s }: { show: PublicShow }) {
             {s.booking.tablesLeft > 0 && (
               <Link
                 to={s.booking.url}
-                className="ml-auto rounded-full bg-gradient-to-r from-coral to-coral-deep px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"
+                className="ml-auto rounded-full bg-primary hover:bg-primary-hover px-5 py-2.5 text-sm font-bold text-white transition"
               >
                 Book a vendor table
               </Link>
@@ -223,7 +223,7 @@ function ShowCard({ show: s }: { show: PublicShow }) {
             className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 ${
               s.booking && s.booking.tablesLeft > 0
                 ? "border-2 border-coral text-coral-ink"
-                : "ml-auto bg-gradient-to-r from-coral to-coral-deep text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)]"
+                : "ml-auto bg-primary hover:bg-primary-hover text-white"
             }`}
           >
             <TicketIcon className="size-4" /> Get tickets

@@ -89,7 +89,7 @@ export default function VendorsPage() {
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-coral to-coral-deep px-5 py-2.5 text-sm font-bold whitespace-nowrap text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-hover px-5 py-2.5 text-sm font-bold whitespace-nowrap text-white transition"
             >
               <PlusIcon className="size-4" strokeWidth={3} /> Add vendor
             </button>
@@ -472,7 +472,7 @@ function AddVendorDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (
           <button
             type="submit"
             disabled={create.isPending}
-            className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-2.5 font-bold text-white disabled:opacity-60"
+            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-2.5 font-bold text-white disabled:opacity-60"
           >
             {create.isPending ? "Adding…" : "Add vendor"}
           </button>
@@ -638,7 +638,7 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
           <button
             type="submit"
             disabled={update.isPending}
-            className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-2.5 font-bold text-white disabled:opacity-60"
+            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-2.5 font-bold text-white disabled:opacity-60"
           >
             {update.isPending ? "Saving…" : "Save"}
           </button>

@@ -64,7 +64,7 @@ function Status({ data }: { data: PublicRequestStatus }) {
   const banner: { tone: string; title: string; body: ReactNode } =
     data.status === "pending"
       ? {
-          tone: "bg-[#fff4cc] text-gold-ink",
+          tone: "bg-warning-soft text-gold-ink",
           title: "Waiting for approval",
           body: `The organizer is reviewing your request for ${tables.toLowerCase()}. You'll get an email when it's approved.`,
         }
@@ -89,7 +89,7 @@ function Status({ data }: { data: PublicRequestStatus }) {
             ),
           }
         : data.status === "paid"
-          ? { tone: "bg-[#e8f8f5] text-[#2d7a6a]", title: "You're booked!", body: "Your payment is received. See you at the show!" }
+          ? { tone: "bg-success-soft text-success", title: "You're booked!", body: "Your payment is received. See you at the show!" }
           : {
               tone: "bg-ink/5 text-ink",
               title: closedCopy[data.closedAs ?? ""]?.title ?? "No longer active",

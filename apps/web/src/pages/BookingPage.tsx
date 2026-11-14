@@ -118,12 +118,12 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
         {paidShow(event) &&
           // Tiers above the per-request limit can never apply here
           event.bulkDiscounts.filter((t) => t.minTables <= event.maxTablesPerRequest).map((t) => (
-            <span key={t.minTables} className="rounded-full bg-[#e8f8f5] px-3 py-1.5 font-bold text-[#2d7a6a]">
+            <span key={t.minTables} className="rounded-full bg-success-soft px-3 py-1.5 font-bold text-success">
               {discountLabel({ source: "tier", ...t })}
             </span>
           ))}
         {event.requiresApproval && (
-          <span className="rounded-full bg-[#fff4cc] px-3 py-1.5 font-bold text-gold-ink">Organizer approves each request</span>
+          <span className="rounded-full bg-warning-soft px-3 py-1.5 font-bold text-gold-ink">Organizer approves each request</span>
         )}
         {paidShow(event) && event.paymentDueDays && (
           <span className="rounded-full bg-cream px-3 py-1.5 font-bold text-ink-soft">
@@ -324,7 +324,7 @@ function BookingForm({
                     onClick={() => toggle(t.id)}
                     className={`aspect-square rounded-xl text-sm font-extrabold transition ${
                       isSelected
-                        ? "bg-coral text-white shadow-md ring-4 ring-coral/25"
+                        ? "bg-primary hover:bg-primary-hover text-white shadow-md ring-4 ring-coral/25"
                         : t.available
                           ? "bg-white text-ink ring-2 ring-ink/10 hover:ring-coral"
                           : "cursor-not-allowed bg-ink/5 text-ink-muted/60 line-through"
@@ -449,7 +449,7 @@ function BookingForm({
                 </div>
                 {paid && price.discountCents > 0 && (
                   <>
-                    <div className="flex items-center justify-between gap-3 text-sm font-semibold text-[#2d7a6a]">
+                    <div className="flex items-center justify-between gap-3 text-sm font-semibold text-success">
                       <span>{price.label}</span>
                       <span>−{formatMoney(price.discountCents)}</span>
                     </div>
@@ -477,7 +477,7 @@ function BookingForm({
             <button
               type="submit"
               disabled={submit.isPending}
-              className="mt-5 w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3.5 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+              className="mt-5 w-full rounded-full bg-primary hover:bg-primary-hover px-6 py-3.5 font-bold text-white transition disabled:opacity-60"
             >
               {submit.isPending
                 ? "Sending…"
@@ -550,7 +550,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]" noValidate>
       <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-        <p className="inline-block rounded-full bg-[#fff4cc] px-3 py-1 text-sm font-bold text-gold-ink">Fully booked</p>
+        <p className="inline-block rounded-full bg-warning-soft px-3 py-1 text-sm font-bold text-gold-ink">Fully booked</p>
         <h2 className="mt-3 text-2xl font-extrabold">Every table is taken</h2>
         <p className="mt-2 text-ink-soft">
           All {page.tables.length} tables at this show are booked. Join the waitlist, and if a table opens up the organizer can assign it to
@@ -620,7 +620,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
         <button
           type="submit"
           disabled={join.isPending}
-          className="mt-5 w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3.5 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+          className="mt-5 w-full rounded-full bg-primary hover:bg-primary-hover px-6 py-3.5 font-bold text-white transition disabled:opacity-60"
         >
           {join.isPending ? "Joining…" : "Join the waitlist"}
         </button>

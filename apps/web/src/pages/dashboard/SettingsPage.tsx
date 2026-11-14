@@ -159,7 +159,7 @@ function PublicPageForm({
             </p>
           )}
           {notice && (
-            <p className="mt-4 rounded-xl bg-[#e8f8f5] px-4 py-3 text-sm font-semibold text-[#2d7a6a]" role="status">
+            <p className="mt-4 rounded-xl bg-success-soft px-4 py-3 text-sm font-semibold text-success" role="status">
               {notice}
             </p>
           )}
@@ -167,7 +167,7 @@ function PublicPageForm({
             <button
               type="submit"
               disabled={save.isPending}
-              className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-7 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+              className="rounded-full bg-primary hover:bg-primary-hover px-7 py-3 font-bold text-white transition disabled:opacity-60"
             >
               {save.isPending ? "Saving…" : "Save"}
             </button>
@@ -209,7 +209,7 @@ function HandleStatus({ handle, ok, checking, available }: { handle: string; ok:
     : checking
       ? ["text-ink-muted", "Checking…"]
       : available
-        ? ["text-[#2d7a6a]", "Available"]
+        ? ["text-success", "Available"]
         : ["text-coral-ink", "Already taken"];
   return (
     <span className={`mt-1 block text-xs font-semibold ${tone}`} aria-live="polite">

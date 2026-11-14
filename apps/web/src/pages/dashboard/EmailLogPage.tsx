@@ -26,9 +26,9 @@ const kindLabels: Record<string, string> = {
 
 const statusStyles: Record<EmailStatus, { label: string; className: string }> = {
   queued: { label: "Sending…", className: "bg-cream text-ink-soft" },
-  sent: { label: "Sent", className: "bg-[#e8f8f5] text-[#2d7a6a]" },
+  sent: { label: "Sent", className: "bg-success-soft text-success" },
   failed: { label: "Failed", className: "bg-coral-ink text-white" },
-  logged: { label: "Not sent", className: "bg-[#fff4cc] text-gold-ink" },
+  logged: { label: "Not sent", className: "bg-warning-soft text-gold-ink" },
 };
 
 const when = (iso: string) =>
@@ -48,7 +48,7 @@ export default function EmailLogPage() {
       />
 
       {data && !data.deliveryEnabled && (
-        <div className="mb-6 rounded-2xl bg-[#fff4cc] px-5 py-4 text-sm text-ink" role="status">
+        <div className="mb-6 rounded-2xl bg-warning-soft px-5 py-4 text-sm text-ink" role="status">
           <p className="font-bold text-gold-ink">Emails aren't being delivered yet</p>
           <p className="mt-1">
             No email service is connected, so these are recorded here but not sent. Add a Resend API key to{" "}
@@ -160,7 +160,7 @@ function EmailPreview({ email, onClose }: { email: EmailLogEntry; onClose: () =>
             title={`Email: ${email.subject}`}
             srcDoc={html.data ?? ""}
             sandbox=""
-            className="h-[70dvh] w-full bg-[#faf0dc]"
+            className="h-[70dvh] w-full bg-cream"
           />
         )}
       </div>

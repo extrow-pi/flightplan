@@ -67,7 +67,7 @@ export default function EventsPage() {
           {filter !== "past" && (
             <Link
               to="/dashboard/events/new"
-              className="mt-4 inline-block rounded-full bg-coral px-6 py-3 font-bold text-white transition hover:bg-coral-deep"
+              className="mt-4 inline-block rounded-full bg-primary px-6 py-3 font-bold text-white transition hover:bg-primary-hover"
             >
               Create an event
             </Link>

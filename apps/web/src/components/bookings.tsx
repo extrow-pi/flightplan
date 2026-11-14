@@ -14,10 +14,10 @@ export function tableState(booking: Booking | null): TableState {
 
 const stateStyles: Record<TableState, { label: string; className: string }> = {
   available: { label: "Available", className: "bg-sky/20 text-slate" },
-  pending: { label: "Needs approval", className: "bg-[#fff4cc] text-gold-ink" },
+  pending: { label: "Needs approval", className: "bg-warning-soft text-gold-ink" },
   awaiting_payment: { label: "Awaiting payment", className: "bg-peach text-coral-ink" },
   overdue: { label: "Payment overdue", className: "bg-coral-ink text-white" },
-  paid: { label: "Paid", className: "bg-[#e8f8f5] text-[#2d7a6a]" },
+  paid: { label: "Paid", className: "bg-success-soft text-success" },
 };
 
 export const TABLE_STATES = Object.keys(stateStyles) as TableState[];
@@ -61,7 +61,7 @@ export const sourceLabels: Record<Booking["source"], string> = {
 // ── Actions ──────────────────────────────────────────────────────────────
 
 const btn = {
-  primary: "rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep disabled:opacity-60",
+  primary: "rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover disabled:opacity-60",
   secondary:
     "rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-60",
   danger: "rounded-full px-3 py-1.5 text-sm font-bold text-coral-ink transition hover:bg-peach disabled:opacity-60",
@@ -290,7 +290,7 @@ export function ReleaseTableButton({
           type="button"
           disabled={act.isPending}
           onClick={() => act.mutate({ bookingId, action: "release" })}
-          className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-bold text-white disabled:opacity-60"
+          className="rounded-full bg-primary hover:bg-primary-hover px-2.5 py-0.5 text-xs font-bold text-white disabled:opacity-60"
         >
           {act.isPending ? "…" : "Yes"}
         </button>
@@ -309,7 +309,7 @@ export function ReleaseTableButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="ml-1 flex size-5 items-center justify-center rounded-full bg-white/90 text-sm leading-none font-bold text-ink transition hover:bg-coral hover:text-white"
+      className="ml-1 flex size-5 items-center justify-center rounded-full bg-white/90 text-sm leading-none font-bold text-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white"
       aria-label={`Release table ${tableLabel} only`}
       title={`Release table ${tableLabel} only`}
     >

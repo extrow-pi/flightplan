@@ -163,7 +163,7 @@ export default function TablesPage() {
           type="button"
           onClick={() => setAssigning({})}
           disabled={!available.length || past}
-          className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50"
+          className="w-full rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white transition disabled:opacity-50"
         >
           Assign tables
         </button>
@@ -304,7 +304,7 @@ export default function TablesPage() {
                           type="button"
                           onClick={() => setAssigning({ vendorId: v.id })}
                           disabled={!available.length}
-                          className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep disabled:opacity-50"
+                          className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover disabled:opacity-50"
                         >
                           Assign
                         </button>
@@ -601,7 +601,7 @@ function RequestCard({
         {tables.some((t) => t.booking.basePriceCents > 0) && (
           <span className="ml-auto text-right text-sm font-bold text-ink-soft">
             {formatMoney(tables.reduce((n, t) => n + t.booking.priceCents, 0))}
-            {b.discountLabel && <span className="block text-xs font-semibold text-[#2d7a6a]">{b.discountLabel}</span>}
+            {b.discountLabel && <span className="block text-xs font-semibold text-success">{b.discountLabel}</span>}
           </span>
         )}
       </div>
@@ -694,7 +694,7 @@ function TableRow({
             <button
               type="button"
               onClick={onReview}
-              className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
+              className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover"
             >
               Review
             </button>
@@ -869,7 +869,7 @@ function EmailVendorsDialog({
           .
         </p>
         <div className="mt-6 flex justify-end">
-          <button type="submit" className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white">
+          <button type="submit" className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white">
             Done
           </button>
         </div>
@@ -1022,7 +1022,7 @@ function EmailVendorsDialog({
         </p>
       )}
       {testSent && !send.error && (
-        <p className="mt-4 rounded-xl bg-[#e8f8f5] px-4 py-3 text-sm font-semibold text-[#2d7a6a]" role="status">
+        <p className="mt-4 rounded-xl bg-success-soft px-4 py-3 text-sm font-semibold text-success" role="status">
           Test sent to your email, filled in with one vendor's details.
         </p>
       )}
@@ -1042,7 +1042,7 @@ function EmailVendorsDialog({
         <button
           type="submit"
           disabled={!ready || send.isPending}
-          className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold whitespace-nowrap text-white disabled:opacity-50"
+          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold whitespace-nowrap text-white disabled:opacity-50"
         >
           {send.isPending
             ? "Sending…"
@@ -1182,7 +1182,7 @@ function BookingLinkCard({ event, editable }: { event: EventRecord; editable: bo
         </a>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5">
-        <span className={`text-sm font-bold ${works ? "text-[#2d7a6a]" : "text-ink-soft"}`}>
+        <span className={`text-sm font-bold ${works ? "text-success" : "text-ink-soft"}`}>
           {works
             ? "Taking bookings"
             : event.status !== "published"
@@ -1258,7 +1258,7 @@ function InvitesCard({ event, invites, editable }: { event: EventRecord; invites
         <button
           type="submit"
           disabled={create.isPending || isPast(event)}
-          className="w-full rounded-full border-2 border-coral px-4 py-2 text-sm font-bold text-coral-ink transition hover:bg-coral hover:text-white disabled:opacity-50"
+          className="w-full rounded-full border-2 border-coral px-4 py-2 text-sm font-bold text-coral-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white disabled:opacity-50"
         >
           {create.isPending ? "Creating…" : "Create invite link"}
         </button>
@@ -1279,7 +1279,7 @@ function InvitesCard({ event, invites, editable }: { event: EventRecord; invites
             return (
               <li
                 key={inv.id}
-                className={`rounded-2xl px-3 py-2.5 text-sm ring-1 ${inv.id === fresh ? "bg-[#e8f8f5] ring-[#2d7a6a]/30" : "bg-cream-50 ring-ink/5"}`}
+                className={`rounded-2xl px-3 py-2.5 text-sm ring-1 ${inv.id === fresh ? "bg-success-soft ring-success/30" : "bg-cream-50 ring-ink/5"}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate font-bold">{inv.name || inv.email || "Unnamed invite"}</span>
@@ -1349,7 +1349,7 @@ function GroupInvite({ event }: { event: EventRecord }) {
         </button>
       </div>
       {r && (
-        <p className="mt-2 rounded-xl bg-[#e8f8f5] px-3 py-2 text-xs font-semibold text-[#2d7a6a]" role="status">
+        <p className="mt-2 rounded-xl bg-success-soft px-3 py-2 text-xs font-semibold text-success" role="status">
           {r.invited ? `Invited ${r.invited} vendor${r.invited > 1 ? "s" : ""}.` : "No new invites sent."}
           {r.skipped.length > 0 &&
             ` Skipped ${[
@@ -1471,7 +1471,7 @@ function UnassignedCard({
                 type="button"
                 onClick={onAssign}
                 disabled={!canAssign}
-                className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep disabled:opacity-50"
+                className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover disabled:opacity-50"
               >
                 Assign tables
               </button>
@@ -1647,7 +1647,7 @@ function AddVendorDialog({
         <button
           type="submit"
           disabled={add.isPending || (mode === "existing" && !vendorId)}
-          className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
         >
           {add.isPending ? "Saving…" : editing ? "Save note" : "Add to show"}
         </button>
@@ -1860,7 +1860,7 @@ function AssignDialog({
                   <li
                     key={t.minTables}
                     className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                      on ? "bg-[#e8f8f5] text-[#2d7a6a] ring-1 ring-[#2d7a6a]/30" : "bg-cream text-ink-soft"
+                      on ? "bg-success-soft text-success ring-1 ring-success/30" : "bg-cream text-ink-soft"
                     }`}
                   >
                     {on && <CheckIcon className="mr-1 inline size-3" aria-hidden="true" />}
@@ -1895,7 +1895,7 @@ function AssignDialog({
               </div>
               {price.discountCents > 0 && (
                 <>
-                  <div className="flex items-center justify-between gap-3 font-semibold text-[#2d7a6a]">
+                  <div className="flex items-center justify-between gap-3 font-semibold text-success">
                     <span>{price.label}</span>
                     <span>−{formatMoney(price.discountCents)}</span>
                   </div>
@@ -1931,7 +1931,7 @@ function AssignDialog({
           ) : code && quote.data?.codeNotBest && count > 0 ? (
             <p className="mt-1 text-xs text-ink-soft">The multi-table discount saves more, so that's applied instead.</p>
           ) : code && price.source === "code" && count > 0 ? (
-            <p className="mt-1 text-xs font-semibold text-[#2d7a6a]">Code applied.</p>
+            <p className="mt-1 text-xs font-semibold text-success">Code applied.</p>
           ) : (
             <p className="mt-1 text-xs text-ink-muted">Applied if it saves more than the multi-table discount.</p>
           )}
@@ -1973,7 +1973,7 @@ function AssignDialog({
         <button
           type="submit"
           disabled={assign.isPending || !count || (mode === "existing" && !vendorId)}
-          className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
         >
           {assign.isPending ? "Assigning…" : count > 1 ? `Assign ${count} tables` : "Assign table"}
         </button>

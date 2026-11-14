@@ -27,7 +27,7 @@ export function PageHeader({
       {action !== undefined ? action : (
         <Link
           to="/dashboard/events/new"
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full whitespace-nowrap bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full whitespace-nowrap bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white transition"
         >
           <PlusIcon className="size-4" strokeWidth={3} />
           Create event
@@ -63,7 +63,7 @@ export function PrimaryButton({ onClick, pending, children }: { onClick: () => v
       type="button"
       onClick={onClick}
       disabled={pending}
-      className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-7 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+      className="rounded-full bg-primary hover:bg-primary-hover px-7 py-3 font-bold text-white transition disabled:opacity-60"
     >
       {pending ? "Saving…" : children}
     </button>
@@ -215,7 +215,7 @@ function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave
             ref={stayRef}
             type="button"
             onClick={onStay}
-            className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)]"
+            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white"
           >
             Keep editing
           </button>
@@ -232,7 +232,7 @@ function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave
 export function SaveStatus({ dirty, onDiscard, saved }: { dirty: boolean; onDiscard: () => void; saved?: string | null }) {
   if (!dirty) {
     return saved ? (
-      <span className="flex items-center gap-1.5 self-start rounded-full bg-[#e8f8f5] px-3 py-1.5 text-sm font-bold text-[#2d7a6a] sm:mr-auto sm:self-auto" role="status">
+      <span className="flex items-center gap-1.5 self-start rounded-full bg-success-soft px-3 py-1.5 text-sm font-bold text-success sm:mr-auto sm:self-auto" role="status">
         <CheckIcon className="size-4" />
         {saved}
       </span>

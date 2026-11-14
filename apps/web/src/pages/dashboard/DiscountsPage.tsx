@@ -18,10 +18,10 @@ const inputClass =
   "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";
 
 const statusStyles: Record<DiscountCode["status"], [string, string]> = {
-  active: ["Active", "bg-[#e8f8f5] text-[#2d7a6a]"],
+  active: ["Active", "bg-success-soft text-success"],
   paused: ["Paused", "bg-ink/5 text-ink-soft"],
   expired: ["Expired", "bg-ink/5 text-ink-soft"],
-  used_up: ["Used up", "bg-[#fff4cc] text-gold-ink"],
+  used_up: ["Used up", "bg-warning-soft text-gold-ink"],
 };
 
 const amountLabel = (c: { kind: DiscountCodeKind; value: number }) =>
@@ -43,7 +43,7 @@ export default function DiscountsPage() {
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold whitespace-nowrap text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold whitespace-nowrap text-white transition"
           >
             <PlusIcon className="size-4" strokeWidth={3} /> New code
           </button>
@@ -370,7 +370,7 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
             <button
               type="submit"
               disabled={save.isPending}
-              className="flex-1 rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-2.5 font-bold text-white disabled:opacity-60 sm:flex-none"
+              className="flex-1 rounded-full bg-primary hover:bg-primary-hover px-6 py-2.5 font-bold text-white disabled:opacity-60 sm:flex-none"
             >
               {save.isPending ? "Saving…" : code ? "Save" : "Create code"}
             </button>
@@ -404,7 +404,7 @@ function UsesDialog({ code, onClose }: { code: DiscountCode; onClose: () => void
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="font-bold">{u.vendorName}</span>
                 <span className="font-semibold">
-                  {formatMoney(u.totalCents)} <span className="text-[#2d7a6a]">(−{formatMoney(u.discountCents)})</span>
+                  {formatMoney(u.totalCents)} <span className="text-success">(−{formatMoney(u.discountCents)})</span>
                 </span>
               </div>
               <div className="flex flex-wrap justify-between gap-x-3 text-xs text-ink-soft">

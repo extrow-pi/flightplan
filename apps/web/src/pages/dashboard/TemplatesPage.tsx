@@ -17,7 +17,7 @@ export default function TemplatesPage() {
         action={
           <Link
             to="/dashboard/templates/new"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border-2 border-coral px-6 py-3 whitespace-nowrap font-bold text-coral-ink transition hover:bg-coral hover:text-white"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border-2 border-coral px-6 py-3 whitespace-nowrap font-bold text-coral-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white"
           >
             <PlusIcon className="size-4" strokeWidth={3} />
             New template
@@ -47,7 +47,7 @@ export default function TemplatesPage() {
           </p>
           <Link
             to="/dashboard/templates/new"
-            className="mt-5 rounded-full bg-coral px-6 py-3 font-bold text-white transition hover:bg-coral-deep"
+            className="mt-5 rounded-full bg-primary px-6 py-3 font-bold text-white transition hover:bg-primary-hover"
           >
             Create a template
           </Link>

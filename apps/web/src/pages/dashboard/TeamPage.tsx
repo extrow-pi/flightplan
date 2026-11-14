@@ -339,7 +339,7 @@ function InviteCard({ event }: { event: EventRecord }) {
         <button
           type="submit"
           disabled={invite.isPending}
-          className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-5 py-2.5 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60"
+          className="w-full rounded-full bg-primary hover:bg-primary-hover px-5 py-2.5 font-bold text-white transition disabled:opacity-60"
         >
           {invite.isPending ? "Sending…" : "Send invitation"}
         </button>
@@ -351,7 +351,7 @@ function InviteCard({ event }: { event: EventRecord }) {
       </form>
 
       {sent && (
-        <div className="mt-4 rounded-2xl bg-[#e8f8f5] px-4 py-3 text-sm text-[#2d7a6a]" role="status">
+        <div className="mt-4 rounded-2xl bg-success-soft px-4 py-3 text-sm text-success" role="status">
           <p className="font-bold">Invitation sent to {sent.email}</p>
           <p className="mt-1">
             It expires in {COLLABORATOR_INVITE_DAYS} days. You can also send them the link yourself. It only works for

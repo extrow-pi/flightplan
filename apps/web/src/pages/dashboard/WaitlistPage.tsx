@@ -76,7 +76,7 @@ export default function WaitlistPage() {
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-6">
             {data.openTables > 0 && inLine.some((e) => e.status === "waiting") && canEdit(event) && (
-              <p className="rounded-2xl bg-[#e8f8f5] px-5 py-4 font-semibold text-[#2d7a6a]" role="status">
+              <p className="rounded-2xl bg-success-soft px-5 py-4 font-semibold text-success" role="status">
                 {data.openTables === 1 ? "A table is" : `${data.openTables} tables are`} open. Assign{" "}
                 {data.openTables === 1 ? "it" : "them"} to the next vendors in line.
               </p>
@@ -260,7 +260,7 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
         <button
           type="submit"
           disabled={add.isPending || !vendorId}
-          className="rounded-full bg-gradient-to-r from-coral to-coral-deep px-6 py-3 font-bold text-white disabled:opacity-50"
+          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
         >
           {add.isPending ? "Adding…" : "Add to waitlist"}
         </button>
@@ -273,7 +273,7 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
 function HasTablesBadge({ count }: { count: number }) {
   if (!count) return null;
   return (
-    <span className="rounded-full bg-[#e8f8f5] px-2 py-0.5 text-xs font-bold whitespace-nowrap text-[#2d7a6a]">
+    <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-bold whitespace-nowrap text-success">
       Has {tablesCount(count)} here
     </span>
   );
@@ -299,9 +299,9 @@ function StatusBadge({ entry }: { entry: WaitlistEntry }) {
     entry.status === "offered"
       ? entry.offerCancelled
         ? ["Link cancelled", "bg-ink/5 text-ink-soft"]
-        : [`Offered ${shortDate(entry.offeredAt!)}`, "bg-[#fff4cc] text-gold-ink"]
+        : [`Offered ${shortDate(entry.offeredAt!)}`, "bg-warning-soft text-gold-ink"]
       : entry.status === "booked"
-        ? ["Booked", "bg-[#e8f8f5] text-[#2d7a6a]"]
+        ? ["Booked", "bg-success-soft text-success"]
         : entry.status === "removed"
           ? ["Removed", "bg-ink/5 text-ink-soft"]
           : ["Waiting", "bg-sky/20 text-slate"];
@@ -399,7 +399,7 @@ function EntryRow({
               {openTables > 0 ? (
                 <Link
                   to={`/dashboard/events/${event.id}/tables?assign=${e.vendorId}`}
-                  className="rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-coral-deep"
+                  className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover"
                 >
                   Assign tables
                 </Link>
@@ -408,7 +408,7 @@ function EntryRow({
                   type="button"
                   disabled
                   title="Every table is taken. Free one up on Tables & vendors first."
-                  className="cursor-not-allowed rounded-full bg-coral px-3.5 py-1.5 text-sm font-bold text-white opacity-40"
+                  className="cursor-not-allowed rounded-full bg-primary hover:bg-primary-hover px-3.5 py-1.5 text-sm font-bold text-white opacity-40"
                 >
                   Assign tables
                 </button>

@@ -161,7 +161,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
             <button
               type="submit"
               disabled={pending}
-              className="w-full rounded-full bg-gradient-to-r from-coral to-coral-deep px-8 py-3.5 font-bold text-white shadow-[0_8px_20px_-6px_rgba(232,133,106,0.7)] transition hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-coral/30 focus-visible:outline-none disabled:translate-y-0 disabled:opacity-60"
+              className="w-full rounded-full bg-primary hover:bg-primary-hover px-8 py-3.5 font-bold text-white transition focus-visible:ring-4 focus-visible:ring-coral/30 focus-visible:outline-none disabled:opacity-60"
             >
               {pending ? t.pending : t.submit}
             </button>

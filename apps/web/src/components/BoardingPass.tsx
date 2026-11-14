@@ -85,7 +85,7 @@ export default function BoardingPass() {
 
       {/* Floating notification */}
       <div className="absolute -bottom-5 -left-3 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-lg ring-1 ring-ink/5 sm:-left-8">
-        <span className="flex size-9 items-center justify-center rounded-full bg-[#e8f8f5] text-[#2d7a6a]">
+        <span className="flex size-9 items-center justify-center rounded-full bg-success-soft text-success">
           <CheckIcon className="size-5" />
         </span>
         <div className="text-sm">
