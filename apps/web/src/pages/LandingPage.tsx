@@ -152,7 +152,7 @@ function Hero() {
         <path d="M0 250 C 200 250, 300 60, 690 40" stroke="currentColor" strokeWidth="3" strokeDasharray="10 12" />
       </svg>
 
-      <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pt-16 pb-24 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:pt-24 lg:pb-32">
+      <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pt-16 pb-24 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:pt-24 lg:pb-32">
         <div className="text-center lg:text-left">
           <span className="inline-flex items-center gap-2 rounded-full border border-coral/30 bg-peach/70 px-4 py-1.5 text-sm font-bold text-coral-ink">
             <PlaneIcon className="size-4" /> For event organizers · Now boarding
@@ -328,7 +328,7 @@ function Features() {
 function SignupSection() {
   return (
     <section id="signup" className="relative bg-gradient-to-b from-cream to-cream-50 py-24">
-      <div className="mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1fr_1.4fr]">
+      <div className="mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div>
           <span className="text-sm font-bold tracking-wider text-coral-ink uppercase">Early access</span>
           <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Save your seat on the first flight</h2>

@@ -45,6 +45,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Fieldsets default to their content's minimum width, which pushed wide form rows off screen */
+fieldset {
+  min-inline-size: 0;
+}
+
 :where(h1, h2, h3) {
   text-wrap: balance;
 }

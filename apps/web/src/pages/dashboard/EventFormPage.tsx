@@ -774,7 +774,7 @@ function ScheduleEditor({
         </p>
       </div>
 
-      <div className="mt-5 hidden grid-cols-[1.4fr_1fr_1fr_1fr_auto] gap-3 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+      <div className="mt-5 hidden grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] gap-3 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
         <span>{dated ? "Date" : "Day"}</span>
         <span title="When vendors can start setting up (optional)">
           Setup <span className="font-semibold normal-case">(optional)</span>
@@ -795,7 +795,7 @@ function ScheduleEditor({
           return (
             <li
               key={d.key}
-              className="grid grid-cols-3 gap-3 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[1.4fr_1fr_1fr_1fr_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
+              className="grid grid-cols-3 gap-3 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
             >
               <div className="col-span-3 sm:col-span-1">
                 {dated ? (
@@ -946,7 +946,7 @@ function TableTypesField({
           .
         </p>
       )}
-      <div className="mt-3 hidden grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+      <div className="mt-3 hidden grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] gap-2 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
         <span>Type</span>
         <span>Tables</span>
         <span>Price each</span>
@@ -957,7 +957,7 @@ function TableTypesField({
       </div>
       <ol className="mt-2 space-y-2">
         {types.map((t, i) => (
-          <li key={t.key} className="grid grid-cols-3 gap-2 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-center sm:bg-transparent sm:p-0 sm:ring-0">
+          <li key={t.key} className="grid grid-cols-3 gap-2 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] sm:items-center sm:bg-transparent sm:p-0 sm:ring-0">
             <input
               className={`${cell} col-span-3 sm:col-span-1`}
               aria-label={`Table type ${i + 1}: name`}

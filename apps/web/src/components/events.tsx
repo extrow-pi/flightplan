@@ -190,15 +190,19 @@ export function EventTabs({ event }: { event: EventRecord }) {
         ]),
     { to: `${base}/team`, label: "Team", end: false },
   ];
+  // Scrolls sideways on narrow screens instead of widening the page; the underline is an inset shadow so it isn't clipped
   return (
-    <nav className="mt-6 flex gap-1 border-b border-ink/10" aria-label="Event sections">
+    <nav
+      className="-mx-4 mt-6 flex gap-1 overflow-x-auto px-4 shadow-[inset_0_-1px_0_rgb(74_55_40/0.1)] [scrollbar-width:none] sm:mx-0 sm:px-0"
+      aria-label="Event sections"
+    >
       {tabs.map((t) => (
         <NavLink
           key={t.to}
           to={t.to}
           end={t.end}
           className={({ isActive }) =>
-            `-mb-px border-b-4 px-2.5 py-2.5 text-sm font-bold whitespace-nowrap sm:px-4 transition ${
+            `shrink-0 border-b-4 px-2.5 py-2.5 text-sm font-bold whitespace-nowrap sm:px-4 transition ${
               isActive ? "border-coral text-coral-ink" : "border-transparent text-ink-soft hover:text-ink"
             }`
           }
