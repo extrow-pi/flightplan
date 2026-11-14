@@ -343,7 +343,7 @@ function SignupSection() {
               "Help decide which features we build next",
             ].map((t) => (
               <li key={t} className="flex items-start gap-3 font-semibold">
-                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary hover:bg-primary-hover text-white">
+                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-white">
                   <CheckIcon className="size-3.5" strokeWidth={3} />
                 </span>
                 {t}

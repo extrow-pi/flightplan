@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PAYMENT_METHODS, paymentMethodLabels, type Booking, type PaymentMethod } from "@flightplan/shared";
 import { useBookingAction } from "../lib/api";
+import Menu, { type MenuItem } from "./Menu";
 
 // ── Status ───────────────────────────────────────────────────────────────
 
@@ -120,6 +121,14 @@ export function BookingActions({
     );
   }
 
+  const release: MenuItem = {
+    label: count > 1 ? `Release all ${count} tables` : "Release table",
+    danger: true,
+    onSelect: () => setConfirmRelease(true),
+  };
+  const markPaid = () => setChoosingMethod(true);
+
+  // One main action, at most one more beside it, and the rest under "More"
   return (
     <div className="flex flex-wrap items-center gap-2">
       {booking.status === "pending" && (
@@ -127,25 +136,25 @@ export function BookingActions({
           <button type="button" className={btn.primary} disabled={busy} onClick={() => run({ bookingId: id, action: "approve" })}>
             Approve{all}
           </button>
-          <button
-            type="button"
-            className={btn.secondary}
+          <Menu
             disabled={busy}
-            title="Free the tables and put the vendor on this show's waitlist. They're emailed their place in line."
-            onClick={() => run({ bookingId: id, action: "waitlist" })}
-          >
-            Move to waitlist
-          </button>
-          <button type="button" className={btn.danger} disabled={busy} onClick={() => run({ bookingId: id, action: "reject" })}>
-            Reject{all}
-          </button>
+            items={[
+              {
+                label: "Move to waitlist",
+                title: "Free the tables and put the vendor on this show's waitlist. They're emailed their place in line.",
+                onSelect: () => run({ bookingId: id, action: "waitlist" }),
+              },
+              { label: `Mark paid${all}`, onSelect: markPaid },
+              { label: `Reject${all}`, danger: true, onSelect: () => run({ bookingId: id, action: "reject" }) },
+            ]}
+          />
         </>
       )}
 
       {booking.status === "awaiting_payment" && booking.overdue && (
         <>
-          <button type="button" className={btn.primary} disabled={busy} onClick={() => setConfirmRelease(true)}>
-            {count > 1 ? "Release tables" : "Release table"}
+          <button type="button" className={btn.primary} disabled={busy} onClick={markPaid}>
+            Mark paid{all}
           </button>
           <button
             type="button"
@@ -155,30 +164,34 @@ export function BookingActions({
           >
             Keep, +{extend} days
           </button>
-          <button
-            type="button"
-            className={btn.secondary}
+          <Menu
             disabled={busy}
-            onClick={() => run({ bookingId: id, action: "keep", extendDays: null })}
-            title="Keep the table with no payment deadline"
-          >
-            Keep, no deadline
-          </button>
+            items={[
+              {
+                label: "Keep, no deadline",
+                title: "Keep the table with no payment deadline",
+                onSelect: () => run({ bookingId: id, action: "keep", extendDays: null }),
+              },
+              release,
+            ]}
+          />
         </>
       )}
 
-      {(booking.status === "awaiting_payment" || booking.status === "pending") && (
-        <button type="button" className={btn.secondary} disabled={busy} onClick={() => setChoosingMethod(true)}>
-          Mark paid{all}
-        </button>
+      {booking.status === "awaiting_payment" && !booking.overdue && (
+        <>
+          <button type="button" className={btn.secondary} disabled={busy} onClick={markPaid}>
+            Mark paid{all}
+          </button>
+          <Menu disabled={busy} items={[release]} />
+        </>
       )}
 
-      {booking.status === "paid" && <PaidViaSelect booking={booking} eventId={eventId} />}
-
-      {booking.status !== "pending" && !(booking.status === "awaiting_payment" && booking.overdue) && (
-        <button type="button" className={btn.danger} disabled={busy} onClick={() => setConfirmRelease(true)}>
-          {count > 1 ? `Release all ${count}` : "Release"}
-        </button>
+      {booking.status === "paid" && (
+        <>
+          <PaidViaSelect booking={booking} eventId={eventId} />
+          <Menu disabled={busy} items={[release]} />
+        </>
       )}
 
       {act.error && (

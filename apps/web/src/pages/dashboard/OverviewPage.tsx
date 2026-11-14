@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import type { EventRecord } from "@flightplan/shared";
 import BannedBadge from "../../components/BannedBadge";
@@ -260,14 +261,17 @@ function FirstEventCard({ templates }: { templates: number }) {
 /** Overdue payments and table requests waiting for approval, across all events. */
 function AlertsCard({ events }: { events: EventRecord[] }) {
   const { data: alerts } = useAlerts();
+  // A long list buries the rest of the page: show the first few and let the rest expand
+  const [showAll, setShowAll] = useState(false);
   if (!alerts?.length) return null;
+  const shown = showAll ? alerts : alerts.slice(0, ALERTS_SHOWN);
   const overdue = alerts.filter((a) => a.kind === "overdue").length;
   const pending = alerts.length - overdue;
 
   return (
     <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-2 ring-coral/40" aria-labelledby="alerts-title">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-full bg-primary hover:bg-primary-hover text-white">
+        <span className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
           <BellIcon className="size-5" />
         </span>
         <div>
@@ -285,11 +289,11 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
         </div>
       </div>
       <ul className="mt-4 divide-y divide-ink/5">
-        {alerts.map((a) => {
+        {shown.map((a) => {
           const event = events.find((e) => e.id === a.eventId);
           return (
-            <li key={a.booking.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
-              <div className="min-w-0 flex-1">
+            <li key={a.booking.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3">
+              <div className="min-w-[min(100%,16rem)] flex-1">
                 <p className="flex flex-wrap items-center gap-x-1.5 font-bold">
                   <span>
                     {a.booking.businessName || a.booking.name}
@@ -321,6 +325,18 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
           );
         })}
       </ul>
+      {alerts.length > ALERTS_SHOWN && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+          className="mt-2 rounded-full px-3 py-1.5 text-sm font-bold text-coral-ink transition hover:bg-peach"
+        >
+          {showAll ? "Show fewer" : `Show all ${alerts.length}`}
+        </button>
+      )}
     </section>
   );
 }
+
+const ALERTS_SHOWN = 5;
