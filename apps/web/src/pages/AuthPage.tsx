@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import Logo from "../components/Logo";
-import { PlaneIcon } from "../components/Icons";
+import { ChartIcon, PlaneIcon, TicketIcon } from "../components/Icons";
 import { safeRedirect, signIn, signUp, useAuthConfig, useSession } from "../lib/auth-client";
 
 type Mode = "login" | "signup";
@@ -263,9 +263,18 @@ function BrandPanel() {
       <div className="relative mt-auto max-w-md">
         <p className="text-4xl leading-tight font-extrabold">Your show's flight deck is one step away.</p>
         <ul className="mt-8 space-y-3 text-lg font-semibold text-white/90">
-          <li>✈️ Sell vendor tables with a shareable floor plan</li>
-          <li>🎟️ Sell tickets and check guests in from your phone</li>
-          <li>📊 See every table and ticket sale in one place</li>
+          {(
+            [
+              [PlaneIcon, "Sell vendor tables with a shareable floor plan"],
+              [TicketIcon, "Sell tickets and check guests in from your phone"],
+              [ChartIcon, "See every table and ticket sale in one place"],
+            ] as const
+          ).map(([Icon, text]) => (
+            <li key={text} className="flex items-start gap-3">
+              <Icon className="mt-1 size-5 shrink-0" />
+              {text}
+            </li>
+          ))}
         </ul>
       </div>
 

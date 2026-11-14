@@ -155,7 +155,7 @@ function Hero() {
       <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pt-16 pb-24 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:pt-24 lg:pb-32">
         <div className="text-center lg:text-left">
           <span className="inline-flex items-center gap-2 rounded-full border border-coral/30 bg-peach/70 px-4 py-1.5 text-sm font-bold text-coral-ink">
-            ✈️ For event organizers · Now boarding
+            <PlaneIcon className="size-4" /> For event organizers · Now boarding
           </span>
 
           <h1 className="mt-6 text-4xl leading-[1.05] font-extrabold tracking-tight text-ink sm:text-6xl">
@@ -190,7 +190,7 @@ function Hero() {
           <ul className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-semibold text-ink-soft lg:justify-start">
             {["Free during early access", "No setup fees", "Made in Vancouver"].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
-                <span className="text-coral">●</span> {t}
+                <span className="size-1.5 rounded-full bg-coral" aria-hidden="true" /> {t}
               </li>
             ))}
           </ul>

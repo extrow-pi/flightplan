@@ -11,7 +11,7 @@ import {
   type ShowPageTheme,
 } from "@flightplan/shared";
 import { DateTile, Schedule } from "../components/events";
-import { ArrowLeftIcon, ClockIcon, MailIcon, MapPinIcon, TableIcon, TicketIcon } from "../components/Icons";
+import { ArrowLeftIcon, ClockIcon, ExternalLinkIcon, MailIcon, MapPinIcon, TableIcon, TicketIcon } from "../components/Icons";
 import Logo from "../components/Logo";
 import { ApiRequestError, usePublicEventMap, usePublicShow } from "../lib/api";
 import VendorMap from "../components/floorplan/VendorMap";
@@ -232,7 +232,7 @@ function Page({ data }: { data: PublicShowPage }) {
                 <dd className="text-[var(--soft)]">{[s.address, s.city].filter(Boolean).join(", ")}</dd>
                 <dd>
                   <a href={mapsUrl} target="_blank" rel="noreferrer noopener" className={`text-sm ${textLink}`}>
-                    Open in Maps ↗
+                    Open in Maps<ExternalLinkIcon className="ml-1 inline size-3.5 -translate-y-px" aria-hidden="true" />
                   </a>
                 </dd>
               </div>
@@ -305,7 +305,7 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
           <p className="mt-3 text-sm text-[var(--muted)]">
             Ticket sales by TicketsCandy.{" "}
             <a href={page.tickets} target="_blank" rel="noreferrer noopener" className={textLink}>
-              Open tickets in a new tab ↗
+              Open tickets in a new tab<ExternalLinkIcon className="ml-1 inline size-3.5 -translate-y-px" aria-hidden="true" />
             </a>
           </p>
         </BlockSection>
@@ -368,7 +368,7 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {b.links.map((l, i) => (
               <a key={i} href={l.url} target="_blank" rel="noreferrer noopener" className={accentButton}>
-                {l.label} ↗
+                {l.label}<ExternalLinkIcon className="ml-1 inline size-3.5 -translate-y-px" aria-hidden="true" />
               </a>
             ))}
           </div>
@@ -418,7 +418,7 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
             <span className="font-bold text-[var(--text)]">{s.venueName}</span>
             {[s.address, s.city].filter(Boolean).length > 0 && ` · ${[s.address, s.city].filter(Boolean).join(", ")}`} ·{" "}
             <a href={mapsUrl} target="_blank" rel="noreferrer noopener" className={textLink}>
-              Directions ↗
+              Directions<ExternalLinkIcon className="ml-1 inline size-3.5 -translate-y-px" aria-hidden="true" />
             </a>
           </p>
         </BlockSection>

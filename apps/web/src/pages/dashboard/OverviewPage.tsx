@@ -3,7 +3,7 @@ import type { EventRecord } from "@flightplan/shared";
 import BannedBadge from "../../components/BannedBadge";
 import { BookingActions, paymentDueLabel } from "../../components/bookings";
 import { DateTile, EventMeta, EventRow, isPast, isTemplate, StatusBadge } from "../../components/events";
-import { BellIcon, CalendarIcon, CheckIcon, PlusIcon, TableIcon, TicketIcon } from "../../components/Icons";
+import { BellIcon, CalendarIcon, CheckIcon, PlaneIcon, PlusIcon, TableIcon, TicketIcon } from "../../components/Icons";
 import { useAlerts, useEvents } from "../../lib/api";
 import { useSession } from "../../lib/auth-client";
 import { daysUntil, formatMoney, greeting } from "../../lib/format";
@@ -144,7 +144,9 @@ function NextShowCard({ event }: { event: EventRecord }) {
       >
         <path d="M0 190 C 140 190, 200 30, 410 20" stroke="currentColor" strokeWidth="3" strokeDasharray="10 12" />
       </svg>
-      <p className="text-sm font-bold tracking-wider text-gold uppercase">✈️ Next show</p>
+      <p className="flex items-center gap-2 text-sm font-bold tracking-wider text-gold uppercase">
+        <PlaneIcon className="size-4" /> Next show
+      </p>
       <div className="relative mt-4 flex flex-col gap-6 sm:flex-row sm:items-center">
         <DateTile event={event} size="lg" />
         <div className="min-w-0 flex-1">

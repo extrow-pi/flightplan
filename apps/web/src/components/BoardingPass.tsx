@@ -1,4 +1,4 @@
-import { PlaneIcon } from "./Icons";
+import { CheckIcon, PlaneIcon } from "./Icons";
 
 // Illustrative preview of an event, styled as a boarding pass (sample data).
 const tables = Array.from({ length: 24 }, (_, i) => (i % 7 === 3 || i === 22 ? "open" : "booked"));
@@ -85,7 +85,9 @@ export default function BoardingPass() {
 
       {/* Floating notification */}
       <div className="absolute -bottom-5 -left-3 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-lg ring-1 ring-ink/5 sm:-left-8">
-        <span className="flex size-9 items-center justify-center rounded-full bg-[#e8f8f5] text-lg">🎉</span>
+        <span className="flex size-9 items-center justify-center rounded-full bg-[#e8f8f5] text-[#2d7a6a]">
+          <CheckIcon className="size-5" />
+        </span>
         <div className="text-sm">
           <p className="font-bold">Table B7 booked</p>
           <p className="text-xs text-ink-muted">Paid · just now</p>

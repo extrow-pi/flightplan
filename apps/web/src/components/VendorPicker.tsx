@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Vendor } from "@flightplan/shared";
 import { smallInput } from "./Dialog";
-import { SearchIcon } from "./Icons";
+import { SearchIcon, StarIcon } from "./Icons";
 
 /** Search the vendor list and pick one. */
 export default function VendorPicker({
@@ -69,7 +69,9 @@ export default function VendorPicker({
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold">
-                  {v.favourite && <span className="text-gold-ink">★ </span>}
+                  {v.favourite && (
+                    <StarIcon className="mr-1 inline size-3.5 -translate-y-px text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
+                  )}
                   {v.businessName || v.name}
                   {v.businessName && <span className="font-semibold text-ink-soft"> · {v.name}</span>}
                 </span>

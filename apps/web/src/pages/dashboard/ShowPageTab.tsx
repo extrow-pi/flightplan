@@ -19,7 +19,7 @@ import {
 } from "@flightplan/shared";
 import CopyButton from "../../components/CopyButton";
 import { canEdit, EventTabs, SharedBadge } from "../../components/events";
-import { ArrowLeftIcon, PlusIcon, TrashIcon } from "../../components/Icons";
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, CheckIcon, PlusIcon, TrashIcon } from "../../components/Icons";
 import { ApiRequestError, useEvent, useSaveShowPage, useShowCover, useShowPage, useUploadPageImage } from "../../lib/api";
 import { DEFAULT_ACCENT, THEMES } from "../ShowPage";
 import { Field, ImageDropzone, inputClass, PrimaryButton, SaveStatus, Section, Toggle, useImagePicker, useUnsavedChanges } from "./ui";
@@ -409,7 +409,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                 <p className={`text-sm font-semibold ${ticketsUrl ? "text-[#2d7a6a]" : "text-coral-ink"}`}>
                   {ticketsUrl ? (
                     <>
-                      ✓{" "}
+                      <CheckIcon className="mr-1 inline size-4 -translate-y-px" />
                       <a href={ticketsUrl} target="_blank" rel="noreferrer" className="break-all underline">
                         {ticketsCandyEventId(ticketsUrl) ? `TicketsCandy checkout for event ${ticketsCandyEventId(ticketsUrl)}` : ticketsUrl}
                       </a>
@@ -451,10 +451,10 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                     </span>
                     <div className="ml-auto flex gap-1">
                       <IconButton label={`Move ${typeLabel[b.type]} block up`} disabled={i === 0} onClick={() => move(i, -1)}>
-                        ↑
+                        <ArrowUpIcon className="size-4" />
                       </IconButton>
                       <IconButton label={`Move ${typeLabel[b.type]} block down`} disabled={i === form.blocks.length - 1} onClick={() => move(i, 1)}>
-                        ↓
+                        <ArrowDownIcon className="size-4" />
                       </IconButton>
                       <IconButton label={`Remove ${typeLabel[b.type]} block`} danger onClick={() => setBlocks(form.blocks.filter((x) => x.key !== b.key))}>
                         <TrashIcon className="size-4" />

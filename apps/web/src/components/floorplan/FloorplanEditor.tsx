@@ -39,6 +39,7 @@ import {
 } from "../../lib/floorplan";
 import { defaultTableStyle, Landmark, planPadding, Room, Table, typeFill, Wall } from "./FloorplanDrawing";
 import { formatMoney } from "../../lib/format";
+import { ChevronDownIcon } from "../Icons";
 
 // The floorplan editor: an SVG canvas in millimetres with a toolbar and a properties panel.
 // Used for library plans and (later) each event's own plan.
@@ -602,7 +603,7 @@ export default function FloorplanEditor({
               </option>
             ))}
           </select>
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-slate">▾</span>
+          <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-slate" />
         </label>
         <span className="mx-1 hidden h-6 w-px bg-ink/10 sm:block" />
         <button type="button" className={btnPlain} onClick={undo} disabled={!past.length} title="Undo (Ctrl+Z)">

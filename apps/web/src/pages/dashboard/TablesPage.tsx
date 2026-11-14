@@ -1332,7 +1332,7 @@ function GroupInvite({ event }: { event: EventRecord }) {
           }}
           className="min-w-0 flex-1 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
         >
-          <option value="favourites">★ Favourites</option>
+          <option value="favourites">Favourites</option>
           {groups.data?.map((g) => (
             <option key={g.id} value={g.id}>
               {g.name} ({g.vendorCount})
