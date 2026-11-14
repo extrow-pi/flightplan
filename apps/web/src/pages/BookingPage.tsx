@@ -103,35 +103,49 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
         ))}
       </ul>
       {event.description && <p className="mt-4 text-ink-soft">{event.description}</p>}
-      <div className="mt-5 flex flex-wrap gap-3 text-sm">
-        {event.tableTypes.length > 1 ? (
-          event.tableTypes.map((t) => (
-            <span key={t.id} className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
-              {t.name} · {t.priceCents ? formatMoney(t.priceCents) : "free"}
-            </span>
-          ))
-        ) : (
-          <span className="rounded-full bg-peach px-3 py-1.5 font-bold text-coral-ink">
-            {event.tablePriceCents ? `${formatMoney(event.tablePriceCents)} per table` : "Free tables"}
-          </span>
+      {/* Prices and terms as a short summary, so the table picker is near the top on a phone */}
+      <dl className="mt-5 grid gap-x-6 gap-y-1 border-t border-ink/5 pt-4 text-sm sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-y-2">
+        <dt className="text-xs font-bold tracking-wider text-ink-muted uppercase sm:pt-0.5">Tables</dt>
+        <dd className="mb-2 font-semibold sm:mb-0">
+          {event.tableTypes.length > 1
+            ? event.tableTypes.map((t, i) => (
+                <span key={t.id} className="whitespace-nowrap">
+                  {i > 0 && <span className="text-ink-muted"> · </span>}
+                  {t.name} <span className="text-coral-ink">{t.priceCents ? formatMoney(t.priceCents) : "free"}</span>
+                </span>
+              ))
+            : event.tablePriceCents
+              ? `${formatMoney(event.tablePriceCents)} per table`
+              : "Free"}
+        </dd>
+        {/* Tiers above the per-request limit can never apply here */}
+        {paidShow(event) && event.bulkDiscounts.some((t) => t.minTables <= event.maxTablesPerRequest) && (
+          <>
+            <dt className="text-xs font-bold tracking-wider text-ink-muted uppercase sm:pt-0.5">Discounts</dt>
+            <dd className="mb-2 font-semibold text-success sm:mb-0">
+              {event.bulkDiscounts
+                .filter((t) => t.minTables <= event.maxTablesPerRequest)
+                .map((t) => discountLabel({ source: "tier", ...t }))
+                .join(" · ")}
+            </dd>
+          </>
         )}
-        {paidShow(event) &&
-          // Tiers above the per-request limit can never apply here
-          event.bulkDiscounts.filter((t) => t.minTables <= event.maxTablesPerRequest).map((t) => (
-            <span key={t.minTables} className="rounded-full bg-success-soft px-3 py-1.5 font-bold text-success">
-              {discountLabel({ source: "tier", ...t })}
-            </span>
-          ))}
-        {event.requiresApproval && (
-          <span className="rounded-full bg-warning-soft px-3 py-1.5 font-bold text-gold-ink">Organizer approves each request</span>
+        {(event.requiresApproval || (paidShow(event) && event.paymentDueDays)) && (
+          <>
+            <dt className="text-xs font-bold tracking-wider text-ink-muted uppercase sm:pt-0.5">Booking</dt>
+            <dd className="text-ink-soft">
+              {[
+                event.requiresApproval && "The organizer approves each request",
+                paidShow(event) &&
+                  event.paymentDueDays &&
+                  `Pay within ${event.paymentDueDays} day${event.paymentDueDays > 1 ? "s" : ""}${event.requiresApproval ? " of approval" : " of booking"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </dd>
+          </>
         )}
-        {paidShow(event) && event.paymentDueDays && (
-          <span className="rounded-full bg-cream px-3 py-1.5 font-bold text-ink-soft">
-            Pay within {event.paymentDueDays} day{event.paymentDueDays > 1 ? "s" : ""}
-            {event.requiresApproval ? " of approval" : " of booking"}
-          </span>
-        )}
-      </div>
+      </dl>
     </section>
   );
 }
