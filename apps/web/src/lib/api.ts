@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "./toast";
 import type {
   AddEventVendorInput,
   ApiError,
@@ -307,8 +308,32 @@ export function useBookingAction(eventId?: string) {
                 ? { paymentMethod: a.paymentMethod ?? null }
                 : {},
       }).then((r) => r.bookings),
-    onSuccess: () => invalidateBookings(qc, eventId),
+    onSuccess: (rows, a) => {
+      toast(bookingActionMessage(a, rows.length));
+      return invalidateBookings(qc, eventId);
+    },
   });
+}
+
+/** The confirmation shown after a booking action */
+function bookingActionMessage(a: BookingAction, tables: number) {
+  const n = tables > 1 ? `${tables} tables` : "table";
+  switch (a.action) {
+    case "approve":
+      return "Request approved";
+    case "reject":
+      return "Request rejected";
+    case "waitlist":
+      return "Moved to the waitlist";
+    case "mark-paid":
+      return "Marked paid";
+    case "payment-method":
+      return "Payment method saved";
+    case "release":
+      return tables > 1 ? `${n} released` : "Table released";
+    case "keep":
+      return a.extendDays ? `Kept, ${a.extendDays} more days to pay` : "Kept, no payment deadline";
+  }
 }
 
 export function useCreateInvite(eventId: string) {
@@ -678,6 +703,7 @@ export function useWaitlistAction(eventId: string) {
       action === "remove"
         ? request<void>(`/events/${eventId}/waitlist/${entryId}`, { method: "DELETE" })
         : request<void>(`/events/${eventId}/waitlist/${entryId}/${action}`, { method: "POST" }),
+    onSuccess: (_r, { action }) => toast(action === "remove" ? "Taken off the waitlist" : "Booking link withdrawn"),
     // Withdrawing cancels an invite link, which shows on Tables & vendors too
     onSettled: () =>
       Promise.all([qc.invalidateQueries({ queryKey: waitlistKey(eventId) }), qc.invalidateQueries({ queryKey: bookingKeys.tables(eventId) })]),
@@ -689,7 +715,10 @@ export function useAddWaitlistEntry(eventId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: AddWaitlistEntryInput) => request<{ id: string }>(`/events/${eventId}/waitlist`, { method: "POST", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: waitlistKey(eventId) }),
+    onSuccess: () => {
+      toast("Added to the waitlist");
+      return qc.invalidateQueries({ queryKey: waitlistKey(eventId) });
+    },
   });
 }
 
