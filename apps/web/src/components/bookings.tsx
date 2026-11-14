@@ -62,9 +62,8 @@ export const sourceLabels: Record<Booking["source"], string> = {
 // ── Actions ──────────────────────────────────────────────────────────────
 
 const btn = {
-  primary: "rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover disabled:opacity-60",
-  secondary:
-    "rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-60",
+  primary: "btn btn-primary px-3.5 py-1.5 text-sm",
+  secondary: "btn btn-secondary px-3.5 py-1 text-sm",
   danger: "rounded-full px-3 py-1.5 text-sm font-bold text-coral-ink transition hover:bg-peach disabled:opacity-60",
 };
 
@@ -303,7 +302,7 @@ export function ReleaseTableButton({
           type="button"
           disabled={act.isPending}
           onClick={() => act.mutate({ bookingId, action: "release" })}
-          className="rounded-full bg-primary hover:bg-primary-hover px-2.5 py-0.5 text-xs font-bold text-white disabled:opacity-60"
+          className="btn btn-primary px-2.5 py-0.5 text-xs"
         >
           {act.isPending ? "…" : "Yes"}
         </button>

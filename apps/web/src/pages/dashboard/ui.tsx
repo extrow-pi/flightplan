@@ -27,7 +27,7 @@ export function PageHeader({
       {action !== undefined ? action : (
         <Link
           to="/dashboard/events/new"
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full whitespace-nowrap bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white transition"
+          className="btn btn-primary inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap px-6 py-3"
         >
           <PlusIcon className="size-4" strokeWidth={3} />
           Create event
@@ -63,7 +63,7 @@ export function PrimaryButton({ onClick, pending, children }: { onClick: () => v
       type="button"
       onClick={onClick}
       disabled={pending}
-      className="rounded-full bg-primary hover:bg-primary-hover px-7 py-3 font-bold text-white transition disabled:opacity-60"
+      className="btn btn-primary px-7 py-3"
     >
       {pending ? "Saving…" : children}
     </button>
@@ -215,7 +215,7 @@ function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave
             ref={stayRef}
             type="button"
             onClick={onStay}
-            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white"
+            className="btn btn-primary px-6 py-3"
           >
             Keep editing
           </button>

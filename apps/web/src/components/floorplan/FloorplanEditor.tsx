@@ -629,7 +629,7 @@ export default function FloorplanEditor({
             type="button"
             onClick={() => void save()}
             disabled={!dirty || saving}
-            className="rounded-full bg-primary hover:bg-primary-hover px-5 py-2 font-bold text-white disabled:opacity-50"
+            className="btn btn-primary px-5 py-2"
           >
             Save
           </button>
@@ -1476,7 +1476,7 @@ function RowDialog({
           <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-bold text-ink-soft hover:bg-cream">
             Cancel
           </button>
-          <button type="submit" disabled={!valid} className="rounded-full bg-primary hover:bg-primary-hover px-5 py-2.5 font-bold text-white disabled:opacity-50">
+          <button type="submit" disabled={!valid} className="btn btn-primary px-5 py-2.5">
             Add {valid ? n : ""} tables
           </button>
         </div>

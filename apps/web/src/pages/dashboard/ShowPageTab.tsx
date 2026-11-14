@@ -195,7 +195,7 @@ function PageStatus({ page }: { page: ShowPageResponse }) {
               href={page.url}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full border-2 border-slate/30 px-3 py-1 text-sm font-bold text-slate transition hover:border-slate"
+              className="btn btn-secondary px-3 py-1 text-sm"
             >
               {page.hiddenBecause ? "Preview" : "View page"}
             </a>
@@ -843,7 +843,7 @@ function CoverField({ event, page, readOnly }: { event: EventRecord; page: ShowP
             type="button"
             onClick={picker.open}
             disabled={upload.isPending}
-            className="rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
+            className="btn btn-secondary px-4 py-2 text-sm"
           >
             {upload.isPending ? "Uploading…" : "Replace image"}
           </button>

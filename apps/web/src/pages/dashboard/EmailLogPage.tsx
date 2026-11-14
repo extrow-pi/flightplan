@@ -116,7 +116,7 @@ function EmailRow({ email: e, onOpen }: { email: EmailLogEntry; onOpen: () => vo
             type="button"
             onClick={() => retry.mutate(e.id)}
             disabled={retry.isPending}
-            className="rounded-full border-2 border-slate/30 px-3 py-0.5 text-xs font-bold text-slate hover:border-slate disabled:opacity-60"
+            className="btn btn-secondary px-3 py-0.5 text-xs"
           >
             Retry
           </button>

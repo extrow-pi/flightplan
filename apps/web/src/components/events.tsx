@@ -368,7 +368,7 @@ export function TemplateRow({ event }: { event: EventRecord }) {
               <button
                 type="button"
                 onClick={() => setSpawning(true)}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-hover"
+                className="btn btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
               >
                 <CopyIcon className="size-4" /> Use template
               </button>
@@ -486,7 +486,7 @@ export function SpawnDialog({ template, onClose }: { template: EventRecord; onCl
             type="button"
             onClick={create}
             disabled={spawn.isPending}
-            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-60"
+            className="btn btn-primary px-6 py-3"
           >
             {spawn.isPending ? "Creating draft…" : "Create draft"}
           </button>

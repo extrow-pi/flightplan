@@ -261,7 +261,7 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
         <button
           type="submit"
           disabled={add.isPending || !vendorId}
-          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
+          className="btn btn-primary px-6 py-3"
         >
           {add.isPending ? "Adding…" : "Add to waitlist"}
         </button>
@@ -400,7 +400,7 @@ function EntryRow({
               {openTables > 0 ? (
                 <Link
                   to={`/dashboard/events/${event.id}/tables?assign=${e.vendorId}`}
-                  className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover"
+                  className="btn btn-primary px-3.5 py-1.5 text-sm"
                 >
                   Assign tables
                 </Link>
@@ -409,7 +409,7 @@ function EntryRow({
                   type="button"
                   disabled
                   title="Every table is taken. Free one up on Tables & vendors first."
-                  className="cursor-not-allowed rounded-full bg-primary hover:bg-primary-hover px-3.5 py-1.5 text-sm font-bold text-white opacity-40"
+                  className="btn btn-primary cursor-not-allowed px-3.5 py-1.5 text-sm opacity-40"
                 >
                   Assign tables
                 </button>
@@ -420,7 +420,7 @@ function EntryRow({
                   type="button"
                   onClick={() => run("withdraw")}
                   disabled={act.isPending}
-                  className="rounded-full border-2 border-slate/30 px-3 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-60"
+                  className="btn btn-secondary px-3 py-1 text-sm"
                 >
                   Withdraw link
                 </button>

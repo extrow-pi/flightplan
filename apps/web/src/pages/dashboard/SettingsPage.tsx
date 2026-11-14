@@ -170,7 +170,7 @@ function PublicPageForm({
             <button
               type="submit"
               disabled={save.isPending}
-              className="rounded-full bg-primary hover:bg-primary-hover px-7 py-3 font-bold text-white transition disabled:opacity-60"
+              className="btn btn-primary px-7 py-3"
             >
               {save.isPending ? "Saving…" : "Save"}
             </button>
@@ -265,7 +265,7 @@ function LogoCard({ saved }: { saved: OrganizerProfile | null }) {
                 type="button"
                 onClick={() => inputRef.current?.click()}
                 disabled={upload.isPending}
-                className="rounded-full border-2 border-slate/30 px-3.5 py-1.5 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
+                className="btn btn-secondary px-3.5 py-1.5 text-sm"
               >
                 {upload.isPending ? "Uploading…" : saved.logoUrl ? "Replace" : "Upload"}
               </button>

@@ -109,7 +109,7 @@ function Invite({ token, invite }: { token: string; invite: CollaboratorInvitePr
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <Link
                 to={`/login${authQuery}`}
-                className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 text-center font-bold text-white transition"
+                className="btn btn-primary px-6 py-3 text-center"
               >
                 Log in to accept
               </Link>
@@ -126,7 +126,7 @@ function Invite({ token, invite }: { token: string; invite: CollaboratorInvitePr
             type="button"
             onClick={onAccept}
             disabled={accept.isPending}
-            className="w-full rounded-full bg-primary hover:bg-primary-hover px-6 py-3.5 font-bold text-white transition disabled:opacity-60 sm:w-auto"
+            className="btn btn-primary w-full px-6 py-3.5 sm:w-auto"
           >
             {accept.isPending ? "Joining…" : `Accept and open the ${what}`}
           </button>

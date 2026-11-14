@@ -164,7 +164,7 @@ export default function TablesPage() {
           type="button"
           onClick={() => setAssigning({})}
           disabled={!available.length || past}
-          className="w-full rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white transition disabled:opacity-50"
+          className="btn btn-primary w-full px-6 py-3"
         >
           Assign tables
         </button>
@@ -172,7 +172,7 @@ export default function TablesPage() {
           type="button"
           onClick={() => setAdding({})}
           disabled={past}
-          className="w-full rounded-full border-2 border-slate/30 bg-white px-6 py-2.5 font-bold text-slate transition hover:border-slate disabled:opacity-50"
+          className="btn btn-secondary w-full px-6 py-2.5"
         >
           Add vendor without a table
         </button>
@@ -297,7 +297,7 @@ export default function TablesPage() {
                         <button
                           type="button"
                           onClick={() => setAdding({ vendorId: v.id })}
-                          className="rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate"
+                          className="btn btn-secondary px-3.5 py-1 text-sm"
                         >
                           Add
                         </button>
@@ -305,7 +305,7 @@ export default function TablesPage() {
                           type="button"
                           onClick={() => setAssigning({ vendorId: v.id })}
                           disabled={!available.length}
-                          className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover disabled:opacity-50"
+                          className="btn btn-primary px-3.5 py-1.5 text-sm"
                         >
                           Assign
                         </button>
@@ -647,7 +647,7 @@ function TableRow({
     <button
       type="button"
       onClick={() => setChoosingMethod(true)}
-      className="rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold whitespace-nowrap text-slate transition hover:border-slate"
+      className="btn btn-secondary px-3.5 py-1 text-sm whitespace-nowrap"
       title={requestSize > 1 ? `Marks all ${requestSize} tables in this request paid` : undefined}
     >
       Mark paid
@@ -683,7 +683,7 @@ function TableRow({
             <button
               type="button"
               onClick={onAssign}
-              className="rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate"
+              className="btn btn-secondary px-3.5 py-1 text-sm"
             >
               Assign
             </button>
@@ -695,7 +695,7 @@ function TableRow({
             <button
               type="button"
               onClick={onReview}
-              className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover"
+              className="btn btn-primary px-3.5 py-1.5 text-sm"
             >
               Review
             </button>
@@ -870,7 +870,7 @@ function EmailVendorsDialog({
           .
         </p>
         <div className="mt-6 flex justify-end">
-          <button type="submit" className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white">
+          <button type="submit" className="btn btn-primary px-6 py-3">
             Done
           </button>
         </div>
@@ -982,7 +982,7 @@ function EmailVendorsDialog({
         )}
         <div className="mt-2 flex flex-wrap items-center gap-3">
           {files.length < MAX_ATTACHMENTS && (
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate focus-within:ring-4 focus-within:ring-coral/30">
+            <label className="btn btn-secondary inline-flex cursor-pointer items-center gap-1.5 px-3.5 py-1 text-sm focus-within:ring-4 focus-within:ring-coral/30">
               <PaperclipIcon className="size-4" /> {upload.isPending ? "Uploading…" : "Add PDF or image"}
               <input
                 type="file"
@@ -1043,7 +1043,7 @@ function EmailVendorsDialog({
         <button
           type="submit"
           disabled={!ready || send.isPending}
-          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold whitespace-nowrap text-white disabled:opacity-50"
+          className="btn btn-primary px-6 py-3 whitespace-nowrap"
         >
           {send.isPending
             ? "Sending…"
@@ -1119,7 +1119,7 @@ function VendorFileCard({
           type="button"
           onClick={exportCsv}
           disabled={!count}
-          className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+          className="btn btn-secondary inline-flex items-center gap-1.5 px-3.5 py-1 text-sm"
         >
           <DownloadIcon className="size-4" /> Export CSV
         </button>
@@ -1128,7 +1128,7 @@ function VendorFileCard({
             type="button"
             onClick={() => setImporting(true)}
             disabled={isPast(event)}
-            className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+            className="btn btn-secondary inline-flex items-center gap-1.5 px-3.5 py-1 text-sm"
           >
             <UploadIcon className="size-4" /> Import CSV
           </button>
@@ -1138,7 +1138,7 @@ function VendorFileCard({
             type="button"
             onClick={() => setEmailing(true)}
             disabled={!count}
-            className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3.5 py-1 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+            className="btn btn-secondary inline-flex items-center gap-1.5 px-3.5 py-1 text-sm"
           >
             <MailIcon className="size-4" /> Email vendors
           </button>
@@ -1472,7 +1472,7 @@ function UnassignedCard({
                 type="button"
                 onClick={onAssign}
                 disabled={!canAssign}
-                className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-primary-hover disabled:opacity-50"
+                className="btn btn-primary px-3.5 py-1.5 text-sm"
               >
                 Assign tables
               </button>
@@ -1648,7 +1648,7 @@ function AddVendorDialog({
         <button
           type="submit"
           disabled={add.isPending || (mode === "existing" && !vendorId)}
-          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
+          className="btn btn-primary px-6 py-3"
         >
           {add.isPending ? "Saving…" : editing ? "Save note" : "Add to show"}
         </button>
@@ -1974,7 +1974,7 @@ function AssignDialog({
         <button
           type="submit"
           disabled={assign.isPending || !count || (mode === "existing" && !vendorId)}
-          className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
+          className="btn btn-primary px-6 py-3"
         >
           {assign.isPending ? "Assigning…" : count > 1 ? `Assign ${count} tables` : "Assign table"}
         </button>

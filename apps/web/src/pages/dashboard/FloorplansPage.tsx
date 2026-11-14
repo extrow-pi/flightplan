@@ -25,7 +25,7 @@ export default function FloorplansPage() {
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold whitespace-nowrap text-white transition"
+            className="btn btn-primary inline-flex shrink-0 items-center justify-center gap-2 px-6 py-3 whitespace-nowrap"
           >
             <PlusIcon className="size-4" strokeWidth={3} /> New floorplan
           </button>
@@ -45,7 +45,7 @@ export default function FloorplansPage() {
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="mt-5 rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white"
+            className="btn btn-primary mt-5 px-6 py-3"
           >
             Create your first floorplan
           </button>
@@ -253,7 +253,7 @@ function NewPlanDialog({ onClose }: { onClose: () => void }) {
           <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
             Cancel
           </button>
-          <button type="submit" disabled={save.isPending} className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50">
+          <button type="submit" disabled={save.isPending} className="btn btn-primary px-6 py-3">
             {save.isPending ? "Creating…" : "Create and open editor"}
           </button>
         </div>

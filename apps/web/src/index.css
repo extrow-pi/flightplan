@@ -30,6 +30,19 @@
   --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* Buttons: shape and colours live here; each button keeps its own size and spacing classes */
+@utility btn {
+  @apply rounded-full font-bold transition disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply bg-primary text-white hover:bg-primary-hover disabled:hover:bg-primary;
+}
+
+@utility btn-secondary {
+  @apply border-2 border-slate/30 bg-white text-slate hover:border-slate disabled:hover:border-slate/30;
+}
+
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;

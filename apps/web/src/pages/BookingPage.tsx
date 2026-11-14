@@ -490,7 +490,7 @@ function BookingForm({
             <button
               type="submit"
               disabled={submit.isPending}
-              className="mt-5 w-full rounded-full bg-primary hover:bg-primary-hover px-6 py-3.5 font-bold text-white transition disabled:opacity-60"
+              className="btn btn-primary mt-5 w-full px-6 py-3.5"
             >
               {submit.isPending
                 ? "Sending…"
@@ -633,7 +633,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
         <button
           type="submit"
           disabled={join.isPending}
-          className="mt-5 w-full rounded-full bg-primary hover:bg-primary-hover px-6 py-3.5 font-bold text-white transition disabled:opacity-60"
+          className="btn btn-primary mt-5 w-full px-6 py-3.5"
         >
           {join.isPending ? "Joining…" : "Join the waitlist"}
         </button>

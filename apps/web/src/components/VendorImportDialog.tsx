@@ -220,7 +220,7 @@ export default function VendorImportDialog({
                 type="button"
                 onClick={onImport}
                 disabled={!preview || importer.isPending || toImport === 0}
-                className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
+                className="btn btn-primary px-6 py-3"
               >
                 {importer.isPending && preview ? "Importing…" : preview ? `Import ${plural(toImport, "vendor")}` : "Import"}
               </button>
@@ -247,7 +247,7 @@ function Done({ result, event, onClose }: { result: VendorImportResult; event?: 
         {result.invalid.length > 0 && <Summary n={result.invalid.length} text="rows skipped" tone="bad" />}
       </ul>
       <div className="mt-6 flex justify-end">
-        <button type="button" onClick={onClose} className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white">
+        <button type="button" onClick={onClose} className="btn btn-primary px-6 py-3">
           Done
         </button>
       </div>

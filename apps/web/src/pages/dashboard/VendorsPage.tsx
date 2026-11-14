@@ -75,21 +75,21 @@ export default function VendorsPage() {
               onClick={() => exportCsv(shown, groupName, filterLabel)}
               disabled={!shown.length}
               title={filtered ? "Exports the vendors shown. Pick All vendors and clear the search to export everyone." : undefined}
-              className="inline-flex items-center gap-2 rounded-full border-2 border-slate/30 px-4 py-2.5 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+              className="btn btn-secondary inline-flex items-center gap-2 px-4 py-2.5 text-sm"
             >
               <DownloadIcon className="size-4" /> {filtered ? `Export ${shown.length} shown` : "Export all"}
             </button>
             <button
               type="button"
               onClick={() => setImporting(true)}
-              className="inline-flex items-center gap-2 rounded-full border-2 border-slate/30 px-4 py-2.5 text-sm font-bold text-slate transition hover:border-slate"
+              className="btn btn-secondary inline-flex items-center gap-2 px-4 py-2.5 text-sm"
             >
               <UploadIcon className="size-4" /> Import
             </button>
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-hover px-5 py-2.5 text-sm font-bold whitespace-nowrap text-white transition"
+              className="btn btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm whitespace-nowrap"
             >
               <PlusIcon className="size-4" strokeWidth={3} /> Add vendor
             </button>
@@ -472,7 +472,7 @@ function AddVendorDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (
           <button
             type="submit"
             disabled={create.isPending}
-            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-2.5 font-bold text-white disabled:opacity-60"
+            className="btn btn-primary px-6 py-2.5"
           >
             {create.isPending ? "Adding…" : "Add vendor"}
           </button>
@@ -638,7 +638,7 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
           <button
             type="submit"
             disabled={update.isPending}
-            className="rounded-full bg-primary hover:bg-primary-hover px-6 py-2.5 font-bold text-white disabled:opacity-60"
+            className="btn btn-primary px-6 py-2.5"
           >
             {update.isPending ? "Saving…" : "Save"}
           </button>

@@ -70,7 +70,7 @@ function Header() {
           {session ? (
             <Link
               to="/dashboard"
-              className="ml-3 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover"
+              className="btn btn-primary ml-3 px-5 py-2.5 text-sm shadow-sm"
             >
               Go to dashboard
             </Link>
@@ -84,7 +84,7 @@ function Header() {
               </Link>
               <Link
                 to="/signup"
-                className="ml-1 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover"
+                className="btn btn-primary ml-1 px-5 py-2.5 text-sm shadow-sm"
               >
                 Become an organizer
               </Link>
@@ -117,7 +117,7 @@ function Header() {
             </a>
           ))}
           {session ? (
-            <Link to="/dashboard" className="mt-2 block rounded-full bg-primary hover:bg-primary-hover px-5 py-3 text-center font-bold text-white">
+            <Link to="/dashboard" className="btn btn-primary mt-2 block px-5 py-3 text-center">
               Go to dashboard
             </Link>
           ) : (
@@ -128,7 +128,7 @@ function Header() {
               >
                 Log in
               </Link>
-              <Link to="/signup" className="block rounded-full bg-primary hover:bg-primary-hover px-5 py-3 text-center font-bold text-white">
+              <Link to="/signup" className="btn btn-primary block px-5 py-3 text-center">
                 Sign up
               </Link>
             </div>
@@ -174,7 +174,7 @@ function Hero() {
           <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link
               to="/signup"
-              className="group inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-hover px-7 py-3.5 font-bold text-white transition"
+              className="btn btn-primary group inline-flex items-center gap-2 px-7 py-3.5"
             >
               Start organizing
               <ArrowRightIcon className="size-4 transition group-hover:translate-x-0.5" />

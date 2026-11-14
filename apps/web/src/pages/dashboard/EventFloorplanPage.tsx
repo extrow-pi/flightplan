@@ -300,7 +300,7 @@ function StartFromTables({ event, onChosen }: { event: EventRecord; onChosen: ()
         type="button"
         onClick={start}
         disabled={save.isPending || tables.isPending}
-        className="rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold text-white disabled:opacity-50"
+        className="btn btn-primary px-6 py-3"
       >
         {save.isPending ? "Creating…" : labels.length ? `Start a plan with these ${labels.length} tables` : "Start an empty plan"}
       </button>

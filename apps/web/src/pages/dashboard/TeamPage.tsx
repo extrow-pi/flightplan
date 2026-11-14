@@ -340,7 +340,7 @@ function InviteCard({ event }: { event: EventRecord }) {
         <button
           type="submit"
           disabled={invite.isPending}
-          className="w-full rounded-full bg-primary hover:bg-primary-hover px-5 py-2.5 font-bold text-white transition disabled:opacity-60"
+          className="btn btn-primary w-full px-5 py-2.5"
         >
           {invite.isPending ? "Sending…" : "Send invitation"}
         </button>

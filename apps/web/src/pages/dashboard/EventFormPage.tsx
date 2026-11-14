@@ -1186,7 +1186,7 @@ function TiersSection({
         type="button"
         onClick={add}
         disabled={tiers.length >= MAX_DISCOUNT_TIERS}
-        className="mt-4 inline-flex items-center gap-2 rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-50"
+        className="btn btn-secondary mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm"
       >
         <PlusIcon className="size-4" strokeWidth={3} /> Add a tier
       </button>
@@ -1250,7 +1250,7 @@ function FloorMapUpload({ event }: { event: EventRecord }) {
             type="button"
             onClick={picker.open}
             disabled={upload.isPending}
-            className="rounded-full border-2 border-slate/30 px-4 py-2 text-sm font-bold text-slate hover:border-slate disabled:opacity-60"
+            className="btn btn-secondary px-4 py-2 text-sm"
           >
             {upload.isPending ? "Uploading…" : "Replace image"}
           </button>

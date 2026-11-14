@@ -209,7 +209,7 @@ function ShowCard({ show: s }: { show: PublicShow }) {
             {s.booking.tablesLeft > 0 && (
               <Link
                 to={s.booking.url}
-                className="ml-auto rounded-full bg-primary hover:bg-primary-hover px-5 py-2.5 text-sm font-bold text-white transition"
+                className="btn btn-primary ml-auto px-5 py-2.5 text-sm"
               >
                 Book a vendor table
               </Link>

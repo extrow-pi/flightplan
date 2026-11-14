@@ -16,7 +16,7 @@ export default function CopyButton({ text, label = "Copy link" }: { text: string
           window.prompt("Copy this link:", text);
         }
       }}
-      className="inline-flex items-center gap-1.5 rounded-full border-2 border-slate/30 px-3 py-1 text-sm font-bold text-slate transition hover:border-slate"
+      className="btn btn-secondary inline-flex items-center gap-1.5 px-3 py-1 text-sm"
     >
       <CopyIcon className="size-3.5" />
       {copied ? "Copied!" : label}

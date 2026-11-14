@@ -213,7 +213,7 @@ export default function SignupForm() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full rounded-full bg-primary hover:bg-primary-hover px-8 py-3.5 font-bold text-white transition focus-visible:ring-4 focus-visible:ring-coral/30 focus-visible:outline-none disabled:opacity-60 sm:w-auto"
+          className="btn btn-primary w-full px-8 py-3.5 focus-visible:ring-4 focus-visible:ring-coral/30 focus-visible:outline-none sm:w-auto"
         >
           {mutation.isPending ? "Checking you in…" : "Request early access"}
         </button>

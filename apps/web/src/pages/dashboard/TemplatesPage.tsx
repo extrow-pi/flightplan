@@ -47,7 +47,7 @@ export default function TemplatesPage() {
           </p>
           <Link
             to="/dashboard/templates/new"
-            className="mt-5 rounded-full bg-primary px-6 py-3 font-bold text-white transition hover:bg-primary-hover"
+            className="btn btn-primary mt-5 px-6 py-3"
           >
             Create a template
           </Link>

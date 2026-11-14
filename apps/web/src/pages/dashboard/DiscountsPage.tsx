@@ -43,7 +43,7 @@ export default function DiscountsPage() {
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary hover:bg-primary-hover px-6 py-3 font-bold whitespace-nowrap text-white transition"
+            className="btn btn-primary inline-flex shrink-0 items-center justify-center gap-2 px-6 py-3 whitespace-nowrap"
           >
             <PlusIcon className="size-4" strokeWidth={3} /> New code
           </button>
@@ -370,7 +370,7 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
             <button
               type="submit"
               disabled={save.isPending}
-              className="flex-1 rounded-full bg-primary hover:bg-primary-hover px-6 py-2.5 font-bold text-white disabled:opacity-60 sm:flex-none"
+              className="btn btn-primary flex-1 px-6 py-2.5 sm:flex-none"
             >
               {save.isPending ? "Saving…" : code ? "Save" : "Create code"}
             </button>
