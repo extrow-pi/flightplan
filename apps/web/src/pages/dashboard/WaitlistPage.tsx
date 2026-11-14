@@ -16,6 +16,7 @@ import {
   useWaitlistAction,
   type WaitlistAction,
 } from "../../lib/api";
+import { PageSkeleton } from "../../components/Skeleton";
 
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
 
@@ -29,7 +30,7 @@ export default function WaitlistPage() {
   const reorder = useReorderWaitlist(event?.id ?? "");
   const [adding, setAdding] = useState(false);
 
-  if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
+  if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
       <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">

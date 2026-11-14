@@ -4,6 +4,7 @@ import type { CollaboratorInvitePreview } from "@flightplan/shared";
 import Logo from "../components/Logo";
 import { ApiRequestError, useAcceptCollaboratorInvite, useCollaboratorInvite } from "../lib/api";
 import { signOut, useSession } from "../lib/auth-client";
+import { SkeletonLine } from "../components/Skeleton";
 
 // Where a collaborator invitation email links to. Shows what they're invited to, then sends them to
 // sign in or sign up (with the invited email pre-filled) and back here to accept.
@@ -19,9 +20,12 @@ export default function AcceptInvitePage() {
       <main className="mx-auto max-w-xl px-4 pb-16 sm:px-6">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
           {invite.isPending ? (
-            <p className="py-10 text-center text-ink-muted" role="status">
-              Loading…
-            </p>
+            <div role="status" className="space-y-3 py-4">
+              <span className="sr-only">Loading…</span>
+              <SkeletonLine className="h-6 w-1/2" />
+              <SkeletonLine />
+              <SkeletonLine className="w-2/3" />
+            </div>
           ) : invite.error || !invite.data ? (
             <Message title="Invitation not found">
               {invite.error instanceof ApiRequestError && invite.error.status === 404

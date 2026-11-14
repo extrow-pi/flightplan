@@ -20,6 +20,7 @@ import {
   useRevokeCollaboratorInvite,
   useSetCollaboratorRole,
 } from "../../lib/api";
+import { PageSkeleton } from "../../components/Skeleton";
 
 const roleLabels: Record<TeamMember["role"], string> = { owner: "Owner", editor: "Editor", viewer: "Viewer" };
 
@@ -34,7 +35,7 @@ export default function TeamPage() {
   const { data: event, isPending, error } = useEvent(id);
   const team = useEventTeam(event?.id);
 
-  if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
+  if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
       <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">

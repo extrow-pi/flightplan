@@ -23,6 +23,7 @@ import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, CheckIcon, PlusIcon, TrashIc
 import { ApiRequestError, useEvent, useSaveShowPage, useShowCover, useShowPage, useUploadPageImage } from "../../lib/api";
 import { DEFAULT_ACCENT, THEMES } from "../ShowPage";
 import { Field, ImageDropzone, inputClass, PrimaryButton, SaveStatus, Section, Toggle, useImagePicker, useUnsavedChanges } from "./ui";
+import { PageSkeleton, SkeletonCard } from "../../components/Skeleton";
 
 // One block on the page while editing. `key` keeps rows stable; `id` is saved.
 type BlockRow = ShowPageBlockInput & { key: number };
@@ -116,7 +117,7 @@ export default function ShowPageTab() {
   const { data: event, isPending, error } = useEvent(id);
   const page = useShowPage(event && event.status !== "template" ? event.id : undefined);
 
-  if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
+  if (isPending) return <PageSkeleton />;
   if (error || !event || event.status === "template") {
     return (
       <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">
@@ -146,9 +147,11 @@ export default function ShowPageTab() {
           Couldn't load the show page: {page.error.message}
         </p>
       ) : page.isPending ? (
-        <p className="mt-6 text-ink-muted" role="status">
-          Loading…
-        </p>
+        <div role="status" className="mt-6 space-y-6">
+          <span className="sr-only">Loading…</span>
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={3} />
+        </div>
       ) : (
         <PageForm key={event.id} event={event} page={page.data} />
       )}

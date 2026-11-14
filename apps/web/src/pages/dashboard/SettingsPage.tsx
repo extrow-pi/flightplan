@@ -4,6 +4,7 @@ import CopyButton from "../../components/CopyButton";
 import { useSession } from "../../lib/auth-client";
 import { ApiRequestError, useHandleAvailable, useProfile, useProfileLogo, useSaveProfile } from "../../lib/api";
 import { PageHeader } from "./ui";
+import { SkeletonCard } from "../../components/Skeleton";
 
 const inputClass =
   "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral";
@@ -20,9 +21,11 @@ export default function SettingsPage() {
           Couldn't load your settings: {profile.error.message}
         </p>
       ) : profile.isPending || !session ? (
-        <p className="text-ink-muted" role="status">
-          Loading…
-        </p>
+        <div role="status" className="space-y-6">
+          <span className="sr-only">Loading…</span>
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={3} />
+        </div>
       ) : (
         <PublicPageForm
           saved={profile.data.profile}

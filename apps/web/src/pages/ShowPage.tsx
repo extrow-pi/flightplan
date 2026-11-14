@@ -16,6 +16,7 @@ import Logo from "../components/Logo";
 import { ApiRequestError, usePublicEventMap, usePublicShow } from "../lib/api";
 import VendorMap from "../components/floorplan/VendorMap";
 import { formatDate, formatDateRange, formatMoney, timeRange } from "../lib/format";
+import { CardSkeleton } from "../components/Skeleton";
 
 /** Flightplan's coral, used when the organizer hasn't picked an accent colour */
 export const DEFAULT_ACCENT = "#e8856a";
@@ -117,9 +118,7 @@ export default function ShowPage() {
     <div className="min-h-dvh text-[var(--text)]" style={{ ...vars, background: "var(--bg)" }}>
       <main className="mx-auto max-w-4xl px-4 pt-6 pb-16 sm:px-6">
         {isPending ? (
-          <p className="py-20 text-center text-[var(--muted)]" role="status">
-            Loading…
-          </p>
+          <CardSkeleton />
         ) : error || !data ? (
           <section className="mt-4 rounded-3xl bg-[var(--card)] p-10 text-center shadow-sm ring-1 ring-[var(--line)]">
             <h1 className="text-2xl font-extrabold">

@@ -66,6 +66,7 @@ import {
 } from "../../lib/api";
 import { downloadCsv, slug } from "../../lib/csv";
 import { formatMoney } from "../../lib/format";
+import { PageSkeleton } from "../../components/Skeleton";
 
 type Filter = "all" | "unassigned" | ReturnType<typeof tableState>;
 
@@ -89,7 +90,7 @@ export default function TablesPage() {
   });
   const [adding, setAdding] = useState<{ vendorId?: string } | null>(null);
 
-  if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
+  if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
       <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">

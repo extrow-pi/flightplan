@@ -27,6 +27,7 @@ import {
   useUploadFloorMap,
 } from "../../lib/api";
 import { formatDate, formatMoney, todayISO } from "../../lib/format";
+import { PageSkeleton } from "../../components/Skeleton";
 
 type Kind = "event" | "template";
 
@@ -206,7 +207,7 @@ export default function EventFormPage({ kind: newKind = "event" }: { kind?: Kind
   const { data: event, isPending, error } = useEvent(id);
 
   if (!id) return <EventForm key={`new-${newKind}`} kind={newKind} />;
-  if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
+  if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
       <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">

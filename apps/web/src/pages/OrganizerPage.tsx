@@ -6,6 +6,7 @@ import { ArrowRightIcon, ClockIcon, MailIcon, MapPinIcon, TableIcon, TicketIcon 
 import Logo from "../components/Logo";
 import { ApiRequestError, usePublicOrganizer } from "../lib/api";
 import { formatDate, formatDateRange, formatMoney, timeRange } from "../lib/format";
+import { CardSkeleton } from "../components/Skeleton";
 
 // An organizer's public page: their profile and published shows. No sign-in needed.
 export default function OrganizerPage() {
@@ -23,9 +24,7 @@ export default function OrganizerPage() {
     <div className="min-h-dvh bg-gradient-to-b from-[#fff4e2] to-cream-50">
       <main className="mx-auto max-w-4xl px-4 pt-10 pb-16 sm:px-6">
         {isPending ? (
-          <p className="py-20 text-center text-ink-muted" role="status">
-            Loading…
-          </p>
+          <CardSkeleton />
         ) : error || !data ? (
           <section className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-ink/5">
             <h1 className="text-2xl font-extrabold">

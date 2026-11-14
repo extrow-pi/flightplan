@@ -16,6 +16,7 @@ import Logo from "../components/Logo";
 import { CheckIcon, ClockIcon, MapPinIcon } from "../components/Icons";
 import { ApiRequestError, useBookingQuote, useJoinWaitlist, usePublicBooking, useSubmitBooking, type BookingLinkKind } from "../lib/api";
 import { formatDate, formatDateRange, formatMoney, formatTime, timeRange } from "../lib/format";
+import { CardSkeleton } from "../components/Skeleton";
 
 // Vendors don't have accounts, so their details are remembered in this browser for next time
 const REMEMBER_KEY = "flightplan.vendorDetails";
@@ -51,9 +52,7 @@ export default function BookingPage({ kind }: { kind: BookingLinkKind }) {
 
       <main className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
         {isPending ? (
-          <p className="py-20 text-center text-ink-muted" role="status">
-            Loading…
-          </p>
+          <CardSkeleton />
         ) : error || !page ? (
           <Notice title="This link isn't working">
             {error instanceof ApiRequestError && error.status === 404

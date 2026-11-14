@@ -5,6 +5,7 @@ import Logo from "../components/Logo";
 import { CheckIcon, ClockIcon, MapPinIcon } from "../components/Icons";
 import { ApiRequestError, useRequestStatus } from "../lib/api";
 import { formatDate, formatMoney, timeRange } from "../lib/format";
+import { CardSkeleton } from "../components/Skeleton";
 
 // A vendor's private page for one booking request, linked from every email we send them
 export default function RequestStatusPage() {
@@ -19,9 +20,7 @@ export default function RequestStatusPage() {
       </header>
       <main className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
         {isPending ? (
-          <p className="py-20 text-center text-ink-muted" role="status">
-            Loading…
-          </p>
+          <CardSkeleton />
         ) : error || !data ? (
           <section className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-ink/5">
             <h1 className="text-2xl font-extrabold">Booking not found</h1>

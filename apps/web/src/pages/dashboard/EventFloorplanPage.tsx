@@ -20,6 +20,7 @@ import {
   useUseLibraryPlan,
 } from "../../lib/api";
 import { defaultTableSize, formatSize, fromUnits, newId } from "../../lib/floorplan";
+import { PageSkeleton } from "../../components/Skeleton";
 
 const btn = "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-bold whitespace-nowrap transition disabled:opacity-50";
 const btnPlain = `${btn} bg-white text-slate ring-1 ring-ink/10 hover:ring-slate`;
@@ -32,7 +33,7 @@ export default function EventFloorplanPage() {
   // Bumped when the plan is replaced or removed, so the editor starts fresh
   const [version, setVersion] = useState(0);
 
-  if (isPending) return <p className="text-ink-muted" role="status">Loading…</p>;
+  if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
       <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">
