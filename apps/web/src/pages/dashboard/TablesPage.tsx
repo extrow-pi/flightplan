@@ -66,7 +66,7 @@ import {
 } from "../../lib/api";
 import { downloadCsv, slug } from "../../lib/csv";
 import { formatMoney } from "../../lib/format";
-import { PageSkeleton } from "../../components/Skeleton";
+import { PageSkeleton, BodySkeleton } from "../../components/Skeleton";
 
 type Filter = "all" | "unassigned" | ReturnType<typeof tableState>;
 
@@ -93,11 +93,11 @@ export default function TablesPage() {
   if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
-      <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">
-        <p className="text-lg font-extrabold">
+      <div className="rounded-2xl bg-white p-10 text-center ring-1 ring-ink/5">
+        <p className="text-lg font-semibold">
           {error instanceof ApiRequestError && error.status === 404 ? "Event not found" : "Couldn't load this event"}
         </p>
-        <Link to="/dashboard/events" className="mt-4 inline-block font-bold text-coral-ink hover:underline">
+        <Link to="/dashboard/events" className="mt-4 inline-block font-semibold text-coral-ink hover:underline">
           Back to events
         </Link>
       </div>
@@ -183,24 +183,22 @@ export default function TablesPage() {
     <>
       <Link
         to="/dashboard/events"
-        className="inline-flex items-center gap-2 text-sm font-bold text-ink-soft transition hover:text-ink"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-ink-soft transition hover:text-ink"
       >
         <ArrowLeftIcon className="size-4" /> All events
       </Link>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{event.name}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{event.name}</h1>
         <SharedBadge event={event} />
       </div>
       <EventTabs event={event} />
 
       {tables.error ? (
-        <p className="mt-6 rounded-2xl bg-peach px-5 py-4 font-semibold text-coral-ink" role="alert">
+        <p className="mt-6 rounded-xl bg-peach px-5 py-4 font-medium text-coral-ink" role="alert">
           Couldn't load tables: {tables.error.message}
         </p>
       ) : tables.isPending ? (
-        <p className="mt-6 text-ink-muted" role="status">
-          Loading tables…
-        </p>
+        <BodySkeleton />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
@@ -215,7 +213,7 @@ export default function TablesPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search vendors or tables"
-                className="w-full rounded-full border-2 border-cream bg-white py-2.5 pr-4 pl-10 text-ink placeholder:text-ink-muted/70 focus:border-coral focus:outline-none"
+                className="w-full rounded-full border border-ink/15 bg-white py-2.5 pr-4 pl-10 text-ink placeholder:text-ink-muted/70 focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
               />
             </label>
 
@@ -235,7 +233,7 @@ export default function TablesPage() {
                   role="radio"
                   aria-checked={view === v}
                   onClick={() => setView(v)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-bold transition ${
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
                     view === v ? "bg-slate text-white" : "text-ink-soft hover:text-ink"
                   }`}
                 >
@@ -257,7 +255,7 @@ export default function TablesPage() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setFilter(f)}
-                    className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition ${
+                    className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                       active ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
                     }`}
                   >
@@ -275,20 +273,20 @@ export default function TablesPage() {
             </div>
 
             {elsewhere.length > 0 && (
-              <section className="rounded-3xl bg-white p-5 ring-1 ring-ink/5" aria-labelledby="elsewhere-title">
-                <h2 id="elsewhere-title" className="text-sm font-bold text-ink-soft">
+              <section className="rounded-2xl bg-white p-5 ring-1 ring-ink/5" aria-labelledby="elsewhere-title">
+                <h2 id="elsewhere-title" className="text-sm font-semibold text-ink-soft">
                   Not at this show yet
                 </h2>
                 <ul className="mt-2 divide-y divide-ink/5">
                   {elsewhere.map((v) => (
                     <li key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-bold">
+                        <p className="truncate font-semibold">
                           {v.favourite && (
                             <StarIcon className="mr-1 inline size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
                           )}
                           {v.businessName || v.name}
-                          {v.businessName && <span className="font-semibold text-ink-soft"> · {v.name}</span>}
+                          {v.businessName && <span className="font-medium text-ink-soft"> · {v.name}</span>}
                         </p>
                         <p className="truncate text-sm text-ink-soft">{v.email}</p>
                       </div>
@@ -327,9 +325,9 @@ export default function TablesPage() {
                 onReview={reviewRequest}
               />
             ) : all.length === 0 && view !== "vendors" ? (
-              <p className="rounded-3xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
+              <p className="rounded-2xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
                 This event has no vendor tables yet. Set the number of tables on the{" "}
-                <Link to={`/dashboard/events/${event.id}`} className="font-bold text-coral-ink hover:underline">
+                <Link to={`/dashboard/events/${event.id}`} className="font-semibold text-coral-ink hover:underline">
                   Details
                 </Link>{" "}
                 tab.
@@ -360,19 +358,19 @@ export default function TablesPage() {
                     />
                   ))}
                 {vendorCount === 0 ? (
-                  <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
+                  <p className="rounded-2xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
                     No vendors yet. Share the booking link, assign a table or add a vendor to get started.
                   </p>
                 ) : (
                   nothingShown && (
-                    <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
+                    <p className="rounded-2xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">
                       {q ? `No vendors at this show match “${query.trim()}”.` : "No vendors match this filter."}
                     </p>
                   )
                 )}
               </div>
             ) : (
-              <ul className="divide-y divide-ink/5 overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
+              <ul className="divide-y divide-ink/5 overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-ink/5">
                 {shownTables.filter(matches).map((t) => (
                   <TableRow
                     key={t.id}
@@ -391,8 +389,8 @@ export default function TablesPage() {
             )}
 
             {tables.data.history.length > 0 && (
-              <details className="rounded-3xl bg-white p-5 ring-1 ring-ink/5">
-                <summary className="cursor-pointer font-bold">Past requests ({tables.data.history.length})</summary>
+              <details className="rounded-2xl bg-white p-5 ring-1 ring-ink/5">
+                <summary className="cursor-pointer font-semibold">Past requests ({tables.data.history.length})</summary>
                 <ul className="mt-3 space-y-2 text-sm">
                   {tables.data.history.map((b) => (
                     <li key={b.id} className="flex flex-wrap justify-between gap-2 text-ink-soft">
@@ -416,7 +414,7 @@ export default function TablesPage() {
             {editable ? (
               actionButtons("hidden space-y-2 lg:block")
             ) : (
-              <p className="rounded-2xl bg-sky/15 px-4 py-3 text-sm font-semibold text-slate" role="status">
+              <p className="rounded-xl bg-sky/15 px-4 py-3 text-sm font-medium text-slate" role="status">
                 You have view-only access. Ask {event.access.ownerName} to make you an editor to manage bookings.
               </p>
             )}
@@ -487,7 +485,7 @@ const atShowBadge = (atShow: Map<string, VendorAtShow>) => (v: Vendor) => {
 function AtShowBadge({ status }: { status: VendorAtShow }) {
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
         status.state === "unassigned" ? "bg-cream text-ink-soft" : "bg-slate text-white"
       }`}
     >
@@ -555,7 +553,7 @@ function RequestCard({
   return (
     <article
       id={`request-${request.requestId}`}
-      className={`rounded-3xl bg-white p-5 shadow-sm transition ${
+      className={`rounded-2xl bg-white p-5 shadow-card transition ${
         highlighted
           ? "ring-2 ring-coral"
           : request.state === "overdue" || flags?.banned
@@ -565,13 +563,13 @@ function RequestCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-extrabold">
+          <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold">
             {flags?.favourite && (
               <StarIcon className="size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
             )}
             <span>
               {b.businessName || b.name}
-              {b.businessName && <span className="font-semibold text-ink-soft"> · {b.name}</span>}
+              {b.businessName && <span className="font-medium text-ink-soft"> · {b.name}</span>}
             </span>
             {flags?.banned && <BannedBadge />}
           </h3>
@@ -586,11 +584,11 @@ function RequestCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-ink-soft">{multiple ? `${tables.length} tables:` : "Table:"}</span>
+        <span className="text-sm font-medium text-ink-soft">{multiple ? `${tables.length} tables:` : "Table:"}</span>
         {tables.map(({ table, booking }) => (
           <span
             key={table.id}
-            className={`inline-flex items-center rounded-lg bg-slate py-1 pl-2.5 text-sm font-extrabold text-white ${multiple ? "pr-1" : "pr-2.5"}`}
+            className={`inline-flex items-center rounded-lg bg-slate py-1 pl-2.5 text-sm font-semibold text-white ${multiple ? "pr-1" : "pr-2.5"}`}
           >
             {table.label}
             {/* Release one table of a multi-table request; releasing them all is in the actions below */}
@@ -600,16 +598,16 @@ function RequestCard({
           </span>
         ))}
         {tables.some((t) => t.booking.basePriceCents > 0) && (
-          <span className="ml-auto text-right text-sm font-bold text-ink-soft">
+          <span className="ml-auto text-right text-sm font-semibold text-ink-soft">
             {formatMoney(tables.reduce((n, t) => n + t.booking.priceCents, 0))}
-            {b.discountLabel && <span className="block text-xs font-semibold text-success">{b.discountLabel}</span>}
+            {b.discountLabel && <span className="block text-xs font-medium text-success">{b.discountLabel}</span>}
           </span>
         )}
       </div>
 
       {(due || b.message) && (
         <div className="mt-2 space-y-0.5 text-sm text-ink-soft">
-          {due && <p className={b.overdue ? "font-bold text-coral-ink" : ""}>{due}</p>}
+          {due && <p className={b.overdue ? "font-semibold text-coral-ink" : ""}>{due}</p>}
           {b.message && <p className="italic">“{b.message}”</p>}
         </div>
       )}
@@ -656,7 +654,7 @@ function TableRow({
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
       <span
-        className={`flex size-10 shrink-0 items-center justify-center rounded-xl font-extrabold ${
+        className={`flex size-10 shrink-0 items-center justify-center rounded-xl font-semibold ${
           b ? "bg-slate text-white" : "bg-sky/20 text-slate"
         }`}
         title={`Table ${table.label}`}
@@ -665,12 +663,12 @@ function TableRow({
       </span>
       <div className="min-w-32 flex-1">
         {b ? (
-          <p className="truncate font-bold">
+          <p className="truncate font-semibold">
             {b.businessName || b.name}
-            {requestSize > 1 && <span className="font-semibold text-ink-muted"> · 1 of {requestSize} tables</span>}
+            {requestSize > 1 && <span className="font-medium text-ink-muted"> · 1 of {requestSize} tables</span>}
           </p>
         ) : (
-          <p className="font-semibold text-ink-muted">Open table</p>
+          <p className="font-medium text-ink-muted">Open table</p>
         )}
         {event.tableTypes.length > 1 && (
           <p className="truncate text-xs text-ink-muted">{event.tableTypes.find((t) => t.id === table.typeId)?.name}</p>
@@ -709,7 +707,7 @@ function TableRow({
         )}
       </div>
       {b && choosingMethod && (
-        <div className="basis-full rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5">
+        <div className="basis-full rounded-xl bg-cream-50 p-3 ring-1 ring-ink/5">
           <MarkPaidChooser bookingId={b.id} eventId={event.id} tableCount={requestSize} onDone={() => setChoosingMethod(false)} />
         </div>
       )}
@@ -864,7 +862,7 @@ function EmailVendorsDialog({
         <p className="mt-3" role="status">
           Your message is on its way to {sent} {sent === 1 ? "vendor" : "vendors"}. Replies come to your email. You can follow
           delivery in the{" "}
-          <Link to="/dashboard/emails" className="font-bold text-coral-ink hover:underline">
+          <Link to="/dashboard/emails" className="font-semibold text-coral-ink hover:underline">
             Email log
           </Link>
           .
@@ -887,7 +885,7 @@ function EmailVendorsDialog({
     >
       <div ref={firstRef} tabIndex={-1} className="focus:outline-none">
         <fieldset className="mt-5 min-w-0">
-          <legend className="text-sm font-bold">Send to</legend>
+          <legend className="text-sm font-semibold">Send to</legend>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {VENDOR_AUDIENCES.map((a) => {
               const n = countIn([a]);
@@ -899,7 +897,7 @@ function EmailVendorsDialog({
                   aria-pressed={on}
                   onClick={() => toggle(a)}
                   disabled={!n && !on}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition disabled:opacity-40 ${
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 ${
                     on ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
                   }`}
                 >
@@ -916,7 +914,7 @@ function EmailVendorsDialog({
         </fieldset>
       </div>
 
-      <label className="mt-4 block text-sm font-bold">
+      <label className="mt-4 block text-sm font-semibold">
         Subject
         <input
           className={smallInput}
@@ -927,7 +925,7 @@ function EmailVendorsDialog({
         />
         {fieldErrors?.subject && <span className="mt-1 block text-xs text-coral-ink">{fieldErrors.subject[0]}</span>}
       </label>
-      <label className="mt-4 block text-sm font-bold">
+      <label className="mt-4 block text-sm font-semibold">
         Message
         <textarea
           className={`${smallInput} min-h-40`}
@@ -940,7 +938,7 @@ function EmailVendorsDialog({
         {fieldErrors?.message && <span className="mt-1 block text-xs text-coral-ink">{fieldErrors.message[0]}</span>}
       </label>
       <fieldset className="mt-4 min-w-0">
-        <legend className="text-sm font-bold">
+        <legend className="text-sm font-semibold">
           Attachments <span className="font-normal text-ink-muted">(optional)</span>
         </legend>
         {files.length > 0 && (
@@ -948,7 +946,7 @@ function EmailVendorsDialog({
             {files.map((f) => (
               <li key={f.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-cream-50 px-3 py-2 text-sm ring-1 ring-ink/5">
                 <PaperclipIcon className="size-4 shrink-0 text-ink-muted" />
-                <span className="min-w-40 flex-1 truncate font-semibold" title={f.filename}>
+                <span className="min-w-40 flex-1 truncate font-medium" title={f.filename}>
                   {f.filename}
                 </span>
                 <span className="text-xs text-ink-muted">{formatBytes(f.size)}</span>
@@ -959,7 +957,7 @@ function EmailVendorsDialog({
                     onChange={(e) =>
                       setFiles((fs) => fs.map((x) => (x.id === f.id ? { ...x, placement: e.target.value as AttachmentPlacement } : x)))
                     }
-                    className="rounded-full border-2 border-cream bg-white px-2 py-0.5 text-base font-semibold sm:text-xs"
+                    className="rounded-full border border-ink/15 bg-white px-2 py-0.5 text-base font-medium sm:text-xs"
                   >
                     <option value="top">Top of email</option>
                     <option value="bottom">Below message</option>
@@ -997,20 +995,20 @@ function EmailVendorsDialog({
               />
             </label>
           )}
-          <span className={`text-xs ${totalBytes > ATTACHMENTS_TOTAL_MAX_BYTES ? "font-bold text-coral-ink" : "text-ink-muted"}`}>
+          <span className={`text-xs ${totalBytes > ATTACHMENTS_TOTAL_MAX_BYTES ? "font-semibold text-coral-ink" : "text-ink-muted"}`}>
             {files.length
               ? `${formatBytes(totalBytes)} of ${ATTACHMENTS_TOTAL_MAX_BYTES / 1024 / 1024} MB`
               : `Up to ${MAX_ATTACHMENTS} files, ${ATTACHMENT_MAX_BYTES / 1024 / 1024} MB each. Images can go in the email for branding.`}
           </span>
         </div>
         {uploadError && (
-          <p className="mt-1 text-xs font-semibold text-coral-ink" role="alert">
+          <p className="mt-1 text-xs font-medium text-coral-ink" role="alert">
             {uploadError}
           </p>
         )}
       </fieldset>
 
-      <label className="mt-4 flex items-start gap-2 text-sm font-semibold">
+      <label className="mt-4 flex items-start gap-2 text-sm font-medium">
         <input type="checkbox" className="mt-0.5 size-4 accent-coral" checked={includeDetails} onChange={(e) => setIncludeDetails(e.target.checked)} />
         <span>
           Add each vendor's tables and the show details (setup time, show hours, venue address) under the message
@@ -1018,12 +1016,12 @@ function EmailVendorsDialog({
       </label>
 
       {send.error && !fieldErrors && (
-        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
           {send.error.message}
         </p>
       )}
       {testSent && !send.error && (
-        <p className="mt-4 rounded-xl bg-success-soft px-4 py-3 text-sm font-semibold text-success" role="status">
+        <p className="mt-4 rounded-xl bg-success-soft px-4 py-3 text-sm font-medium text-success" role="status">
           Test sent to your email, filled in with one vendor's details.
         </p>
       )}
@@ -1033,11 +1031,11 @@ function EmailVendorsDialog({
           type="button"
           disabled={!ready || send.isPending}
           onClick={() => send.mutate({ ...input, test: true }, { onSuccess: () => setTestSent(true) })}
-          className="rounded-full px-4 py-3 font-bold whitespace-nowrap text-slate hover:bg-cream disabled:opacity-50 sm:mr-auto"
+          className="rounded-full px-4 py-3 font-semibold whitespace-nowrap text-slate hover:bg-cream disabled:opacity-50 sm:mr-auto"
         >
           Send me a test
         </button>
-        <button type="button" onClick={onClose} className="rounded-full px-4 py-3 font-bold text-ink-soft hover:bg-cream">
+        <button type="button" onClick={onClose} className="rounded-full px-4 py-3 font-semibold text-ink-soft hover:bg-cream">
           Cancel
         </button>
         <button
@@ -1158,8 +1156,8 @@ function VendorFileCard({
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5">
-      <h2 className="font-extrabold">{title}</h2>
+    <section className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink/5">
+      <h2 className="font-semibold">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -1178,12 +1176,12 @@ function BookingLinkCard({ event, editable }: { event: EventRecord; editable: bo
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <CopyButton text={url} />
-        <a href={url} target="_blank" rel="noreferrer" className="text-sm font-bold text-coral-ink hover:underline">
+        <a href={url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-coral-ink hover:underline">
           Preview
         </a>
       </div>
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5">
-        <span className={`text-sm font-bold ${works ? "text-success" : "text-ink-soft"}`}>
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5">
+        <span className={`text-sm font-semibold ${works ? "text-success" : "text-ink-soft"}`}>
           {works
             ? "Taking bookings"
             : event.status !== "published"
@@ -1197,14 +1195,14 @@ function BookingLinkCard({ event, editable }: { event: EventRecord; editable: bo
             type="button"
             disabled={save.isPending}
             onClick={() => save.mutate({ ...eventToInput(event), bookingOpen: !event.bookingOpen })}
-            className="rounded-full bg-slate px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-slate-deep disabled:opacity-60"
+            className="rounded-full bg-slate px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-deep disabled:opacity-60"
           >
             {event.bookingOpen ? "Close" : "Open"}
           </button>
         )}
       </div>
       {save.error && (
-        <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-2 text-sm font-medium text-coral-ink" role="alert">
           {save.error.message}
         </p>
       )}
@@ -1259,12 +1257,12 @@ function InvitesCard({ event, invites, editable }: { event: EventRecord; invites
         <button
           type="submit"
           disabled={create.isPending || isPast(event)}
-          className="w-full rounded-full border-2 border-coral px-4 py-2 text-sm font-bold text-coral-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white disabled:opacity-50"
+          className="w-full rounded-full border border-coral px-4 py-2 text-sm font-semibold text-coral-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white disabled:opacity-50"
         >
           {create.isPending ? "Creating…" : "Create invite link"}
         </button>
         {create.error && (
-          <p className="text-sm font-semibold text-coral-ink" role="alert">
+          <p className="text-sm font-medium text-coral-ink" role="alert">
             {create.error.message}
           </p>
         )}
@@ -1280,11 +1278,11 @@ function InvitesCard({ event, invites, editable }: { event: EventRecord; invites
             return (
               <li
                 key={inv.id}
-                className={`rounded-2xl px-3 py-2.5 text-sm ring-1 ${inv.id === fresh ? "bg-success-soft ring-success/30" : "bg-cream-50 ring-ink/5"}`}
+                className={`rounded-xl px-3 py-2.5 text-sm ring-1 ${inv.id === fresh ? "bg-success-soft ring-success/30" : "bg-cream-50 ring-ink/5"}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate font-bold">{inv.name || inv.email || "Unnamed invite"}</span>
-                  <span className="shrink-0 text-xs font-semibold text-ink-muted">{status}</span>
+                  <span className="min-w-0 truncate font-semibold">{inv.name || inv.email || "Unnamed invite"}</span>
+                  <span className="shrink-0 text-xs font-medium text-ink-muted">{status}</span>
                 </div>
                 {inv.name && inv.email && <p className="truncate text-xs text-ink-soft">{inv.email}</p>}
                 {!inv.revokedAt && !inv.bookingId && (
@@ -1295,7 +1293,7 @@ function InvitesCard({ event, invites, editable }: { event: EventRecord; invites
                       type="button"
                       onClick={() => revoke.mutate(inv.id)}
                       disabled={revoke.isPending}
-                      className="rounded-full px-2.5 py-1 text-xs font-bold text-coral-ink hover:bg-peach disabled:opacity-60"
+                      className="rounded-full px-2.5 py-1 text-xs font-semibold text-coral-ink hover:bg-peach disabled:opacity-60"
                     >
                       Cancel invite
                     </button>
@@ -1321,7 +1319,7 @@ function GroupInvite({ event }: { event: EventRecord }) {
 
   return (
     <div className="mt-4 border-t border-ink/5 pt-4">
-      <p className="text-sm font-bold">Invite a group</p>
+      <p className="text-sm font-semibold">Invite a group</p>
       <p className="text-xs text-ink-soft">Everyone gets their own link by email. Banned and already-booked vendors are skipped.</p>
       <div className="mt-2 flex gap-2">
         <select
@@ -1331,7 +1329,7 @@ function GroupInvite({ event }: { event: EventRecord }) {
             setTarget(e.target.value);
             bulk.reset();
           }}
-          className="min-w-0 flex-1 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
+          className="min-w-0 flex-1 rounded-xl border border-ink/15 bg-white px-2 py-1.5 text-base focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none sm:text-sm"
         >
           <option value="favourites">Favourites</option>
           {groups.data?.map((g) => (
@@ -1344,13 +1342,13 @@ function GroupInvite({ event }: { event: EventRecord }) {
           type="button"
           onClick={() => bulk.mutate(target)}
           disabled={bulk.isPending}
-          className="rounded-full bg-slate px-3.5 text-sm font-bold text-white disabled:opacity-60"
+          className="rounded-full bg-slate px-3.5 text-sm font-semibold text-white disabled:opacity-60"
         >
           {bulk.isPending ? "Sending…" : "Send"}
         </button>
       </div>
       {r && (
-        <p className="mt-2 rounded-xl bg-success-soft px-3 py-2 text-xs font-semibold text-success" role="status">
+        <p className="mt-2 rounded-xl bg-success-soft px-3 py-2 text-xs font-medium text-success" role="status">
           {r.invited ? `Invited ${r.invited} vendor${r.invited > 1 ? "s" : ""}.` : "No new invites sent."}
           {r.skipped.length > 0 &&
             ` Skipped ${[
@@ -1363,13 +1361,13 @@ function GroupInvite({ event }: { event: EventRecord }) {
         </p>
       )}
       {bulk.error && (
-        <p className="mt-2 text-xs font-semibold text-coral-ink" role="alert">
+        <p className="mt-2 text-xs font-medium text-coral-ink" role="alert">
           {bulk.error.message}
         </p>
       )}
       <p className="mt-2 text-xs text-ink-muted">
         Manage groups on the{" "}
-        <Link to="/dashboard/vendors" className="font-bold text-coral-ink hover:underline">
+        <Link to="/dashboard/vendors" className="font-semibold text-coral-ink hover:underline">
           Vendors
         </Link>{" "}
         page.
@@ -1382,13 +1380,13 @@ function FloorMapCard({ event }: { event: EventRecord }) {
   return (
     <Card title="Floor map">
       {event.floorMapUrl ? (
-        <a href={event.floorMapUrl} target="_blank" rel="noreferrer" title="Open full size" className="block overflow-hidden rounded-2xl ring-1 ring-ink/10">
+        <a href={event.floorMapUrl} target="_blank" rel="noreferrer" title="Open full size" className="block overflow-hidden rounded-xl ring-1 ring-ink/10">
           <img src={event.floorMapUrl} alt={`Floor map for ${event.name}`} className="w-full bg-cream-50 object-contain" />
         </a>
       ) : (
         <p className="text-sm text-ink-soft">
           No floor map yet.{" "}
-          <Link to={`/dashboard/events/${event.id}`} className="font-bold text-coral-ink hover:underline">
+          <Link to={`/dashboard/events/${event.id}`} className="font-semibold text-coral-ink hover:underline">
             Upload one on the Details tab
           </Link>{" "}
           so vendors can see where each table is.
@@ -1421,16 +1419,16 @@ function UnassignedCard({
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <article className={`rounded-3xl bg-white p-5 shadow-sm ${flags?.banned ? "ring-2 ring-coral-ink/40" : "ring-1 ring-ink/5"}`}>
+    <article className={`rounded-2xl bg-white p-5 shadow-card ${flags?.banned ? "ring-2 ring-coral-ink/40" : "ring-1 ring-ink/5"}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-extrabold">
+          <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold">
             {flags?.favourite && (
               <StarIcon className="size-4 text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
             )}
             <span>
               {u.businessName || u.name}
-              {u.businessName && <span className="font-semibold text-ink-soft"> · {u.name}</span>}
+              {u.businessName && <span className="font-medium text-ink-soft"> · {u.name}</span>}
             </span>
             {flags?.banned && <BannedBadge />}
           </h3>
@@ -1441,7 +1439,7 @@ function UnassignedCard({
             {u.phone && ` · ${u.phone}`} · Added {new Date(u.addedAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}
           </p>
         </div>
-        <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-bold whitespace-nowrap text-ink-soft">No table yet</span>
+        <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-ink-soft">No table yet</span>
       </div>
       {u.note && <p className="mt-2 text-sm text-ink-soft italic">{u.note}</p>}
 
@@ -1449,19 +1447,19 @@ function UnassignedCard({
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/5 pt-3">
           {confirming ? (
             <>
-              <span className="text-sm font-semibold">Take {u.name} off this show?</span>
+              <span className="text-sm font-medium">Take {u.name} off this show?</span>
               <button
                 type="button"
                 onClick={() => remove.mutate(u.vendorId)}
                 disabled={remove.isPending}
-                className="rounded-full bg-coral-ink px-3.5 py-1.5 text-sm font-bold text-white disabled:opacity-50"
+                className="rounded-full bg-coral-ink px-3.5 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {remove.isPending ? "Removing…" : "Remove"}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className="rounded-full px-3.5 py-1.5 text-sm font-bold text-ink-soft hover:bg-cream"
+                className="rounded-full px-3.5 py-1.5 text-sm font-semibold text-ink-soft hover:bg-cream"
               >
                 Keep
               </button>
@@ -1479,21 +1477,21 @@ function UnassignedCard({
               <button
                 type="button"
                 onClick={onEdit}
-                className="rounded-full px-3.5 py-1.5 text-sm font-bold text-ink-soft hover:bg-cream"
+                className="rounded-full px-3.5 py-1.5 text-sm font-semibold text-ink-soft hover:bg-cream"
               >
                 Edit note
               </button>
               <button
                 type="button"
                 onClick={() => setConfirming(true)}
-                className="rounded-full px-3.5 py-1.5 text-sm font-bold text-coral-ink hover:bg-peach"
+                className="rounded-full px-3.5 py-1.5 text-sm font-semibold text-coral-ink hover:bg-peach"
               >
                 Remove from show
               </button>
             </>
           )}
           {remove.error && (
-            <p className="w-full text-sm font-semibold text-coral-ink" role="alert">
+            <p className="w-full text-sm font-medium text-coral-ink" role="alert">
               {remove.error.message}
             </p>
           )}
@@ -1548,7 +1546,7 @@ function VendorModeToggle({ mode, onChange }: { mode: "existing" | "new"; onChan
           role="radio"
           aria-checked={mode === m}
           onClick={() => onChange(m)}
-          className={`flex-1 rounded-full px-3 py-1.5 text-sm font-bold transition ${mode === m ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
+          className={`flex-1 rounded-full px-3 py-1.5 text-sm font-semibold transition ${mode === m ? "bg-white text-ink shadow-card" : "text-ink-soft"}`}
         >
           {m === "existing" ? "From your vendors" : "New vendor"}
         </button>
@@ -1624,7 +1622,7 @@ function AddVendorDialog({
         )}
       </div>
 
-      <label className="mt-5 block text-sm font-bold">
+      <label className="mt-5 block text-sm font-semibold">
         Note <span className="font-normal text-ink-muted">(optional)</span>
         <textarea
           className={`${smallInput} min-h-20 text-base sm:text-sm`}
@@ -1636,13 +1634,13 @@ function AddVendorDialog({
       </label>
 
       {add.error && (
-        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
           {errorMessage(add.error)}
         </p>
       )}
 
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
+        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-semibold text-ink-soft hover:bg-cream">
           Cancel
         </button>
         <button
@@ -1786,7 +1784,7 @@ function AssignDialog({
       )}
 
       <div className="mt-5 flex items-baseline justify-between gap-2">
-        <span id="assign-tables-label" className="text-sm font-bold">
+        <span id="assign-tables-label" className="text-sm font-semibold">
           Tables
         </span>
         <span className="text-sm text-ink-soft">{count ? `${count} selected` : "None selected"}</span>
@@ -1794,7 +1792,7 @@ function AssignDialog({
       <div
         role="group"
         aria-labelledby="assign-tables-label"
-        className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-2xl bg-cream-50 p-2 ring-1 ring-ink/5"
+        className="mt-2 flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-xl bg-cream-50 p-2 ring-1 ring-ink/5"
       >
         {(multiType ? event.tableTypes : [null]).map((type) => {
           const ofType = type ? shown.filter((t) => t.typeId === type.id) : shown;
@@ -1802,7 +1800,7 @@ function AssignDialog({
           return (
             <div key={type?.id ?? "all"} className="flex basis-full flex-wrap gap-1.5">
               {type && (
-                <span className="basis-full px-1 text-xs font-bold text-ink-soft">
+                <span className="basis-full px-1 text-xs font-semibold text-ink-soft">
                   {type.name} · {type.priceCents ? formatMoney(type.priceCents) : "free"}
                 </span>
               )}
@@ -1813,7 +1811,7 @@ function AssignDialog({
               <span
                 key={t.id}
                 title={`Already ${chosen?.name}'s (${tableStateLabel(tableState(t.booking)).toLowerCase()})`}
-                className="inline-flex min-w-11 items-center justify-center gap-1 rounded-lg bg-sky/25 px-2.5 py-1.5 text-sm font-extrabold text-slate"
+                className="inline-flex min-w-11 items-center justify-center gap-1 rounded-lg bg-sky/25 px-2.5 py-1.5 text-sm font-semibold text-slate"
               >
                 <CheckIcon className="size-3.5" aria-hidden="true" />
                 {t.label}
@@ -1829,7 +1827,7 @@ function AssignDialog({
               aria-pressed={on}
               onClick={() => toggle(t.id)}
               disabled={!on && count >= MAX_TABLES_PER_REQUEST}
-              className={`min-w-11 rounded-lg px-2.5 py-1.5 text-sm font-extrabold transition disabled:opacity-40 ${
+              className={`min-w-11 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition disabled:opacity-40 ${
                 on ? "bg-slate text-white" : "bg-white text-slate ring-1 ring-slate/20 hover:ring-slate"
               }`}
             >
@@ -1860,7 +1858,7 @@ function AssignDialog({
                 return (
                   <li
                     key={t.minTables}
-                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                       on ? "bg-success-soft text-success ring-1 ring-success/30" : "bg-cream text-ink-soft"
                     }`}
                   >
@@ -1873,7 +1871,7 @@ function AssignDialog({
           ) : (
             <p className="mt-2 text-xs text-ink-muted">
               No multi-table discounts on this show. Add them on the{" "}
-              <Link to={`/dashboard/events/${event.id}`} className="font-bold text-coral-ink hover:underline">
+              <Link to={`/dashboard/events/${event.id}`} className="font-semibold text-coral-ink hover:underline">
                 Details
               </Link>{" "}
               tab.
@@ -1881,28 +1879,28 @@ function AssignDialog({
           )}
 
           {count > 0 && (
-            <div className="mt-3 space-y-1.5 rounded-2xl bg-cream-50 px-4 py-3 text-sm ring-1 ring-ink/5" aria-live="polite">
+            <div className="mt-3 space-y-1.5 rounded-xl bg-cream-50 px-4 py-3 text-sm ring-1 ring-ink/5" aria-live="polite">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-semibold text-ink-soft">
+                <span className="font-medium text-ink-soft">
                   {/* "2 × $60 + 1 × $80" */}
                   {[...new Set(prices)]
                     .sort((a, b) => a - b)
                     .map((p) => `${prices.filter((x) => x === p).length} × ${formatMoney(p)}`)
                     .join(" + ")}
                 </span>
-                <span className={price.discountCents ? "text-ink-muted line-through" : "font-extrabold"}>
+                <span className={price.discountCents ? "text-ink-muted line-through" : "font-semibold"}>
                   {formatMoney(price.subtotalCents)}
                 </span>
               </div>
               {price.discountCents > 0 && (
                 <>
-                  <div className="flex items-center justify-between gap-3 font-semibold text-success">
+                  <div className="flex items-center justify-between gap-3 font-medium text-success">
                     <span>{price.label}</span>
                     <span>−{formatMoney(price.discountCents)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t border-ink/10 pt-1.5">
-                    <span className="font-bold">Total</span>
-                    <span className="font-extrabold text-coral-ink">{formatMoney(price.totalCents)}</span>
+                    <span className="font-semibold">Total</span>
+                    <span className="font-semibold text-coral-ink">{formatMoney(price.totalCents)}</span>
                   </div>
                 </>
               )}
@@ -1915,7 +1913,7 @@ function AssignDialog({
             </p>
           )}
 
-          <label className="mt-5 block text-sm font-bold">
+          <label className="mt-5 block text-sm font-semibold">
             Discount code <span className="font-normal text-ink-muted">(optional)</span>
             <input
               className={`${smallInput} uppercase`}
@@ -1926,25 +1924,25 @@ function AssignDialog({
             />
           </label>
           {code && quote.data?.codeError ? (
-            <p className="mt-1 text-xs font-semibold text-coral-ink" role="alert">
+            <p className="mt-1 text-xs font-medium text-coral-ink" role="alert">
               {quote.data.codeError}
             </p>
           ) : code && quote.data?.codeNotBest && count > 0 ? (
             <p className="mt-1 text-xs text-ink-soft">The multi-table discount saves more, so that's applied instead.</p>
           ) : code && price.source === "code" && count > 0 ? (
-            <p className="mt-1 text-xs font-semibold text-success">Code applied.</p>
+            <p className="mt-1 text-xs font-medium text-success">Code applied.</p>
           ) : (
             <p className="mt-1 text-xs text-ink-muted">Applied if it saves more than the multi-table discount.</p>
           )}
         </>
       )}
 
-      <label className="mt-5 flex items-center gap-2 text-sm font-semibold">
+      <label className="mt-5 flex items-center gap-2 text-sm font-medium">
         <input type="checkbox" className="size-4 accent-coral" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
         Already paid
       </label>
       {paid && charged && (
-        <label className="mt-2 block text-sm font-semibold">
+        <label className="mt-2 block text-sm font-medium">
           How did they pay?
           <select
             className={smallInput}
@@ -1962,13 +1960,13 @@ function AssignDialog({
       )}
 
       {assign.error && (
-        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
           {errorMessage(assign.error)}
         </p>
       )}
 
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
+        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-semibold text-ink-soft hover:bg-cream">
           Cancel
         </button>
         <button

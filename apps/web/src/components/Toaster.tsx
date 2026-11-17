@@ -17,7 +17,7 @@ export default function Toaster() {
         <div
           key={t.id}
           role={t.tone === "error" ? "alert" : "status"}
-          className="pointer-events-auto flex max-w-sm items-center gap-3 rounded-2xl bg-ink py-2.5 pr-2 pl-4 text-sm font-semibold text-white shadow-lg motion-safe:animate-[toast-in_160ms_ease-out]"
+          className="pointer-events-auto flex max-w-sm items-center gap-3 rounded-xl bg-ink py-2.5 pr-2 pl-4 text-sm font-medium text-white shadow-lg motion-safe:animate-[toast-in_160ms_ease-out]"
         >
           {t.tone === "success" ? (
             <CheckIcon className="size-4 shrink-0 text-[#8fd6c4]" />

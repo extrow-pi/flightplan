@@ -29,7 +29,7 @@ export function tableStateLabel(state: TableState) {
 
 export function TableStateBadge({ state }: { state: TableState }) {
   const s = stateStyles[state];
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${s.className}`}>{s.label}</span>;
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${s.className}`}>{s.label}</span>;
 }
 
 const closedLabels: Record<string, string> = {
@@ -64,7 +64,7 @@ export const sourceLabels: Record<Booking["source"], string> = {
 const btn = {
   primary: "btn btn-primary px-3.5 py-1.5 text-sm",
   secondary: "btn btn-secondary px-3.5 py-1 text-sm",
-  danger: "rounded-full px-3 py-1.5 text-sm font-bold text-coral-ink transition hover:bg-peach disabled:opacity-60",
+  danger: "rounded-full px-3 py-1.5 text-sm font-semibold text-coral-ink transition hover:bg-peach disabled:opacity-60",
 };
 
 /**
@@ -102,7 +102,7 @@ export function BookingActions({
   if (confirmRelease) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-coral-ink">
+        <span className="text-sm font-medium text-coral-ink">
           {count > 1 ? `Free tables ${requestTables.join(", ")}?` : "Free this table?"}
         </span>
         <button
@@ -194,7 +194,7 @@ export function BookingActions({
       )}
 
       {act.error && (
-        <span className="basis-full text-sm font-semibold text-coral-ink" role="alert">
+        <span className="basis-full text-sm font-medium text-coral-ink" role="alert">
           {act.error.message}
         </span>
       )}
@@ -220,7 +220,7 @@ export function MarkPaidChooser({
     act.mutate({ bookingId, action: "mark-paid", paymentMethod }, { onSuccess: onDone });
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="How did they pay?">
-      <span className="basis-full text-sm font-semibold">
+      <span className="basis-full text-sm font-medium">
         How did they pay{tableCount > 1 ? ` for all ${tableCount} tables` : ""}?
       </span>
       {PAYMENT_METHODS.map((m) => (
@@ -241,7 +241,7 @@ export function MarkPaidChooser({
         Cancel
       </button>
       {act.error && (
-        <span className="basis-full text-sm font-semibold text-coral-ink" role="alert">
+        <span className="basis-full text-sm font-medium text-coral-ink" role="alert">
           {act.error.message}
         </span>
       )}
@@ -253,7 +253,7 @@ export function MarkPaidChooser({
 export function PaidViaSelect({ booking, eventId, compact = false }: { booking: Booking; eventId?: string; compact?: boolean }) {
   const act = useBookingAction(eventId);
   return (
-    <label className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+    <label className="flex items-center gap-1.5 text-sm font-medium text-ink-soft">
       <span className={compact ? "sr-only" : ""}>Paid via</span>
       <select
         value={booking.paymentMethod ?? ""}
@@ -261,7 +261,7 @@ export function PaidViaSelect({ booking, eventId, compact = false }: { booking: 
         onChange={(e) =>
           act.mutate({ bookingId: booking.id, action: "payment-method", paymentMethod: (e.target.value || null) as PaymentMethod | null })
         }
-        className="rounded-full border-2 border-cream bg-white px-2.5 py-1 text-base font-bold text-ink focus:border-coral focus:outline-none sm:text-sm"
+        className="rounded-full border border-ink/15 bg-white px-2.5 py-1 text-base font-semibold text-ink focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none sm:text-sm"
       >
         <option value="">{compact ? "Paid via…" : "Not recorded"}</option>
         {PAYMENT_METHODS.map((m) => (
@@ -293,9 +293,9 @@ export function ReleaseTableButton({
   if (confirming) {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 ${compact ? "ml-1 rounded-full bg-white py-0.5 pr-0.5 pl-2.5 shadow-sm" : ""}`}
+        className={`inline-flex items-center gap-1.5 ${compact ? "ml-1 rounded-full bg-white py-0.5 pr-0.5 pl-2.5 shadow-card" : ""}`}
       >
-        <span className="text-xs font-semibold whitespace-nowrap text-coral-ink">
+        <span className="text-xs font-medium whitespace-nowrap text-coral-ink">
           {compact ? "Release?" : `Release ${tableLabel}?`}
         </span>
         <button
@@ -309,7 +309,7 @@ export function ReleaseTableButton({
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="rounded-full px-2 py-0.5 text-xs font-bold text-ink-soft hover:bg-cream"
+          className="rounded-full px-2 py-0.5 text-xs font-semibold text-ink-soft hover:bg-cream"
         >
           No
         </button>
@@ -321,7 +321,7 @@ export function ReleaseTableButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="ml-1 flex size-5 items-center justify-center rounded-full bg-white/90 text-sm leading-none font-bold text-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white"
+      className="ml-1 flex size-5 items-center justify-center rounded-full bg-white/90 text-sm leading-none font-semibold text-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white"
       aria-label={`Release table ${tableLabel} only`}
       title={`Release table ${tableLabel} only`}
     >

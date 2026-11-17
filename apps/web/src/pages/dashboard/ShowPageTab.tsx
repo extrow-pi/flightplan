@@ -120,11 +120,11 @@ export default function ShowPageTab() {
   if (isPending) return <PageSkeleton />;
   if (error || !event || event.status === "template") {
     return (
-      <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">
-        <p className="text-lg font-extrabold">
+      <div className="rounded-2xl bg-white p-10 text-center ring-1 ring-ink/5">
+        <p className="text-lg font-semibold">
           {error instanceof ApiRequestError && error.status === 404 ? "Not found" : "Couldn't load this"}
         </p>
-        <Link to="/dashboard" className="mt-4 inline-block font-bold text-coral-ink hover:underline">
+        <Link to="/dashboard" className="mt-4 inline-block font-semibold text-coral-ink hover:underline">
           Back to dashboard
         </Link>
       </div>
@@ -133,17 +133,17 @@ export default function ShowPageTab() {
 
   return (
     <>
-      <Link to="/dashboard/events" className="inline-flex items-center gap-2 text-sm font-bold text-ink-soft transition hover:text-ink">
+      <Link to="/dashboard/events" className="inline-flex items-center gap-2 text-sm font-semibold text-ink-soft transition hover:text-ink">
         <ArrowLeftIcon className="size-4" /> All events
       </Link>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{event.name}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{event.name}</h1>
         <SharedBadge event={event} />
       </div>
       <EventTabs event={event} />
 
       {page.error ? (
-        <p className="mt-6 rounded-2xl bg-peach px-5 py-4 font-semibold text-coral-ink" role="alert">
+        <p className="mt-6 rounded-xl bg-peach px-5 py-4 font-medium text-coral-ink" role="alert">
           Couldn't load the show page: {page.error.message}
         </p>
       ) : page.isPending ? (
@@ -168,21 +168,21 @@ const hiddenText: Record<NonNullable<ShowPageResponse["hiddenBecause"]>, string>
 function PageStatus({ page }: { page: ShowPageResponse }) {
   const absolute = page.url ? `${window.location.origin}${page.url}` : null;
   return (
-    <div className="mt-6 flex flex-col gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-ink/5 sm:flex-row sm:items-center">
+    <div className="mt-6 flex flex-col gap-3 rounded-xl bg-white px-5 py-4 shadow-card ring-1 ring-ink/5 sm:flex-row sm:items-center">
       {page.hiddenBecause ? (
-        <p className="min-w-0 text-sm font-semibold text-ink-soft sm:flex-1">
+        <p className="min-w-0 text-sm font-medium text-ink-soft sm:flex-1">
           {hiddenText[page.hiddenBecause]}{" "}
           {page.hiddenBecause !== "not-published" && (
-            <Link to="/dashboard/settings" className="font-bold text-coral-ink hover:underline">
+            <Link to="/dashboard/settings" className="font-semibold text-coral-ink hover:underline">
               Open Settings
             </Link>
           )}
         </p>
       ) : (
         <p className="min-w-0 text-sm sm:flex-1">
-          <span className="font-bold text-success">Live</span>
+          <span className="font-semibold text-success">Live</span>
           <span className="text-ink-soft"> at </span>
-          <a href={page.url!} target="_blank" rel="noreferrer" className="font-bold break-all text-coral-ink hover:underline">
+          <a href={page.url!} target="_blank" rel="noreferrer" className="font-semibold break-all text-coral-ink hover:underline">
             {absolute?.replace(/^https?:\/\//, "")}
           </a>
         </p>
@@ -299,7 +299,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
         <fieldset disabled={readOnly} className="min-w-0 space-y-6">
           <Section title="Look">
             <Field label="Page address" id="slug" className="sm:col-span-2" error={errors.slug} hint="Leave blank to use the show's name.">
-              <div className="flex min-w-0 items-center rounded-xl border-2 border-cream bg-white focus-within:border-coral focus-within:ring-4 focus-within:ring-coral/15">
+              <div className="flex min-w-0 items-center rounded-xl border border-ink/15 bg-white focus-within:border-coral focus-within:ring-4 focus-within:ring-coral/15">
                 {handlePrefix && <span className="hidden shrink-0 pl-4 text-ink-muted sm:inline">{handlePrefix}</span>}
                 <input
                   id="slug"
@@ -315,7 +315,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
               <input id="tagline" className={inputClass} maxLength={160} value={form.tagline} onChange={(e) => update("tagline", e.target.value)} />
             </Field>
             <div className="flex flex-col gap-2 sm:col-span-2">
-              <span className="text-sm font-bold" id="theme-label">
+              <span className="text-sm font-semibold" id="theme-label">
                 Theme
               </span>
               <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-labelledby="theme-label">
@@ -328,7 +328,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                       role="radio"
                       aria-checked={form.theme === t}
                       onClick={() => update("theme", t)}
-                      className={`overflow-hidden rounded-2xl text-left ring-2 transition ${form.theme === t ? "ring-coral" : "ring-ink/10 hover:ring-ink/30"}`}
+                      className={`overflow-hidden rounded-xl text-left ring-2 transition ${form.theme === t ? "ring-coral" : "ring-ink/10 hover:ring-ink/30"}`}
                     >
                       <span className="block p-3" style={{ background: v["--bg"] }}>
                         <span className="block rounded-lg p-2" style={{ background: v["--card"] }}>
@@ -337,7 +337,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                           <span className="mt-2 block h-3 w-10 rounded-full" style={{ background: accent }} />
                         </span>
                       </span>
-                      <span className="block bg-white px-3 py-1.5 text-sm font-bold">{THEMES[t].label}</span>
+                      <span className="block bg-white px-3 py-1.5 text-sm font-semibold">{THEMES[t].label}</span>
                     </button>
                   );
                 })}
@@ -348,13 +348,13 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                 <input
                   id="accentColor"
                   type="color"
-                  className="h-12 w-16 cursor-pointer rounded-xl border-2 border-cream bg-white p-1"
+                  className="h-12 w-16 cursor-pointer rounded-xl border border-ink/15 bg-white p-1"
                   value={accent}
                   onChange={(e) => update("accentColor", e.target.value)}
                 />
                 <span className="font-mono text-sm text-ink-soft">{accent}</span>
                 {form.accentColor && (
-                  <button type="button" onClick={() => update("accentColor", "")} className="text-sm font-bold text-coral-ink hover:underline">
+                  <button type="button" onClick={() => update("accentColor", "")} className="text-sm font-semibold text-coral-ink hover:underline">
                     Reset
                   </button>
                 )}
@@ -362,15 +362,15 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
             </Field>
             <CoverField event={event} page={page} readOnly={readOnly} />
             <div className="flex flex-col gap-2 sm:col-span-2">
-              <span className="text-sm font-bold">
+              <span className="text-sm font-semibold">
                 Flyer <span className="font-normal text-ink-muted">(optional)</span>
               </span>
               <p className="text-xs text-ink-muted">Shown full width under the show's name. Visitors can tap it to see it full size.</p>
               {form.flyer ? (
                 <div className="flex flex-wrap items-end gap-3">
-                  <img src={uploadPath(form.flyer)} alt="Flyer" className="max-h-72 w-auto rounded-2xl ring-1 ring-ink/10" />
+                  <img src={uploadPath(form.flyer)} alt="Flyer" className="max-h-72 w-auto rounded-xl ring-1 ring-ink/10" />
                   {!readOnly && (
-                    <button type="button" onClick={() => update("flyer", "")} className="rounded-full px-4 py-2 text-sm font-bold text-coral-ink hover:bg-peach">
+                    <button type="button" onClick={() => update("flyer", "")} className="rounded-full px-4 py-2 text-sm font-semibold text-coral-ink hover:bg-peach">
                       Remove flyer
                     </button>
                   )}
@@ -397,19 +397,19 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                 onChange={(e) => onTickets(e.target.value)}
               />
               {ticketsUrl && !form.blocks.some((b) => b.type === "tickets") && (
-                <p className="text-sm font-semibold text-coral-ink">
+                <p className="text-sm font-medium text-coral-ink">
                   The page has no Tickets block, so the widget won't show.{" "}
                   <button
                     type="button"
                     onClick={() => setBlocks([{ ...makeBlock("tickets"), key: nextKey++ }, ...form.blocks])}
-                    className="font-bold underline"
+                    className="font-semibold underline"
                   >
                     Add one at the top
                   </button>
                 </p>
               )}
               {form.tickets.trim() && !errors.tickets && (
-                <p className={`text-sm font-semibold ${ticketsUrl ? "text-success" : "text-coral-ink"}`}>
+                <p className={`text-sm font-medium ${ticketsUrl ? "text-success" : "text-coral-ink"}`}>
                   {ticketsUrl ? (
                     <>
                       <CheckIcon className="mr-1 inline size-4 -translate-y-px" />
@@ -439,17 +439,17 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
             </Field>
           </Section>
 
-          <fieldset className="min-w-0 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+          <fieldset className="min-w-0 rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
             <legend className="sr-only">Page blocks</legend>
-            <h2 className="text-lg font-extrabold" aria-hidden="true">
+            <h2 className="text-lg font-semibold" aria-hidden="true">
               Page blocks
             </h2>
             <p className="mt-1 text-sm text-ink-soft">These appear under the show details, in this order.</p>
             <ol className="mt-5 space-y-4">
               {form.blocks.map((b, i) => (
-                <li key={b.key} className={`rounded-2xl bg-cream-50 p-4 ring-1 ${errors.blocks?.[i] ? "ring-coral-ink" : "ring-ink/5"}`}>
+                <li key={b.key} className={`rounded-xl bg-cream-50 p-4 ring-1 ${errors.blocks?.[i] ? "ring-coral-ink" : "ring-ink/5"}`}>
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold tracking-wider text-coral-ink uppercase ring-1 ring-ink/5">
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold tracking-wider text-coral-ink uppercase ring-1 ring-ink/5">
                       {typeLabel[b.type]}
                     </span>
                     <div className="ml-auto flex gap-1">
@@ -467,7 +467,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
                   <div className="mt-3 space-y-3">
                     <BlockEditor block={b} eventId={event.id} onChange={(patch) => updateBlock(b.key, patch)} hasTickets={!!ticketsUrl} />
                   </div>
-                  {errors.blocks?.[i] && <p className="mt-2 text-sm font-semibold text-coral-ink">{errors.blocks[i]}</p>}
+                  {errors.blocks?.[i] && <p className="mt-2 text-sm font-medium text-coral-ink">{errors.blocks[i]}</p>}
                 </li>
               ))}
             </ol>
@@ -489,7 +489,7 @@ function PageForm({ event, page }: { event: EventRecord; page: ShowPageResponse 
         </fieldset>
 
         {(errors.general || errorCount > 0) && (
-          <p className="rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
             {errors.general ?? `Please fix the highlighted ${errorCount === 1 ? "block" : "blocks"}.`}
           </p>
         )}
@@ -515,7 +515,7 @@ function IconButton({ label, onClick, disabled, danger, children }: { label: str
       disabled={disabled}
       aria-label={label}
       title={label}
-      className={`flex size-9 items-center justify-center rounded-full font-bold disabled:opacity-30 ${danger ? "text-coral-ink hover:bg-peach" : "text-ink-soft hover:bg-cream"}`}
+      className={`flex size-9 items-center justify-center rounded-full font-semibold disabled:opacity-30 ${danger ? "text-coral-ink hover:bg-peach" : "text-ink-soft hover:bg-cream"}`}
     >
       {children}
     </button>
@@ -529,17 +529,17 @@ function AddBlock({ blocks, onAdd }: { blocks: BlockRow[]; onAdd: (block: ShowPa
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-4 inline-flex items-center gap-2 rounded-full border-2 border-dashed border-coral/40 px-4 py-2 text-sm font-bold text-coral-ink hover:border-coral hover:bg-peach/30"
+        className="mt-4 inline-flex items-center gap-2 rounded-full border border-dashed border-coral/40 px-4 py-2 text-sm font-semibold text-coral-ink hover:border-coral hover:bg-peach/30"
       >
         <PlusIcon className="size-4" /> Add a block
       </button>
     );
   }
   return (
-    <div className="mt-4 rounded-2xl bg-cream-50 p-4 ring-1 ring-ink/5">
+    <div className="mt-4 rounded-xl bg-cream-50 p-4 ring-1 ring-ink/5">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-bold">Add a block</p>
-        <button type="button" onClick={() => setOpen(false)} className="text-sm font-bold text-ink-soft hover:underline">
+        <p className="text-sm font-semibold">Add a block</p>
+        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold text-ink-soft hover:underline">
           Cancel
         </button>
       </div>
@@ -557,7 +557,7 @@ function AddBlock({ blocks, onAdd }: { blocks: BlockRow[]; onAdd: (block: ShowPa
               }}
               className="rounded-xl bg-white px-4 py-3 text-left ring-1 ring-ink/10 transition hover:ring-coral disabled:opacity-40 disabled:hover:ring-ink/10"
             >
-              <span className="block font-bold">{t.label}</span>
+              <span className="block font-semibold">{t.label}</span>
               <span className="block text-sm text-ink-soft">{taken ? "Already on the page" : t.description}</span>
             </button>
           );
@@ -582,7 +582,7 @@ function BlockEditor({
 }) {
   const title = (placeholder: string, required = false) => (
     <input
-      className={`${smallInput} font-bold`}
+      className={`${smallInput} font-semibold`}
       placeholder={required ? placeholder : `${placeholder} (optional)`}
       aria-label="Block title"
       maxLength={80}
@@ -641,7 +641,7 @@ function BlockEditor({
             value={b.url}
             onChange={(e) => onChange({ url: e.target.value })}
           />
-          {b.url.trim() && !videoEmbedUrl(b.url) && <p className="text-sm font-semibold text-coral-ink">Paste a YouTube or Vimeo link.</p>}
+          {b.url.trim() && !videoEmbedUrl(b.url) && <p className="text-sm font-medium text-coral-ink">Paste a YouTube or Vimeo link.</p>}
         </>
       );
     case "faq": {
@@ -654,7 +654,7 @@ function BlockEditor({
             <div key={i} className="rounded-xl bg-white p-3 ring-1 ring-ink/5">
               <div className="flex gap-2">
                 <input
-                  className={`${smallInput} font-semibold`}
+                  className={`${smallInput} font-medium`}
                   aria-label={`Question ${i + 1}`}
                   placeholder="Question"
                   value={item.question}
@@ -675,7 +675,7 @@ function BlockEditor({
             </div>
           ))}
           {items.length < MAX_BLOCK_ITEMS && (
-            <button type="button" onClick={() => set([...items, { question: "", answer: "" }])} className="text-sm font-bold text-coral-ink hover:underline">
+            <button type="button" onClick={() => set([...items, { question: "", answer: "" }])} className="text-sm font-semibold text-coral-ink hover:underline">
               + Add a question
             </button>
           )}
@@ -712,7 +712,7 @@ function BlockEditor({
             </div>
           ))}
           {links.length < 12 && (
-            <button type="button" onClick={() => set([...links, { label: "", url: "" }])} className="text-sm font-bold text-coral-ink hover:underline">
+            <button type="button" onClick={() => set([...links, { label: "", url: "" }])} className="text-sm font-semibold text-coral-ink hover:underline">
               + Add a button
             </button>
           )}
@@ -812,7 +812,7 @@ function ImageUpload({ eventId, label, multiple, onUploaded }: { eventId: string
       <ImageDropzone label={label} multiple={multiple} busy={busy} picker={picker} className="py-6" />
       {picker.input}
       {picker.error && (
-        <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-2 text-sm font-medium text-coral-ink" role="alert">
           {picker.error}
         </p>
       )}
@@ -827,12 +827,12 @@ function CoverField({ event, page, readOnly }: { event: EventRecord; page: ShowP
 
   return (
     <div className="flex flex-col gap-2 sm:col-span-2">
-      <span className="text-sm font-bold">
+      <span className="text-sm font-semibold">
         Cover image <span className="font-normal text-ink-muted">(optional)</span>
       </span>
       <p className="text-xs text-ink-muted">A wide banner across the top of the page and on the show's card. Saved straight away.</p>
       {page.coverUrl ? (
-        <img src={page.coverUrl} alt="" className="aspect-[3/1] w-full rounded-2xl bg-cream-50 object-cover ring-1 ring-ink/10" />
+        <img src={page.coverUrl} alt="" className="aspect-[3/1] w-full rounded-xl bg-cream-50 object-cover ring-1 ring-ink/10" />
       ) : (
         <ImageDropzone label="Upload a cover image" hint="About 3:1 works best." busy={upload.isPending} picker={picker} className="py-8" />
       )}
@@ -851,14 +851,14 @@ function CoverField({ event, page, readOnly }: { event: EventRecord; page: ShowP
             type="button"
             onClick={() => remove.mutate()}
             disabled={remove.isPending}
-            className="rounded-full px-4 py-2 text-sm font-bold text-coral-ink hover:bg-peach disabled:opacity-60"
+            className="rounded-full px-4 py-2 text-sm font-semibold text-coral-ink hover:bg-peach disabled:opacity-60"
           >
             {remove.isPending ? "Removing…" : "Remove"}
           </button>
         </div>
       )}
       {error && (
-        <p className="text-sm font-semibold text-coral-ink" role="alert">
+        <p className="text-sm font-medium text-coral-ink" role="alert">
           {error}
         </p>
       )}

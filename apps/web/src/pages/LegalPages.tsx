@@ -15,7 +15,7 @@ function LegalLayout({ title, children }: { title: string; children: ReactNode }
       <header className="border-b border-ink/5 bg-white/60">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-5 sm:px-6">
           <Logo />
-          <nav className="flex gap-4 text-sm font-bold text-ink-soft" aria-label="Legal">
+          <nav className="flex gap-4 text-sm font-semibold text-ink-soft" aria-label="Legal">
             <Link to="/privacy" className="hover:text-coral-ink">
               Privacy
             </Link>
@@ -26,14 +26,14 @@ function LegalLayout({ title, children }: { title: string; children: ReactNode }
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-        <h1 className="text-4xl font-extrabold tracking-tight">{title}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-2 text-sm text-ink-muted">Last updated {LAST_UPDATED}</p>
-        <div className="mt-10 space-y-10 leading-relaxed text-ink-soft [&_a]:font-semibold [&_a]:text-coral-ink [&_a:hover]:underline [&_h2]:text-xl [&_h2]:font-extrabold [&_h2]:text-ink [&_h3]:mt-5 [&_h3]:font-bold [&_h3]:text-ink [&_li]:mt-1.5 [&_p]:mt-3 [&_strong]:text-ink [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-5">
+        <div className="mt-10 space-y-10 leading-relaxed text-ink-soft [&_a]:font-medium [&_a]:text-coral-ink [&_a:hover]:underline [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-ink [&_h3]:mt-5 [&_h3]:font-semibold [&_h3]:text-ink [&_li]:mt-1.5 [&_p]:mt-3 [&_strong]:text-ink [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-5">
           {children}
         </div>
       </main>
       <footer className="border-t border-ink/5 py-8 text-center text-sm text-ink-muted">
-        Flightplan is a <a href={MAIN_SITE} className="font-semibold text-coral-ink hover:underline">Jetlagged Cards</a>{" "}
+        Flightplan is a <a href={MAIN_SITE} className="font-medium text-coral-ink hover:underline">Jetlagged Cards</a>{" "}
         project · Vancouver, BC
       </footer>
     </div>

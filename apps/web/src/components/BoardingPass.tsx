@@ -11,40 +11,40 @@ export default function BoardingPass() {
       {/* Soft glow behind the card */}
       <div className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-coral/30 via-gold/25 to-sky/30 blur-2xl" />
 
-      <div className="overflow-hidden rounded-3xl bg-white shadow-[0_20px_50px_-20px_rgba(74,55,40,0.35)] ring-1 ring-ink/5">
+      <div className="overflow-hidden rounded-2xl bg-white shadow-pop ring-1 ring-ink/5">
         {/* Header strip */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-coral to-gold px-6 py-4 text-white">
-          <div className="flex items-center gap-2 text-sm font-bold tracking-wide uppercase">
+        <div className="flex items-center justify-between bg-primary px-6 py-4 text-white">
+          <div className="flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
             <PlaneIcon className="size-5" />
             Show pass
           </div>
-          <span className="rounded-full bg-white/25 px-3 py-1 text-xs font-bold">Boarding now</span>
+          <span className="rounded-full bg-white/25 px-3 py-1 text-xs font-semibold">Boarding now</span>
         </div>
 
         <div className="px-6 pt-5 pb-6">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">Event</p>
-              <p className="text-2xl font-extrabold text-ink">Layover Card Show</p>
+              <p className="text-xs font-medium tracking-wider text-ink-muted uppercase">Event</p>
+              <p className="text-2xl font-semibold text-ink">Layover Card Show</p>
             </div>
-            <div className="rounded-2xl bg-gradient-to-br from-gold to-coral px-3 py-2 text-center text-white shadow-sm">
-              <p className="text-[10px] font-bold uppercase">Oct</p>
-              <p className="text-2xl leading-none font-extrabold">25</p>
+            <div className="rounded-xl bg-primary px-3 py-2 text-center text-white shadow-card">
+              <p className="text-[10px] font-semibold uppercase">Oct</p>
+              <p className="text-2xl leading-none font-semibold">25</p>
             </div>
           </div>
 
           <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
             <div>
-              <dt className="text-xs font-semibold tracking-wider text-ink-muted uppercase">Gate</dt>
-              <dd className="font-bold">Main Hall</dd>
+              <dt className="text-xs font-medium tracking-wider text-ink-muted uppercase">Gate</dt>
+              <dd className="font-semibold">Main Hall</dd>
             </div>
             <div>
-              <dt className="text-xs font-semibold tracking-wider text-ink-muted uppercase">Doors</dt>
-              <dd className="font-bold">11:00 am</dd>
+              <dt className="text-xs font-medium tracking-wider text-ink-muted uppercase">Doors</dt>
+              <dd className="font-semibold">11:00 am</dd>
             </div>
             <div>
-              <dt className="text-xs font-semibold tracking-wider text-ink-muted uppercase">Tickets</dt>
-              <dd className="font-bold">312 sold</dd>
+              <dt className="text-xs font-medium tracking-wider text-ink-muted uppercase">Tickets</dt>
+              <dd className="font-semibold">312 sold</dd>
             </div>
           </dl>
 
@@ -55,8 +55,8 @@ export default function BoardingPass() {
           </div>
 
           <div className="flex items-center justify-between text-sm">
-            <p className="font-bold">Vendor tables</p>
-            <p className="font-semibold text-ink-soft">
+            <p className="font-semibold">Vendor tables</p>
+            <p className="font-medium text-ink-soft">
               <span className="text-coral-ink">{booked}</span> / {tables.length} booked
             </p>
           </div>
@@ -67,7 +67,7 @@ export default function BoardingPass() {
                 className={
                   status === "booked"
                     ? "aspect-square rounded-md bg-coral/85"
-                    : "aspect-square rounded-md border-2 border-dashed border-sky bg-sky/15"
+                    : "aspect-square rounded-md border border-dashed border-sky bg-sky/15"
                 }
               />
             ))}
@@ -84,12 +84,12 @@ export default function BoardingPass() {
       </div>
 
       {/* Floating notification */}
-      <div className="absolute -bottom-5 -left-3 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-lg ring-1 ring-ink/5 sm:-left-8">
+      <div className="absolute -bottom-5 -left-3 flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-lg ring-1 ring-ink/5 sm:-left-8">
         <span className="flex size-9 items-center justify-center rounded-full bg-success-soft text-success">
           <CheckIcon className="size-5" />
         </span>
         <div className="text-sm">
-          <p className="font-bold">Table B7 booked</p>
+          <p className="font-semibold">Table B7 booked</p>
           <p className="text-xs text-ink-muted">Paid · just now</p>
         </div>
       </div>

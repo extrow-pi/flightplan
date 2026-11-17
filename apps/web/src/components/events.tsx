@@ -43,12 +43,12 @@ export function DateTile({ event, size = "md", accent = false }: { event: Dated;
     // Templates have no dates
     return (
       <div
-        className={`flex shrink-0 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/40 text-coral-ink ${
+        className={`flex shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-coral/40 bg-peach/40 text-coral-ink ${
           big ? "size-20" : "size-16"
         }`}
       >
         <CopyIcon className="size-5" />
-        <span className="mt-1 text-[11px] font-bold">{dayCount(event)}</span>
+        <span className="mt-1 text-[11px] font-semibold">{dayCount(event)}</span>
       </div>
     );
   }
@@ -63,19 +63,19 @@ export function DateTile({ event, size = "md", accent = false }: { event: Dated;
 
   return (
     <div
-      className={`flex shrink-0 flex-col items-center justify-center rounded-2xl shadow-sm ${
+      className={`flex shrink-0 flex-col items-center justify-center rounded-xl shadow-card ${
         accent
           ? "bg-[var(--accent)] text-[var(--on-accent)] shadow-md ring-4 ring-[var(--accent)]/25"
           : isPast(event)
-            ? "bg-gradient-to-br from-sky to-slate text-white"
-            : "bg-gradient-to-br from-gold to-coral text-white"
-      } ${xl ? "size-24 rounded-3xl" : big ? "size-20" : "size-16"}`}
+            ? "bg-slate text-white"
+            : "bg-primary text-white"
+      } ${xl ? "size-24 rounded-2xl" : big ? "size-20" : "size-16"}`}
     >
       {days ? (
         <>
-          <span className={`font-extrabold tracking-wider uppercase ${xl ? "text-sm" : "text-[11px]"}`}>{formatDate(start, { month: "short" })}</span>
+          <span className={`font-semibold tracking-wider uppercase ${xl ? "text-sm" : "text-[11px]"}`}>{formatDate(start, { month: "short" })}</span>
           <span
-            className={`leading-none font-extrabold ${
+            className={`leading-none font-semibold ${
               days.length > 3 ? (xl ? "text-3xl" : big ? "text-2xl" : "text-lg") : xl ? "text-5xl" : big ? "text-4xl" : "text-2xl"
             }`}
           >
@@ -84,7 +84,7 @@ export function DateTile({ event, size = "md", accent = false }: { event: Dated;
         </>
       ) : (
         // Crosses a month boundary, e.g. Oct 31 – Nov 2
-        <span className={`text-center leading-tight font-extrabold uppercase ${xl ? "text-sm" : "text-[11px]"}`}>
+        <span className={`text-center leading-tight font-semibold uppercase ${xl ? "text-sm" : "text-[11px]"}`}>
           {formatDate(start, { month: "short", day: "numeric" })}
           <br />–<br />
           {formatDate(end, { month: "short", day: "numeric" })}
@@ -96,15 +96,15 @@ export function DateTile({ event, size = "md", accent = false }: { event: Dated;
 
 export function StatusBadge({ event }: { event: EventRecord }) {
   if (isTemplate(event)) {
-    return <span className="rounded-full bg-peach px-2.5 py-1 text-xs font-bold text-coral-ink">Template</span>;
+    return <span className="rounded-full bg-peach px-2.5 py-1 text-xs font-semibold text-coral-ink">Template</span>;
   }
   if (isPast(event)) {
-    return <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink-soft">Past</span>;
+    return <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-semibold text-ink-soft">Past</span>;
   }
   return event.status === "published" ? (
-    <span className="rounded-full bg-success-soft px-2.5 py-1 text-xs font-bold text-success">Published</span>
+    <span className="rounded-full bg-success-soft px-2.5 py-1 text-xs font-semibold text-success">Published</span>
   ) : (
-    <span className="rounded-full bg-warning-soft px-2.5 py-1 text-xs font-bold text-gold-ink">Draft</span>
+    <span className="rounded-full bg-warning-soft px-2.5 py-1 text-xs font-semibold text-gold-ink">Draft</span>
   );
 }
 
@@ -113,7 +113,7 @@ export function SharedBadge({ event }: { event: EventRecord }) {
   if (isOwner(event)) return null;
   return (
     <span
-      className="rounded-full bg-sky/20 px-2.5 py-1 text-xs font-bold text-slate"
+      className="rounded-full bg-sky/20 px-2.5 py-1 text-xs font-semibold text-slate"
       title={`Shared with you by ${event.access.ownerName}`}
     >
       Shared by {event.access.ownerName} · {event.access.role === "editor" ? "Editor" : "Viewer"}
@@ -129,11 +129,11 @@ export function Schedule({ event, tone = "light" }: { event: Dated; tone?: "ligh
       {event.days.map((d, i) => (
         <li
           key={d.dayOffset}
-          className={`rounded-lg px-2 py-1 text-xs font-semibold ${
+          className={`rounded-lg px-2 py-1 text-xs font-medium ${
             tone === "dark" ? "bg-white/10 text-white/90" : "bg-cream-50 text-ink-soft ring-1 ring-ink/5"
           }`}
         >
-          <span className={tone === "dark" ? "font-bold text-white" : "font-bold text-ink"}>
+          <span className={tone === "dark" ? "font-semibold text-white" : "font-semibold text-ink"}>
             {dates[i] ? formatDate(dates[i], { weekday: "short", month: "short", day: "numeric" }) : `Day ${d.dayOffset + 1}`}
           </span>{" "}
           · {timeRange(d.startTime, d.endTime)}
@@ -202,7 +202,7 @@ export function EventTabs({ event }: { event: EventRecord }) {
           to={t.to}
           end={t.end}
           className={({ isActive }) =>
-            `shrink-0 border-b-4 px-2.5 py-2.5 text-sm font-bold whitespace-nowrap sm:px-4 transition ${
+            `shrink-0 border-b-4 px-2.5 py-2.5 text-sm font-semibold whitespace-nowrap sm:px-4 transition ${
               isActive ? "border-coral text-coral-ink" : "border-transparent text-ink-soft hover:text-ink"
             }`
           }
@@ -219,19 +219,19 @@ export function EventTabs({ event }: { event: EventRecord }) {
 function DeleteConfirm({ onConfirm, onCancel, pending }: { onConfirm: () => void; onCancel: () => void; pending: boolean }) {
   return (
     <>
-      <span className="text-sm font-semibold text-coral-ink">Delete permanently?</span>
+      <span className="text-sm font-medium text-coral-ink">Delete permanently?</span>
       <button
         type="button"
         onClick={onConfirm}
         disabled={pending}
-        className="rounded-full bg-coral-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+        className="rounded-full bg-coral-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
       >
         {pending ? "Deleting…" : "Delete"}
       </button>
       <button
         type="button"
         onClick={onCancel}
-        className="rounded-full px-3 py-2 text-sm font-bold text-ink-soft hover:bg-cream"
+        className="rounded-full px-3 py-2 text-sm font-semibold text-ink-soft hover:bg-cream"
       >
         Cancel
       </button>
@@ -268,7 +268,7 @@ function IconActions({ event, editTo, onDelete }: { event: EventRecord; editTo: 
 }
 
 const rowClass =
-  "flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5 sm:flex-row sm:flex-wrap sm:items-center";
+  "flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink/5 sm:flex-row sm:flex-wrap sm:items-center";
 
 /** A dated event in a list, with publish / edit / delete actions. */
 export function EventRow({ event }: { event: EventRecord }) {
@@ -283,7 +283,7 @@ export function EventRow({ event }: { event: EventRecord }) {
         <DateTile event={event} />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Link to={editTo} className="truncate text-lg font-extrabold text-ink hover:text-coral-ink">
+            <Link to={editTo} className="truncate text-lg font-semibold text-ink hover:text-coral-ink">
               {event.name}
             </Link>
             <StatusBadge event={event} />
@@ -307,9 +307,9 @@ export function EventRow({ event }: { event: EventRecord }) {
                   setStatus.mutate({ id: event.id, status: event.status === "published" ? "draft" : "published" })
                 }
                 disabled={setStatus.isPending}
-                className={`rounded-full px-4 py-2 text-sm font-bold transition disabled:opacity-60 ${
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
                   event.status === "published"
-                    ? "border-2 border-slate/30 text-slate hover:border-slate"
+                    ? "border border-slate/30 text-slate hover:border-slate"
                     : "bg-primary text-white hover:bg-primary-hover"
                 }`}
               >
@@ -318,7 +318,7 @@ export function EventRow({ event }: { event: EventRecord }) {
             )}
             <Link
               to={`/dashboard/events/${event.id}/tables`}
-              className="rounded-full px-3 py-2 text-sm font-bold text-slate transition hover:bg-cream"
+              className="rounded-full px-3 py-2 text-sm font-semibold text-slate transition hover:bg-cream"
             >
               Tables
             </Link>
@@ -327,7 +327,7 @@ export function EventRow({ event }: { event: EventRecord }) {
         )}
       </div>
       {(setStatus.error || del.error) && (
-        <p className="text-sm font-semibold text-coral-ink sm:basis-full" role="alert">
+        <p className="text-sm font-medium text-coral-ink sm:basis-full" role="alert">
           {(setStatus.error ?? del.error)?.message}
         </p>
       )}
@@ -348,7 +348,7 @@ export function TemplateRow({ event }: { event: EventRecord }) {
         <DateTile event={event} />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Link to={editTo} className="truncate text-lg font-extrabold text-ink hover:text-coral-ink">
+            <Link to={editTo} className="truncate text-lg font-semibold text-ink hover:text-coral-ink">
               {event.name}
             </Link>
             <SharedBadge event={event} />
@@ -378,7 +378,7 @@ export function TemplateRow({ event }: { event: EventRecord }) {
         )}
       </div>
       {del.error && (
-        <p className="text-sm font-semibold text-coral-ink sm:basis-full" role="alert">
+        <p className="text-sm font-medium text-coral-ink sm:basis-full" role="alert">
           {del.error.message}
         </p>
       )}
@@ -419,7 +419,7 @@ export function SpawnDialog({ template, onClose }: { template: EventRecord; onCl
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="spawn-title">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-xl sm:p-8">
+      <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-pop sm:p-8">
         <button
           type="button"
           onClick={onClose}
@@ -428,15 +428,15 @@ export function SpawnDialog({ template, onClose }: { template: EventRecord; onCl
         >
           <CloseIcon className="size-5" />
         </button>
-        <p className="text-sm font-bold tracking-wider text-coral-ink uppercase">Use template</p>
-        <h2 id="spawn-title" className="mt-1 pr-8 text-2xl font-extrabold">
+        <p className="text-sm font-semibold tracking-wider text-coral-ink uppercase">Use template</p>
+        <h2 id="spawn-title" className="mt-1 pr-8 text-2xl font-semibold">
           {template.name}
         </h2>
         <p className="mt-2 text-ink-soft">
           This creates a draft you can customize before publishing. The template itself won't change.
         </p>
 
-        <label htmlFor="spawn-date" className="mt-6 block text-sm font-bold">
+        <label htmlFor="spawn-date" className="mt-6 block text-sm font-semibold">
           First day of the show
         </label>
         <input
@@ -449,15 +449,15 @@ export function SpawnDialog({ template, onClose }: { template: EventRecord; onCl
             setStartDate(e.target.value);
             setError(null);
           }}
-          className="mt-2 w-full rounded-xl border-2 border-cream bg-white px-4 py-3 text-ink transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none"
+          className="mt-2 w-full rounded-xl border border-ink/15 bg-white px-4 py-3 text-ink transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none"
         />
 
-        <div className="mt-5 rounded-2xl bg-cream-50 p-4 ring-1 ring-ink/5">
-          <p className="text-xs font-bold tracking-wider text-ink-muted uppercase">Schedule</p>
+        <div className="mt-5 rounded-xl bg-cream-50 p-4 ring-1 ring-ink/5">
+          <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">Schedule</p>
           <ul className="mt-2 space-y-1.5 text-sm">
             {template.days.map((d) => (
               <li key={d.dayOffset} className="flex justify-between gap-4">
-                <span className="font-bold">
+                <span className="font-semibold">
                   {startDate
                     ? formatDate(addDays(startDate, d.dayOffset), { weekday: "long", month: "short", day: "numeric" })
                     : `Day ${d.dayOffset + 1}`}
@@ -469,7 +469,7 @@ export function SpawnDialog({ template, onClose }: { template: EventRecord; onCl
         </div>
 
         {error && (
-          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
             {error}
           </p>
         )}
@@ -478,7 +478,7 @@ export function SpawnDialog({ template, onClose }: { template: EventRecord; onCl
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream"
+            className="rounded-full px-5 py-3 font-semibold text-ink-soft hover:bg-cream"
           >
             Cancel
           </button>

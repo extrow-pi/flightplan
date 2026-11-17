@@ -17,7 +17,7 @@ export default function TemplatesPage() {
         action={
           <Link
             to="/dashboard/templates/new"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border-2 border-coral px-6 py-3 whitespace-nowrap font-bold text-coral-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-coral px-6 py-3 whitespace-nowrap font-semibold text-coral-ink transition hover:bg-primary hover:bg-primary-hover hover:text-white"
           >
             <PlusIcon className="size-4" strokeWidth={3} />
             New template
@@ -36,11 +36,11 @@ export default function TemplatesPage() {
           ))}
         </ul>
       ) : (
-        <div className="flex flex-col items-center rounded-3xl border-2 border-dashed border-coral/30 bg-white px-6 py-14 text-center">
-          <span className="flex size-14 items-center justify-center rounded-2xl bg-peach text-coral-ink">
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-coral/30 bg-white px-6 py-14 text-center">
+          <span className="flex size-14 items-center justify-center rounded-xl bg-peach text-coral-ink">
             <CopyIcon className="size-7" />
           </span>
-          <p className="mt-4 text-lg font-extrabold">No templates yet</p>
+          <p className="mt-4 text-lg font-semibold">No templates yet</p>
           <p className="mt-2 max-w-md text-ink-soft">
             Run the same kind of show often? Open any event and choose <strong>Save as template</strong>, or build one
             from scratch.

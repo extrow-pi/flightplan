@@ -31,7 +31,7 @@ export default function LandingPage() {
     <>
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:font-bold focus:shadow"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:font-semibold focus:shadow"
       >
         Skip to content
       </a>
@@ -62,7 +62,7 @@ function Header() {
             <a
               key={l.href}
               href={l.href}
-              className="rounded-full px-4 py-2 text-sm font-semibold text-ink-soft transition hover:bg-peach/60 hover:text-ink"
+              className="rounded-full px-4 py-2 text-sm font-medium text-ink-soft transition hover:bg-peach/60 hover:text-ink"
             >
               {l.label}
             </a>
@@ -70,7 +70,7 @@ function Header() {
           {session ? (
             <Link
               to="/dashboard"
-              className="btn btn-primary ml-3 px-5 py-2.5 text-sm shadow-sm"
+              className="btn btn-primary ml-3 px-5 py-2.5 text-sm shadow-card"
             >
               Go to dashboard
             </Link>
@@ -78,13 +78,13 @@ function Header() {
             <>
               <Link
                 to="/login"
-                className="ml-2 rounded-full px-4 py-2 text-sm font-bold text-slate transition hover:bg-peach/60"
+                className="ml-2 rounded-full px-4 py-2 text-sm font-semibold text-slate transition hover:bg-peach/60"
               >
                 Log in
               </Link>
               <Link
                 to="/signup"
-                className="btn btn-primary ml-1 px-5 py-2.5 text-sm shadow-sm"
+                className="btn btn-primary ml-1 px-5 py-2.5 text-sm shadow-card"
               >
                 Become an organizer
               </Link>
@@ -111,7 +111,7 @@ function Header() {
               key={l.href}
               href={l.href}
               onClick={() => setOpen(false)}
-              className="block rounded-xl px-3 py-3 font-semibold text-ink-soft hover:bg-peach/60"
+              className="block rounded-xl px-3 py-3 font-medium text-ink-soft hover:bg-peach/60"
             >
               {l.label}
             </a>
@@ -124,7 +124,7 @@ function Header() {
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Link
                 to="/login"
-                className="block rounded-full border-2 border-slate px-5 py-2.5 text-center font-bold text-slate"
+                className="block btn btn-secondary px-5 py-2.5 text-center"
               >
                 Log in
               </Link>
@@ -154,14 +154,14 @@ function Hero() {
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pt-16 pb-24 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:pt-24 lg:pb-32">
         <div className="text-center lg:text-left">
-          <span className="inline-flex items-center gap-2 rounded-full border border-coral/30 bg-peach/70 px-4 py-1.5 text-sm font-bold text-coral-ink">
+          <span className="inline-flex items-center gap-2 rounded-full border border-coral/30 bg-peach/70 px-4 py-1.5 text-sm font-semibold text-coral-ink">
             <PlaneIcon className="size-4" /> For event organizers · Now boarding
           </span>
 
-          <h1 className="mt-6 text-4xl leading-[1.05] font-extrabold tracking-tight text-ink sm:text-6xl">
+          <h1 className="mt-6 text-4xl leading-[1.05] font-semibold tracking-tight text-ink sm:text-6xl">
             Plan the show.
             <br />
-            <span className="bg-gradient-to-r from-coral to-[#e9a23b] bg-clip-text text-transparent">
+            <span className="text-primary">
               We'll handle boarding.
             </span>
           </h1>
@@ -181,13 +181,13 @@ function Hero() {
             </Link>
             <a
               href="#how-it-works"
-              className="rounded-full border-2 border-slate px-7 py-3 font-bold text-slate transition hover:bg-slate hover:text-white"
+              className="btn btn-secondary px-7 py-3"
             >
               See how it works
             </a>
           </div>
 
-          <ul className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-semibold text-ink-soft lg:justify-start">
+          <ul className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-medium text-ink-soft lg:justify-start">
             {["Free during early access", "No setup fees", "Made in Vancouver"].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
                 <span className="size-1.5 rounded-full bg-coral" aria-hidden="true" /> {t}
@@ -231,14 +231,14 @@ function HowItWorks() {
 
         <ol className="mt-14 grid gap-6 md:grid-cols-3">
           {steps.map((s, i) => (
-            <li key={s.code} className="relative rounded-3xl bg-white p-7 shadow-sm ring-1 ring-ink/5">
+            <li key={s.code} className="relative rounded-2xl bg-white p-7 shadow-card ring-1 ring-ink/5">
               <div className="flex items-center justify-between">
-                <span className="text-4xl font-extrabold text-coral/30">{s.code}</span>
-                <span className="rounded-full bg-cream px-3 py-1 text-xs font-bold tracking-wider text-gold-ink uppercase">
+                <span className="text-4xl font-semibold text-coral/30">{s.code}</span>
+                <span className="rounded-full bg-cream px-3 py-1 text-xs font-semibold tracking-wider text-gold-ink uppercase">
                   {s.tag}
                 </span>
               </div>
-              <h3 className="mt-5 text-xl font-extrabold">{s.title}</h3>
+              <h3 className="mt-5 text-xl font-semibold">{s.title}</h3>
               <p className="mt-2 text-ink-soft">{s.body}</p>
               {i < steps.length - 1 && (
                 <PlaneIcon
@@ -259,37 +259,37 @@ const features = [
     icon: TableIcon,
     title: "Vendor table booking",
     body: "Interactive floor plans. Vendors pick a spot, pay, and get a confirmation automatically.",
-    color: "from-coral to-gold",
+    color: "text-coral",
   },
   {
     icon: TicketIcon,
     title: "Attendee ticketing",
     body: "Early-bird, general and VIP tiers with QR tickets that scan at the door.",
-    color: "from-gold to-coral",
+    color: "text-gold",
   },
   {
     icon: MapIcon,
     title: "Beautiful event pages",
     body: "A shareable page for every show with the date, venue, vendor list and a countdown.",
-    color: "from-sky to-slate",
+    color: "text-sky",
   },
   {
     icon: CheckInIcon,
     title: "Fast show-day check-in",
     body: "Check in vendors and guests from your phone. See who has arrived at a glance.",
-    color: "from-coral to-gold",
+    color: "text-coral",
   },
   {
     icon: WalletIcon,
     title: "Payouts & reporting",
     body: "Track table and ticket revenue in one dashboard and export it for your books.",
-    color: "from-gold to-coral",
+    color: "text-gold",
   },
   {
     icon: BellIcon,
     title: "Automatic reminders",
     body: "Load-in times, parking notes and day-of updates go out to vendors for you.",
-    color: "from-sky to-slate",
+    color: "text-sky",
   },
 ];
 
@@ -308,14 +308,14 @@ function Features() {
           {features.map((f) => (
             <div
               key={f.title}
-              className="rounded-3xl border border-white/10 bg-white/[0.07] p-7 transition hover:-translate-y-1 hover:bg-white/10"
+              className="rounded-2xl border border-white/10 bg-white/[0.07] p-7 transition hover:bg-white/10"
             >
               <span
-                className={`flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br ${f.color} text-white shadow-md`}
+                className={`flex size-12 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15 ${f.color}`}
               >
                 <f.icon className="size-6" />
               </span>
-              <h3 className="mt-5 text-lg font-extrabold">{f.title}</h3>
+              <h3 className="mt-5 text-lg font-semibold">{f.title}</h3>
               <p className="mt-2 text-white/75">{f.body}</p>
             </div>
           ))}
@@ -330,8 +330,8 @@ function SignupSection() {
     <section id="signup" className="relative bg-gradient-to-b from-cream to-cream-50 py-24">
       <div className="mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div>
-          <span className="text-sm font-bold tracking-wider text-coral-ink uppercase">Early access</span>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Save your seat on the first flight</h2>
+          <span className="text-sm font-semibold tracking-wider text-coral-ink uppercase">Early access</span>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Save your seat on the first flight</h2>
           <p className="mt-4 text-lg text-ink-soft">
             We're onboarding a small group of organizers first. Sign up and we'll help you set up your next show
             personally.
@@ -342,7 +342,7 @@ function SignupSection() {
               "Free while we're in early access",
               "Help decide which features we build next",
             ].map((t) => (
-              <li key={t} className="flex items-start gap-3 font-semibold">
+              <li key={t} className="flex items-start gap-3 font-medium">
                 <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-white">
                   <CheckIcon className="size-3.5" strokeWidth={3} />
                 </span>
@@ -352,7 +352,7 @@ function SignupSection() {
           </ul>
         </div>
 
-        <div className="rounded-3xl bg-white p-6 shadow-[0_20px_50px_-24px_rgba(74,55,40,0.3)] ring-1 ring-ink/5 sm:p-9">
+        <div className="rounded-2xl bg-white p-6 shadow-pop ring-1 ring-ink/5 sm:p-9">
           <SignupForm />
         </div>
       </div>
@@ -388,9 +388,9 @@ function Faq() {
           {faqs.map((f) => (
             <details
               key={f.q}
-              className="group rounded-2xl bg-white p-6 shadow-sm ring-1 ring-ink/5 open:ring-coral/30"
+              className="group rounded-xl bg-white p-6 shadow-card ring-1 ring-ink/5 open:ring-coral/30"
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-bold [&::-webkit-details-marker]:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">
                 {f.q}
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-peach text-coral-ink transition group-open:rotate-45">
                   +
@@ -409,20 +409,20 @@ function Footer() {
   return (
     <footer className="bg-ink py-12 text-white/70">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 text-sm sm:flex-row sm:px-6">
-        <div className="flex items-center gap-2.5 font-extrabold text-white">
-          <span className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-coral to-gold">
+        <div className="flex items-center gap-2.5 font-semibold text-white">
+          <span className="flex size-8 items-center justify-center rounded-full bg-primary">
             <PlaneIcon className="size-4" />
           </span>
           Flightplan
         </div>
         <p>
           A{" "}
-          <a href={MAIN_SITE} className="font-semibold text-gold hover:underline">
+          <a href={MAIN_SITE} className="font-medium text-gold hover:underline">
             Jetlagged Cards
           </a>{" "}
           project · Vancouver, BC · © {new Date().getFullYear()}
         </p>
-        <nav className="flex gap-5 font-semibold" aria-label="Legal">
+        <nav className="flex gap-5 font-medium" aria-label="Legal">
           <Link to="/privacy" className="hover:text-white">
             Privacy
           </Link>
@@ -448,10 +448,10 @@ function SectionHeading({
 }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <span className={`text-sm font-bold tracking-wider uppercase ${dark ? "text-gold" : "text-coral-ink"}`}>
+      <span className={`text-sm font-semibold tracking-wider uppercase ${dark ? "text-gold" : "text-coral-ink"}`}>
         {eyebrow}
       </span>
-      <h2 className={`mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl ${dark ? "text-white" : "text-ink"}`}>
+      <h2 className={`mt-3 text-3xl font-semibold tracking-tight sm:text-4xl ${dark ? "text-white" : "text-ink"}`}>
         {title}
       </h2>
       {subtitle && <p className={`mt-4 text-lg ${dark ? "text-white/75" : "text-ink-soft"}`}>{subtitle}</p>}

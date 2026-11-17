@@ -6,6 +6,7 @@ import { MapPinIcon } from "../components/Icons";
 import Logo from "../components/Logo";
 import { ApiRequestError, usePublicEventMap } from "../lib/api";
 import { formatDate, formatDateRange } from "../lib/format";
+import { CardSkeleton } from "../components/Skeleton";
 
 // The public vendor map for a show: search for a vendor and see where their table is. No sign-in.
 export default function VisitorMapPage() {
@@ -23,12 +24,10 @@ export default function VisitorMapPage() {
     <div className="min-h-dvh bg-gradient-to-b from-[#fff4e2] to-cream-50">
       <main className="mx-auto max-w-5xl px-4 pt-8 pb-16 sm:px-6">
         {isPending ? (
-          <p className="py-20 text-center text-ink-muted" role="status">
-            Loading the map…
-          </p>
+          <CardSkeleton />
         ) : error || !data ? (
-          <section className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-ink/5">
-            <h1 className="text-2xl font-extrabold">
+          <section className="rounded-2xl bg-white p-10 text-center shadow-card ring-1 ring-ink/5">
+            <h1 className="text-2xl font-semibold">
               {error instanceof ApiRequestError && error.status === 404 ? "This map isn't available" : "Couldn't load the map"}
             </h1>
             <p className="mt-2 text-ink-soft">
@@ -69,13 +68,13 @@ function MapPage({ data }: { data: PublicEventMap }) {
     <>
       <header>
         {event.organizerUrl ? (
-          <Link to={event.organizerUrl} className="text-sm font-bold text-coral-ink hover:underline">
+          <Link to={event.organizerUrl} className="text-sm font-semibold text-coral-ink hover:underline">
             {event.organizerName}
           </Link>
         ) : (
-          <p className="text-sm font-bold text-coral-ink">{event.organizerName}</p>
+          <p className="text-sm font-semibold text-coral-ink">{event.organizerName}</p>
         )}
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{event.name}</h1>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{event.name}</h1>
         <p className="mt-1 flex flex-wrap items-center gap-x-3 text-ink-soft">
           <span>{when}</span>
           {(event.venueName || event.city) && (

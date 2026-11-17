@@ -64,8 +64,8 @@ export default function OverviewPage() {
 
               <section>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-extrabold">Later shows</h2>
-                  <Link to="/dashboard/events" className="text-sm font-bold text-coral-ink hover:underline">
+                  <h2 className="text-xl font-semibold">Later shows</h2>
+                  <Link to="/dashboard/events" className="text-sm font-semibold text-coral-ink hover:underline">
                     View all events
                   </Link>
                 </div>
@@ -76,9 +76,9 @@ export default function OverviewPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-4 rounded-3xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
+                  <p className="mt-4 rounded-2xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
                     {nextShow ? "Nothing else scheduled yet." : "No upcoming shows."}{" "}
-                    <Link to="/dashboard/events/new" className="font-bold text-coral-ink hover:underline">
+                    <Link to="/dashboard/events/new" className="font-semibold text-coral-ink hover:underline">
                       Plan your next one
                     </Link>
                   </p>
@@ -89,8 +89,8 @@ export default function OverviewPage() {
             <aside className="space-y-6">
               <Checklist events={dated} templates={templates.length} />
               {drafts.length > 0 && (
-                <div className="rounded-3xl bg-warning-soft p-5">
-                  <p className="font-extrabold text-gold-ink">
+                <div className="rounded-2xl bg-warning-soft p-5">
+                  <p className="font-semibold text-gold-ink">
                     {drafts.length} draft{drafts.length > 1 ? "s" : ""} waiting
                   </p>
                   <p className="mt-1 text-sm text-ink-soft">
@@ -122,12 +122,12 @@ function StatCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5">
-      <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+    <div className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink/5">
+      <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
         <Icon className="size-4 text-coral" />
         {label}
       </div>
-      <p className="mt-2 text-3xl font-extrabold tracking-tight">{value}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
       {hint && <p className="mt-1 text-xs text-ink-muted">{hint}</p>}
     </div>
   );
@@ -136,7 +136,7 @@ function StatCard({
 function NextShowCard({ event }: { event: EventRecord }) {
   const days = daysUntil(event.startDate!);
   return (
-    <section className="relative overflow-hidden rounded-3xl bg-slate p-6 text-white sm:p-8">
+    <section className="relative overflow-hidden rounded-2xl bg-slate p-6 text-white sm:p-8">
       <svg
         className="pointer-events-none absolute -right-16 -bottom-10 w-[420px] text-white/10"
         viewBox="0 0 420 200"
@@ -145,14 +145,14 @@ function NextShowCard({ event }: { event: EventRecord }) {
       >
         <path d="M0 190 C 140 190, 200 30, 410 20" stroke="currentColor" strokeWidth="3" strokeDasharray="10 12" />
       </svg>
-      <p className="flex items-center gap-2 text-sm font-bold tracking-wider text-gold uppercase">
+      <p className="flex items-center gap-2 text-sm font-semibold tracking-wider text-gold uppercase">
         <PlaneIcon className="size-4" /> Next show
       </p>
       <div className="relative mt-4 flex flex-col gap-6 sm:flex-row sm:items-center">
         <DateTile event={event} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-extrabold">{event.name}</h2>
+            <h2 className="text-2xl font-semibold">{event.name}</h2>
             <StatusBadge event={event} />
           </div>
           <div className="mt-2">
@@ -160,8 +160,8 @@ function NextShowCard({ event }: { event: EventRecord }) {
           </div>
         </div>
         <div className="sm:text-right">
-          <p className="text-5xl leading-none font-extrabold text-gold">{days <= 0 ? "Now" : days}</p>
-          <p className="mt-1 text-xs font-bold tracking-wider text-white/70 uppercase">
+          <p className="text-5xl leading-none font-semibold text-gold">{days <= 0 ? "Now" : days}</p>
+          <p className="mt-1 text-xs font-semibold tracking-wider text-white/70 uppercase">
             {days < 0 ? "happening" : days === 0 ? "starts today" : "days to go"}
           </p>
         </div>
@@ -169,13 +169,13 @@ function NextShowCard({ event }: { event: EventRecord }) {
       <div className="relative mt-6 flex flex-wrap gap-3">
         <Link
           to={`/dashboard/events/${event.id}`}
-          className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-slate transition hover:bg-cream"
+          className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate transition hover:bg-cream"
         >
           Edit event
         </Link>
         <Link
           to={`/dashboard/events/${event.id}/tables`}
-          className="rounded-full border border-white/40 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-white/10"
+          className="rounded-full border border-white/40 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           Tables & vendors
         </Link>
@@ -196,16 +196,16 @@ function Checklist({ events, templates }: { events: EventRecord[]; templates: nu
   const completed = steps.filter((s) => s.done).length;
 
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
+    <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5">
       <div className="flex items-center justify-between">
-        <h2 className="font-extrabold">Pre-flight checklist</h2>
-        <span className="text-sm font-bold text-ink-muted">
+        <h2 className="font-semibold">Pre-flight checklist</h2>
+        <span className="text-sm font-semibold text-ink-muted">
           {completed}/{steps.length}
         </span>
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-cream">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-coral to-gold transition-all"
+          className="h-full rounded-full bg-primary transition-all"
           style={{ width: `${(completed / steps.length) * 100}%` }}
         />
       </div>
@@ -214,14 +214,14 @@ function Checklist({ events, templates }: { events: EventRecord[]; templates: nu
           <li key={s.label} className="flex items-center gap-3 text-sm">
             <span
               className={`flex size-6 shrink-0 items-center justify-center rounded-full ${
-                s.done ? "bg-primary hover:bg-primary-hover text-white" : "border-2 border-cream bg-white"
+                s.done ? "bg-primary hover:bg-primary-hover text-white" : "border border-ink/15 bg-white"
               }`}
             >
               {s.done && <CheckIcon className="size-3.5" strokeWidth={3} />}
             </span>
-            <span className={s.done ? "font-semibold text-ink-muted line-through" : "font-semibold"}>{s.label}</span>
+            <span className={s.done ? "font-medium text-ink-muted line-through" : "font-medium"}>{s.label}</span>
             {s.soon && (
-              <span className="ml-auto rounded-full bg-cream px-2 py-0.5 text-[10px] font-bold tracking-wider text-gold-ink uppercase">
+              <span className="ml-auto rounded-full bg-cream px-2 py-0.5 text-[10px] font-semibold tracking-wider text-gold-ink uppercase">
                 Soon
               </span>
             )}
@@ -234,16 +234,16 @@ function Checklist({ events, templates }: { events: EventRecord[]; templates: nu
 
 function FirstEventCard({ templates }: { templates: number }) {
   return (
-    <section className="flex flex-col items-center rounded-3xl border-2 border-dashed border-coral/30 bg-white px-6 py-16 text-center">
-      <span className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-coral to-gold text-white shadow-md">
+    <section className="flex flex-col items-center rounded-2xl border border-dashed border-coral/30 bg-white px-6 py-16 text-center">
+      <span className="flex size-16 items-center justify-center rounded-xl bg-primary text-white shadow-md">
         <TicketIcon className="size-8" />
       </span>
-      <h2 className="mt-5 text-2xl font-extrabold">Plan your first show</h2>
+      <h2 className="mt-5 text-2xl font-semibold">Plan your first show</h2>
       <p className="mt-2 max-w-md text-ink-soft">
         Add the dates, venue and how many vendor tables you have. You can keep it as a draft until you're ready.
       </p>
       {templates > 0 && (
-        <Link to="/dashboard/templates" className="mt-3 text-sm font-bold text-coral-ink hover:underline">
+        <Link to="/dashboard/templates" className="mt-3 text-sm font-semibold text-coral-ink hover:underline">
           Or start from one of your {templates} template{templates > 1 ? "s" : ""}
         </Link>
       )}
@@ -269,13 +269,13 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
   const pending = alerts.length - overdue;
 
   return (
-    <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-2 ring-coral/40" aria-labelledby="alerts-title">
+    <section className="mb-8 rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5" aria-labelledby="alerts-title">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-full bg-primary text-white">
+        <span className="flex size-10 items-center justify-center rounded-xl bg-peach text-coral-ink">
           <BellIcon className="size-5" />
         </span>
         <div>
-          <h2 id="alerts-title" className="text-lg font-extrabold">
+          <h2 id="alerts-title" className="text-lg font-semibold">
             Needs your attention
           </h2>
           <p className="text-sm text-ink-soft">
@@ -294,20 +294,20 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
           return (
             <li key={a.booking.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3">
               <div className="min-w-[min(100%,16rem)] flex-1">
-                <p className="flex flex-wrap items-center gap-x-1.5 font-bold">
+                <p className="flex flex-wrap items-center gap-x-1.5 font-semibold">
                   <span>
                     {a.booking.businessName || a.booking.name}
-                    {a.booking.businessName && <span className="font-semibold text-ink-soft"> · {a.booking.name}</span>}
+                    {a.booking.businessName && <span className="font-medium text-ink-soft"> · {a.booking.name}</span>}
                   </span>
                   {a.vendorBanned && <BannedBadge />}
                 </p>
                 <p className="text-sm text-ink-soft">
-                  <Link to={`/dashboard/events/${a.eventId}/tables`} className="font-semibold text-coral-ink hover:underline">
+                  <Link to={`/dashboard/events/${a.eventId}/tables`} className="font-medium text-ink hover:underline">
                     {a.eventName}
                   </Link>{" "}
                   · {a.tableLabels.length > 1 ? `tables ${a.tableLabels.join(", ")}` : `table ${a.tableLabels[0]}`} ·{" "}
                   {a.kind === "overdue" ? (
-                    <span className="font-bold text-coral-ink">{paymentDueLabel(a.booking)}</span>
+                    <span className="font-semibold text-coral-ink">{paymentDueLabel(a.booking)}</span>
                   ) : (
                     a.tableLabels.length > 1 ? "wants these tables" : "wants a table"
                   )}
@@ -330,7 +330,7 @@ function AlertsCard({ events }: { events: EventRecord[] }) {
           type="button"
           onClick={() => setShowAll((v) => !v)}
           aria-expanded={showAll}
-          className="mt-2 rounded-full px-3 py-1.5 text-sm font-bold text-coral-ink transition hover:bg-peach"
+          className="mt-2 rounded-full px-3 py-1.5 text-sm font-semibold text-coral-ink transition hover:bg-peach"
         >
           {showAll ? "Show fewer" : `Show all ${alerts.length}`}
         </button>

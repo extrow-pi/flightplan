@@ -47,7 +47,7 @@ export default function BookingPage({ kind }: { kind: BookingLinkKind }) {
     <div className="min-h-dvh bg-gradient-to-b from-[#fff4e2] to-cream-50">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-5 sm:px-6">
         <Logo />
-        <span className="text-sm font-bold text-ink-soft">Vendor table booking</span>
+        <span className="text-sm font-semibold text-ink-soft">Vendor table booking</span>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
@@ -76,9 +76,9 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
   const { event } = page;
   const end = addDays(event.startDate, Math.max(...event.days.map((d) => d.dayOffset)));
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
-      <p className="text-sm font-bold tracking-wider text-coral-ink uppercase">Book a vendor table</p>
-      <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{event.name}</h1>
+    <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
+      <p className="text-sm font-semibold tracking-wider text-coral-ink uppercase">Book a vendor table</p>
+      <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{event.name}</h1>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-ink-soft">
         <span className="flex items-center gap-1.5">
           <ClockIcon className="size-4 text-ink-muted" />
@@ -95,7 +95,7 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
       <ul className="mt-4 flex flex-wrap gap-2">
         {event.days.map((d) => (
           <li key={d.dayOffset} className="rounded-lg bg-cream-50 px-2.5 py-1 text-sm ring-1 ring-ink/5">
-            <span className="font-bold">{formatDate(addDays(event.startDate, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}</span>{" "}
+            <span className="font-semibold">{formatDate(addDays(event.startDate, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}</span>{" "}
             · {timeRange(d.startTime, d.endTime)}
             {d.setupTime && <span className="text-ink-soft"> · vendor setup from {formatTime(d.setupTime)}</span>}
           </li>
@@ -104,8 +104,8 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
       {event.description && <p className="mt-4 text-ink-soft">{event.description}</p>}
       {/* Prices and terms as a short summary, so the table picker is near the top on a phone */}
       <dl className="mt-5 grid gap-x-6 gap-y-1 border-t border-ink/5 pt-4 text-sm sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-y-2">
-        <dt className="text-xs font-bold tracking-wider text-ink-muted uppercase sm:pt-0.5">Tables</dt>
-        <dd className="mb-2 font-semibold sm:mb-0">
+        <dt className="text-xs font-semibold tracking-wider text-ink-muted uppercase sm:pt-0.5">Tables</dt>
+        <dd className="mb-2 font-medium sm:mb-0">
           {event.tableTypes.length > 1
             ? event.tableTypes.map((t, i) => (
                 <span key={t.id} className="whitespace-nowrap">
@@ -120,8 +120,8 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
         {/* Tiers above the per-request limit can never apply here */}
         {paidShow(event) && event.bulkDiscounts.some((t) => t.minTables <= event.maxTablesPerRequest) && (
           <>
-            <dt className="text-xs font-bold tracking-wider text-ink-muted uppercase sm:pt-0.5">Discounts</dt>
-            <dd className="mb-2 font-semibold text-success sm:mb-0">
+            <dt className="text-xs font-semibold tracking-wider text-ink-muted uppercase sm:pt-0.5">Discounts</dt>
+            <dd className="mb-2 font-medium text-success sm:mb-0">
               {event.bulkDiscounts
                 .filter((t) => t.minTables <= event.maxTablesPerRequest)
                 .map((t) => discountLabel({ source: "tier", ...t }))
@@ -131,7 +131,7 @@ function EventHeader({ page }: { page: PublicBookingPage }) {
         )}
         {(event.requiresApproval || (paidShow(event) && event.paymentDueDays)) && (
           <>
-            <dt className="text-xs font-bold tracking-wider text-ink-muted uppercase sm:pt-0.5">Booking</dt>
+            <dt className="text-xs font-semibold tracking-wider text-ink-muted uppercase sm:pt-0.5">Booking</dt>
             <dd className="text-ink-soft">
               {[
                 event.requiresApproval && "The organizer approves each request",
@@ -254,8 +254,8 @@ function BookingForm({
         <WaitlistForm token={token} page={page} />
       ) : (
         <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" noValidate>
-          <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-            <h2 className="text-lg font-extrabold">1. Pick your {max > 1 ? "tables" : "table"}</h2>
+          <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5">
+            <h2 className="text-lg font-semibold">1. Pick your {max > 1 ? "tables" : "table"}</h2>
             <p className="mt-1 text-sm text-ink-soft">
               {availableCount} of {page.tables.length} tables available.{" "}
               {max > 1 ? `You can pick up to ${max}.` : ""} Use the map to find the spot you want.
@@ -290,7 +290,7 @@ function BookingForm({
                     {page.event.tableTypes.map((type, i) => (
                       <li key={type.id} className="flex items-center gap-1.5">
                         <span className="size-3.5 rounded ring-1 ring-slate/50" style={{ background: typeFill(i) }} aria-hidden="true" />
-                        <span className="font-bold">{type.name}</span>
+                        <span className="font-semibold">{type.name}</span>
                         <span className="text-ink-muted">{type.priceCents ? formatMoney(type.priceCents) : "Free"}</span>
                       </li>
                     ))}
@@ -304,7 +304,7 @@ function BookingForm({
                 target="_blank"
                 rel="noreferrer"
                 title="Open full size"
-                className="mt-4 block overflow-hidden rounded-2xl ring-1 ring-ink/10"
+                className="mt-4 block overflow-hidden rounded-xl ring-1 ring-ink/10"
               >
                 <img src={page.event.floorMapUrl} alt="Floor map with table numbers" className="w-full bg-cream-50 object-contain" />
               </a>
@@ -317,8 +317,8 @@ function BookingForm({
                 <div key={type?.id ?? "all"} className="mt-4">
                   {type && (
                     <p className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm">
-                      <span className="font-extrabold">{type.name}</span>
-                      <span className="font-bold text-coral-ink">{type.priceCents ? formatMoney(type.priceCents) : "Free"}</span>
+                      <span className="font-semibold">{type.name}</span>
+                      <span className="font-semibold text-coral-ink">{type.priceCents ? formatMoney(type.priceCents) : "Free"}</span>
                       <span className="text-ink-muted">
                         {ofType.filter((t) => t.available).length} of {ofType.length} available
                       </span>
@@ -335,7 +335,7 @@ function BookingForm({
                     aria-label={`Table ${t.label}${t.available ? "" : " (taken)"}`}
                     disabled={!t.available}
                     onClick={() => toggle(t.id)}
-                    className={`aspect-square rounded-xl text-sm font-extrabold transition ${
+                    className={`aspect-square rounded-xl text-sm font-semibold transition ${
                       isSelected
                         ? "bg-primary hover:bg-primary-hover text-white shadow-md ring-4 ring-coral/25"
                         : t.available
@@ -364,15 +364,15 @@ function BookingForm({
             </div>
           </section>
 
-          <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-            <h2 className="text-lg font-extrabold">2. Your details</h2>
+          <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5">
+            <h2 className="text-lg font-semibold">2. Your details</h2>
             <div className="mt-4 space-y-3">
               <Input label="Your name" id="name" autoComplete="name" value={details.name} error={fieldErrors?.name?.[0]} onChange={(v) => setDetails((d) => ({ ...d, name: v }))} />
               <Input label="Business name" id="businessName" optional autoComplete="organization" value={details.businessName} onChange={(v) => setDetails((d) => ({ ...d, businessName: v }))} />
               <Input label="Email" id="email" type="email" autoComplete="email" value={details.email} error={fieldErrors?.email?.[0]} onChange={(v) => setDetails((d) => ({ ...d, email: v }))} />
               <Input label="Phone" id="phone" type="tel" optional autoComplete="tel" value={details.phone} onChange={(v) => setDetails((d) => ({ ...d, phone: v }))} />
               <div>
-                <label htmlFor="message" className="text-sm font-bold">
+                <label htmlFor="message" className="text-sm font-semibold">
                   Note for the organizer <span className="font-normal text-ink-muted">(optional)</span>
                 </label>
                 <textarea
@@ -394,21 +394,21 @@ function BookingForm({
               <div className="mt-5">
                 {appliedCode ? (
                   <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <span className="rounded-full bg-slate px-3 py-1 font-extrabold tracking-wide text-white">{appliedCode}</span>
+                    <span className="rounded-full bg-slate px-3 py-1 font-semibold tracking-wide text-white">{appliedCode}</span>
                     <button
                       type="button"
                       onClick={() => {
                         setAppliedCode("");
                         setCodeInput("");
                       }}
-                      className="font-bold text-coral-ink hover:underline"
+                      className="font-semibold text-coral-ink hover:underline"
                     >
                       Remove
                     </button>
                   </div>
                 ) : (
                   <div>
-                    <label htmlFor="discountCode" className="text-sm font-bold">
+                    <label htmlFor="discountCode" className="text-sm font-semibold">
                       Discount code <span className="font-normal text-ink-muted">(optional)</span>
                     </label>
                     <div className="mt-1 flex gap-2">
@@ -431,7 +431,7 @@ function BookingForm({
                         type="button"
                         disabled={!codeInput.trim()}
                         onClick={() => setAppliedCode(codeInput.trim().toUpperCase())}
-                        className="shrink-0 rounded-xl border-2 border-slate/30 px-4 font-bold text-slate transition hover:border-slate disabled:opacity-50"
+                        className="shrink-0 rounded-xl border border-slate/30 px-4 font-semibold text-slate transition hover:border-slate disabled:opacity-50"
                       >
                         Apply
                       </button>
@@ -439,7 +439,7 @@ function BookingForm({
                   </div>
                 )}
                 {codeError ? (
-                  <p className="mt-1.5 text-sm font-semibold text-coral-ink" role="alert">
+                  <p className="mt-1.5 text-sm font-medium text-coral-ink" role="alert">
                     {codeError}
                   </p>
                 ) : appliedCode && quote.data?.codeNotBest && selected.length > 0 ? (
@@ -451,24 +451,24 @@ function BookingForm({
             )}
 
             {selected.length > 0 && (
-              <div className="mt-5 space-y-1.5 rounded-2xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5" aria-live="polite">
+              <div className="mt-5 space-y-1.5 rounded-xl bg-cream-50 px-4 py-3 ring-1 ring-ink/5" aria-live="polite">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-bold">{selected.length > 1 ? `Tables ${labels}` : `Table ${labels}`}</span>
+                  <span className="font-semibold">{selected.length > 1 ? `Tables ${labels}` : `Table ${labels}`}</span>
                   {paid && (
-                    <span className={price.discountCents ? "text-sm text-ink-muted line-through" : "font-extrabold text-coral-ink"}>
+                    <span className={price.discountCents ? "text-sm text-ink-muted line-through" : "font-semibold text-coral-ink"}>
                       {formatMoney(price.subtotalCents)}
                     </span>
                   )}
                 </div>
                 {paid && price.discountCents > 0 && (
                   <>
-                    <div className="flex items-center justify-between gap-3 text-sm font-semibold text-success">
+                    <div className="flex items-center justify-between gap-3 text-sm font-medium text-success">
                       <span>{price.label}</span>
                       <span>−{formatMoney(price.discountCents)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3 border-t border-ink/10 pt-1.5">
-                      <span className="font-bold">Total</span>
-                      <span className="font-extrabold text-coral-ink">{formatMoney(price.totalCents)}</span>
+                      <span className="font-semibold">Total</span>
+                      <span className="font-semibold text-coral-ink">{formatMoney(price.totalCents)}</span>
                     </div>
                   </>
                 )}
@@ -482,7 +482,7 @@ function BookingForm({
             )}
 
             {(localError || (submit.error && !fieldErrors)) && (
-              <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+              <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
                 {localError ?? submit.error?.message}
               </p>
             )}
@@ -502,7 +502,7 @@ function BookingForm({
             </button>
             <p className="mt-3 text-center text-xs text-ink-muted">
               Your details go to the show's organizer to manage your booking. See our{" "}
-              <Link to="/privacy" className="font-semibold text-coral-ink hover:underline">
+              <Link to="/privacy" className="font-medium text-coral-ink hover:underline">
                 Privacy Policy
               </Link>
               .
@@ -546,11 +546,11 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
 
   if (joined) {
     return (
-      <section className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-ink/5 sm:p-10" role="status">
-        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-coral to-gold text-2xl font-extrabold text-white shadow-lg">
+      <section className="mx-auto max-w-xl rounded-2xl bg-white p-8 text-center shadow-card ring-1 ring-ink/5 sm:p-10" role="status">
+        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-white shadow-lg">
           #{joined.position}
         </span>
-        <h2 className="mt-6 text-3xl font-extrabold">{joined.alreadyOn ? "You're already on the waitlist" : "You're on the waitlist!"}</h2>
+        <h2 className="mt-6 text-3xl font-semibold">{joined.alreadyOn ? "You're already on the waitlist" : "You're on the waitlist!"}</h2>
         <p className="mt-3 text-ink-soft">
           You're <strong>#{joined.position}</strong> in line for <strong>{page.event.name}</strong>. If a table opens up, the organizer will
           assign you one and email you the details.
@@ -562,9 +562,9 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
 
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]" noValidate>
-      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-        <p className="inline-block rounded-full bg-warning-soft px-3 py-1 text-sm font-bold text-gold-ink">Fully booked</p>
-        <h2 className="mt-3 text-2xl font-extrabold">Every table is taken</h2>
+      <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5">
+        <p className="inline-block rounded-full bg-warning-soft px-3 py-1 text-sm font-semibold text-gold-ink">Fully booked</p>
+        <h2 className="mt-3 text-2xl font-semibold">Every table is taken</h2>
         <p className="mt-2 text-ink-soft">
           All {page.tables.length} tables at this show are booked. Join the waitlist, and if a table opens up the organizer can assign it to
           you and email you the details.
@@ -579,8 +579,8 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
         </ul>
       </section>
 
-      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-        <h2 className="text-lg font-extrabold">Join the waitlist</h2>
+      <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5">
+        <h2 className="text-lg font-semibold">Join the waitlist</h2>
         <div className="mt-4 space-y-3">
           <Input label="Your name" id="name" autoComplete="name" value={details.name} error={fieldErrors?.name?.[0]} onChange={(v) => setDetails((d) => ({ ...d, name: v }))} />
           <Input label="Business name" id="businessName" optional autoComplete="organization" value={details.businessName} onChange={(v) => setDetails((d) => ({ ...d, businessName: v }))} />
@@ -588,7 +588,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
           <Input label="Phone" id="phone" type="tel" optional autoComplete="tel" value={details.phone} onChange={(v) => setDetails((d) => ({ ...d, phone: v }))} />
           {max > 1 && (
             <div>
-              <label htmlFor="tablesWanted" className="text-sm font-bold">
+              <label htmlFor="tablesWanted" className="text-sm font-semibold">
                 How many tables would you like?
               </label>
               <select
@@ -606,7 +606,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
             </div>
           )}
           <div>
-            <label htmlFor="message" className="text-sm font-bold">
+            <label htmlFor="message" className="text-sm font-semibold">
               Note for the organizer <span className="font-normal text-ink-muted">(optional)</span>
             </label>
             <textarea
@@ -625,7 +625,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
         </div>
 
         {join.error && !fieldErrors && (
-          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
             {join.error.message}
           </p>
         )}
@@ -639,7 +639,7 @@ function WaitlistForm({ token, page }: { token: string; page: PublicBookingPage 
         </button>
         <p className="mt-3 text-center text-xs text-ink-muted">
           Your details go to the show's organizer to manage the waitlist. See our{" "}
-          <Link to="/privacy" className="font-semibold text-coral-ink hover:underline">
+          <Link to="/privacy" className="font-medium text-coral-ink hover:underline">
             Privacy Policy
           </Link>
           .
@@ -664,11 +664,11 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
         : `${count > 1 ? "Tables" : "Table"} ${result.tableLabels.join(", ")} ${count > 1 ? "are" : "is"} held for you`;
 
   return (
-    <section className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-ink/5 sm:p-10" role="status">
-      <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-coral to-gold text-white shadow-lg">
+    <section className="mx-auto max-w-xl rounded-2xl bg-white p-8 text-center shadow-card ring-1 ring-ink/5 sm:p-10" role="status">
+      <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary text-white shadow-lg">
         <CheckIcon className="size-8" />
       </span>
-      <h1 className="mt-6 text-3xl font-extrabold">{title}</h1>
+      <h1 className="mt-6 text-3xl font-semibold">{title}</h1>
       <p className="mt-3 text-ink-soft">
         {result.status === "pending" ? (
           <>
@@ -701,13 +701,13 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
       </p>
       <a
         href={`/booking/${result.requestId}`}
-        className="mt-4 inline-block rounded-full border-2 border-slate px-5 py-2 text-sm font-bold text-slate transition hover:bg-slate hover:text-white"
+        className="mt-4 inline-block btn btn-secondary px-5 py-2 text-sm"
       >
         View your booking
       </a>
       {result.status !== "paid" && result.paymentInstructions && (
-        <div className="mt-6 rounded-2xl bg-cream-50 p-5 text-left ring-1 ring-ink/5">
-          <p className="text-xs font-bold tracking-wider text-ink-muted uppercase">How to pay</p>
+        <div className="mt-6 rounded-xl bg-cream-50 p-5 text-left ring-1 ring-ink/5">
+          <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">How to pay</p>
           <p className="mt-2 whitespace-pre-line">{result.paymentInstructions}</p>
           {result.status === "pending" && <p className="mt-2 text-sm text-ink-soft">Once you're approved, of course.</p>}
         </div>
@@ -718,15 +718,15 @@ function Confirmation({ page, result, name }: { page: PublicBookingPage; result:
 
 function Notice({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-ink/5">
-      <h2 className="text-2xl font-extrabold">{title}</h2>
+    <section className="mx-auto max-w-xl rounded-2xl bg-white p-8 text-center shadow-card ring-1 ring-ink/5">
+      <h2 className="text-2xl font-semibold">{title}</h2>
       <p className="mt-2 text-ink-soft">{children}</p>
     </section>
   );
 }
 
 const inputClass =
-  "mt-1 w-full rounded-xl border-2 border-cream bg-white px-4 py-2.5 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
+  "mt-1 w-full rounded-xl border border-ink/15 bg-white px-4 py-2.5 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
 
 function Input({
   label,
@@ -749,7 +749,7 @@ function Input({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="text-sm font-bold">
+      <label htmlFor={id} className="text-sm font-semibold">
         {label} {optional && <span className="font-normal text-ink-muted">(optional)</span>}
       </label>
       <input
@@ -761,7 +761,7 @@ function Input({
         aria-invalid={!!error}
         onChange={(e) => onChange(e.target.value)}
       />
-      {error && <p className="mt-1 text-sm font-semibold text-coral-ink">{error}</p>}
+      {error && <p className="mt-1 text-sm font-medium text-coral-ink">{error}</p>}
     </div>
   );
 }

@@ -65,11 +65,11 @@ const landmarkSizes: Partial<Record<LandmarkType, Record<FloorplanUnits, { w: nu
 };
 
 const btn =
-  "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap transition disabled:opacity-40";
+  "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold whitespace-nowrap transition disabled:opacity-40";
 const btnPlain = `${btn} bg-white text-slate ring-1 ring-ink/10 hover:ring-slate`;
 const btnOn = `${btn} bg-slate text-white`;
 const fieldClass =
-  "mt-1 w-full rounded-xl border-2 border-cream bg-white px-2.5 py-1.5 text-base text-ink transition focus:border-coral focus:outline-none sm:text-sm";
+  "mt-1 w-full rounded-xl border border-ink/15 bg-white px-2.5 py-1.5 text-base text-ink transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none sm:text-sm";
 
 /** A show's table types, so each table on an event's plan can be given one (and so its price) */
 export type EditorTableType = { id: string; name: string; priceCents: number };
@@ -612,13 +612,13 @@ export default function FloorplanEditor({
         <button type="button" className={btnPlain} onClick={redo} disabled={!future.length} title="Redo (Ctrl+Shift+Z)">
           Redo
         </button>
-        <label className="ml-1 flex items-center gap-1.5 text-sm font-semibold text-ink-soft" title={`Snap to ${units === "ft" ? "6 inches" : "10 cm"}`}>
+        <label className="ml-1 flex items-center gap-1.5 text-sm font-medium text-ink-soft" title={`Snap to ${units === "ft" ? "6 inches" : "10 cm"}`}>
           <input type="checkbox" className="size-4 accent-coral" checked={snapOn} onChange={(e) => setSnapOn(e.target.checked)} />
           Snap
         </label>
         <div className="ml-auto flex items-center gap-2">
           {saveError && (
-            <span className="max-w-64 truncate text-sm font-semibold text-coral-ink" role="alert" title={saveError}>
+            <span className="max-w-64 truncate text-sm font-medium text-coral-ink" role="alert" title={saveError}>
               {saveError}
             </span>
           )}
@@ -638,7 +638,7 @@ export default function FloorplanEditor({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         {/* Canvas */}
-        <div className="relative overflow-hidden rounded-3xl bg-cream ring-1 ring-ink/10">
+        <div className="relative overflow-hidden rounded-2xl bg-cream ring-1 ring-ink/10">
           <svg
             ref={svgRef}
             viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
@@ -714,18 +714,18 @@ export default function FloorplanEditor({
             )}
           </svg>
 
-          <div className="absolute right-3 bottom-3 flex gap-1 rounded-full bg-white/90 p-1 shadow-sm ring-1 ring-ink/10">
-            <button type="button" onClick={() => zoomBy(1 / 1.25)} className="size-8 rounded-full font-bold text-slate hover:bg-cream" aria-label="Zoom in">
+          <div className="absolute right-3 bottom-3 flex gap-1 rounded-full bg-white/90 p-1 shadow-card ring-1 ring-ink/10">
+            <button type="button" onClick={() => zoomBy(1 / 1.25)} className="size-8 rounded-full font-semibold text-slate hover:bg-cream" aria-label="Zoom in">
               +
             </button>
-            <button type="button" onClick={() => zoomBy(1.25)} className="size-8 rounded-full font-bold text-slate hover:bg-cream" aria-label="Zoom out">
+            <button type="button" onClick={() => zoomBy(1.25)} className="size-8 rounded-full font-semibold text-slate hover:bg-cream" aria-label="Zoom out">
               −
             </button>
-            <button type="button" onClick={() => setView(fitView(draft))} className="rounded-full px-3 text-xs font-bold text-slate hover:bg-cream">
+            <button type="button" onClick={() => setView(fitView(draft))} className="rounded-full px-3 text-xs font-semibold text-slate hover:bg-cream">
               Fit
             </button>
           </div>
-          <p className="pointer-events-none absolute bottom-3 left-3 hidden rounded-full bg-white/90 px-3 py-1 text-xs text-ink-soft shadow-sm ring-1 ring-ink/10 sm:block">
+          <p className="pointer-events-none absolute bottom-3 left-3 hidden rounded-full bg-white/90 px-3 py-1 text-xs text-ink-soft shadow-card ring-1 ring-ink/10 sm:block">
             {tool === "wall"
               ? "Drag to draw a wall · Shift for straight · Esc when done"
               : "Drag the floor to pan · scroll to zoom · Shift+click to select several"}
@@ -1025,7 +1025,7 @@ function LayerButtons({ items, ids, onMove }: { items: FloorplanItem[]; ids: str
   const layerBtn = `${btn} justify-center bg-white px-2 text-slate ring-1 ring-ink/10 hover:ring-slate`;
   return (
     <div className="mt-4">
-      <span className="text-xs font-bold text-ink-soft">Layer</span>
+      <span className="text-xs font-semibold text-ink-soft">Layer</span>
       <div className="mt-1 grid grid-cols-2 gap-1.5" role="group" aria-label="Layer">
         <button type="button" className={layerBtn} disabled={!can("front")} onClick={() => onMove("front")} title="Bring to front (Ctrl+Shift+])">
           To front
@@ -1058,7 +1058,7 @@ function TypeSelect({
 }) {
   const ids = [...new Set(tables.map((t) => typeIdOf(t, types)))];
   return (
-    <label className="block text-xs font-bold text-ink-soft">
+    <label className="block text-xs font-semibold text-ink-soft">
       {label}
       <select className={fieldClass} value={ids.length === 1 ? ids[0] : ""} onChange={(e) => e.target.value && onChange(e.target.value)}>
         {ids.length > 1 && (
@@ -1078,15 +1078,15 @@ function TypeSelect({
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5">
-      <h2 className="font-extrabold">{title}</h2>
+    <section className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink/5">
+      <h2 className="font-semibold">{title}</h2>
       <div className="mt-2">{children}</div>
     </section>
   );
 }
 
 function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="rounded border border-ink/15 bg-cream-50 px-1 font-sans text-[11px] font-bold text-ink">{children}</kbd>;
+  return <kbd className="rounded border border-ink/15 bg-cream-50 px-1 font-sans text-[11px] font-semibold text-ink">{children}</kbd>;
 }
 
 /** A length in the plan's units, applied when the field loses focus or Enter is pressed. */
@@ -1113,7 +1113,7 @@ function LengthField({
     if (next !== mm) onCommit(next);
   };
   return (
-    <label className="block text-xs font-bold text-ink-soft">
+    <label className="block text-xs font-semibold text-ink-soft">
       {label} ({unitLabel[units]})
       <input
         className={fieldClass}
@@ -1152,7 +1152,7 @@ function TextField({
     if (value.trim() !== initial) onCommit(value.trim());
   };
   return (
-    <label className="block text-xs font-bold text-ink-soft">
+    <label className="block text-xs font-semibold text-ink-soft">
       {label}
       <input
         className={`${fieldClass} ${error ? "border-coral-ink" : ""}`}
@@ -1164,7 +1164,7 @@ function TextField({
         onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
         aria-invalid={Boolean(error)}
       />
-      {error && <span className="mt-1 block font-semibold text-coral-ink">{error}</span>}
+      {error && <span className="mt-1 block font-medium text-coral-ink">{error}</span>}
     </label>
   );
 }
@@ -1188,7 +1188,7 @@ function PlanPanel({
       <div className="space-y-3">
         <TextField label="Name" value={draft.name} maxLength={80} validate={(v) => (v ? null : "Give the plan a name")} onCommit={(name) => onChange({ ...draft, name })} />
         <div>
-          <span className="text-xs font-bold text-ink-soft">Units</span>
+          <span className="text-xs font-semibold text-ink-soft">Units</span>
           <div className="mt-1 flex gap-1 rounded-full bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Units">
             {FLOORPLAN_UNITS.map((u) => (
               <button
@@ -1197,7 +1197,7 @@ function PlanPanel({
                 role="radio"
                 aria-checked={draft.units === u}
                 onClick={() => onChange({ ...draft, units: u })}
-                className={`flex-1 rounded-full px-3 py-1 text-sm font-bold transition ${draft.units === u ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
+                className={`flex-1 rounded-full px-3 py-1 text-sm font-semibold transition ${draft.units === u ? "bg-white text-ink shadow-card" : "text-ink-soft"}`}
               >
                 {u === "ft" ? "Feet" : "Metres"}
               </button>
@@ -1224,7 +1224,7 @@ function PlanPanel({
         )}
         {typeKey && (
           <div>
-            <span className="text-xs font-bold text-ink-soft">Table types</span>
+            <span className="text-xs font-semibold text-ink-soft">Table types</span>
             <div className="mt-1">{typeKey}</div>
             <p className="mt-1 text-xs text-ink-muted">Select tables to change their type. Names and prices are on the show's Details.</p>
           </div>
@@ -1294,7 +1294,7 @@ function ItemPanel({
   }
 
   const rotationField = (
-    <label className="block text-xs font-bold text-ink-soft">
+    <label className="block text-xs font-semibold text-ink-soft">
       Rotation (°)
       <input
         className={fieldClass}
@@ -1329,7 +1329,7 @@ function ItemPanel({
           />
           {typePicker}
           <div>
-            <span className="text-xs font-bold text-ink-soft">Shape</span>
+            <span className="text-xs font-semibold text-ink-soft">Shape</span>
             <div className="mt-1 flex gap-1 rounded-full bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Shape">
               {(["rect", "round"] as const).map((s) => (
                 <button
@@ -1338,7 +1338,7 @@ function ItemPanel({
                   role="radio"
                   aria-checked={item.shape === s}
                   onClick={() => onChange({ ...item, shape: s, h: s === "round" ? item.w : item.h === item.w ? Math.round(item.w / 2.4) : item.h })}
-                  className={`flex-1 rounded-full px-3 py-1 text-sm font-bold transition ${item.shape === s ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
+                  className={`flex-1 rounded-full px-3 py-1 text-sm font-semibold transition ${item.shape === s ? "bg-white text-ink shadow-card" : "text-ink-soft"}`}
                 >
                   {s === "rect" ? "Rectangle" : "Round"}
                 </button>
@@ -1358,7 +1358,7 @@ function ItemPanel({
           {group && (
             <div className="rounded-xl bg-cream-50 px-3 py-2 text-sm ring-1 ring-ink/5">
               In <strong>{group.name}</strong>
-              <div className="mt-1 flex flex-wrap gap-x-3 text-xs font-bold">
+              <div className="mt-1 flex flex-wrap gap-x-3 text-xs font-semibold">
                 <button type="button" className="text-slate hover:underline" onClick={() => onSelectGroup(group.id)}>
                   Select group
                 </button>
@@ -1377,7 +1377,7 @@ function ItemPanel({
   return (
     <Panel title={item.label || landmarkLabels[item.type]}>
       <div className="space-y-3">
-        <label className="block text-xs font-bold text-ink-soft">
+        <label className="block text-xs font-semibold text-ink-soft">
           Type
           <select className={fieldClass} value={item.type} onChange={(e) => onChange({ ...item, type: e.target.value as LandmarkType })}>
             {LANDMARK_TYPES.map((t) => (
@@ -1428,24 +1428,24 @@ function RowDialog({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="row-title">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
       <form
-        className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl"
+        className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-pop"
         onSubmit={(e) => {
           e.preventDefault();
           if (valid) onAdd(n, direction, fromUnits(Number(gap), units), asGroup);
         }}
       >
-        <h2 id="row-title" className="text-xl font-extrabold">
+        <h2 id="row-title" className="text-xl font-semibold">
           Add a row of tables
         </h2>
         <p className="mt-1 text-sm text-ink-soft">
           {fromSelected ? "Continues from the selected table, with the same size." : "Starts in the middle of the view, with standard tables."}
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <label className="block text-xs font-bold text-ink-soft">
+          <label className="block text-xs font-semibold text-ink-soft">
             How many
             <input className={fieldClass} type="number" min={1} max={50} value={count} onChange={(e) => setCount(e.target.value)} autoFocus />
           </label>
-          <label className="block text-xs font-bold text-ink-soft">
+          <label className="block text-xs font-semibold text-ink-soft">
             Gap ({unitLabel[units]})
             <input className={fieldClass} type="number" min={0} step={units === "ft" ? 0.5 : 0.1} value={gap} onChange={(e) => setGap(e.target.value)} />
           </label>
@@ -1458,7 +1458,7 @@ function RowDialog({
               role="radio"
               aria-checked={direction === d}
               onClick={() => setDirection(d)}
-              className={`flex-1 rounded-full px-3 py-1.5 text-sm font-bold transition ${direction === d ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
+              className={`flex-1 rounded-full px-3 py-1.5 text-sm font-semibold transition ${direction === d ? "bg-white text-ink shadow-card" : "text-ink-soft"}`}
             >
               {d === "right" ? "Across →" : "Down ↓"}
             </button>
@@ -1467,13 +1467,13 @@ function RowDialog({
         {inGroup ? (
           <p className="mt-3 text-xs text-ink-muted">The new tables join the selected table's group.</p>
         ) : (
-          <label className="mt-3 flex items-center gap-2 text-sm font-semibold">
+          <label className="mt-3 flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" className="size-4 accent-coral" checked={asGroup} onChange={(e) => setAsGroup(e.target.checked)} />
             Make them a table group (numbered together)
           </label>
         )}
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-bold text-ink-soft hover:bg-cream">
+          <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-semibold text-ink-soft hover:bg-cream">
             Cancel
           </button>
           <button type="submit" disabled={!valid} className="btn btn-primary px-5 py-2.5">

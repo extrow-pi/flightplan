@@ -144,7 +144,7 @@ export default function MapViewer({
 
   return (
     <div
-      className={`relative w-full overflow-hidden rounded-3xl bg-cream ring-1 ring-ink/10 ${className}`}
+      className={`relative w-full overflow-hidden rounded-2xl bg-cream ring-1 ring-ink/10 ${className}`}
       // The room's shape, so the plan fills the width instead of floating in a tall box
       style={{ aspectRatio: `${plan.widthMm + planPadding(plan) * 2} / ${plan.depthMm + planPadding(plan) * 2}` }}
     >
@@ -177,14 +177,14 @@ export default function MapViewer({
           ),
         )}
       </svg>
-      <div className="absolute right-3 bottom-3 flex gap-1 rounded-full bg-white/90 p-1 shadow-sm ring-1 ring-ink/10">
-        <button type="button" onClick={() => zoom(1 / 1.4)} className="size-8 rounded-full font-bold text-slate hover:bg-cream" aria-label="Zoom in">
+      <div className="absolute right-3 bottom-3 flex gap-1 rounded-full bg-white/90 p-1 shadow-card ring-1 ring-ink/10">
+        <button type="button" onClick={() => zoom(1 / 1.4)} className="size-8 rounded-full font-semibold text-slate hover:bg-cream" aria-label="Zoom in">
           +
         </button>
-        <button type="button" onClick={() => zoom(1.4)} className="size-8 rounded-full font-bold text-slate hover:bg-cream" aria-label="Zoom out">
+        <button type="button" onClick={() => zoom(1.4)} className="size-8 rounded-full font-semibold text-slate hover:bg-cream" aria-label="Zoom out">
           −
         </button>
-        <button type="button" onClick={() => setView(fit())} className="rounded-full px-3 text-xs font-bold text-slate hover:bg-cream">
+        <button type="button" onClick={() => setView(fit())} className="rounded-full px-3 text-xs font-semibold text-slate hover:bg-cream">
           Fit
         </button>
       </div>

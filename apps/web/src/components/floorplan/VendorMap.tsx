@@ -45,7 +45,7 @@ export default function VendorMap({ data, className = "max-h-[70dvh] min-h-64" }
         }}
       />
 
-      <aside className="rounded-3xl bg-white p-4 text-ink shadow-sm ring-1 ring-ink/5 lg:max-h-[70dvh] lg:overflow-y-auto">
+      <aside className="rounded-2xl bg-white p-4 text-ink shadow-card ring-1 ring-ink/5 lg:max-h-[70dvh] lg:overflow-y-auto">
         <label className="relative block">
           <span className="sr-only">Find a vendor</span>
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-muted" />
@@ -57,7 +57,7 @@ export default function VendorMap({ data, className = "max-h-[70dvh] min-h-64" }
               setPicked(null);
             }}
             placeholder="Find a vendor or table"
-            className="w-full rounded-full border-2 border-cream bg-white py-2.5 pr-4 pl-10 text-base text-ink placeholder:text-ink-muted/70 focus:border-coral focus:outline-none"
+            className="w-full rounded-full border border-ink/15 bg-white py-2.5 pr-4 pl-10 text-base text-ink placeholder:text-ink-muted/70 focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
           />
         </label>
         <p className="mt-3 text-xs text-ink-muted" aria-live="polite">
@@ -75,8 +75,8 @@ export default function VendorMap({ data, className = "max-h-[70dvh] min-h-64" }
                   aria-pressed={on}
                   className={`flex w-full items-center justify-between gap-3 rounded-xl px-2 py-2.5 text-left transition ${on ? "bg-peach" : "hover:bg-cream-50"}`}
                 >
-                  <span className="min-w-0 truncate font-semibold">{v.name}</span>
-                  <span className="shrink-0 rounded-lg bg-slate px-2 py-0.5 text-xs font-extrabold text-white">{v.tables.map((t) => t.label).join(", ")}</span>
+                  <span className="min-w-0 truncate font-medium">{v.name}</span>
+                  <span className="shrink-0 rounded-lg bg-slate px-2 py-0.5 text-xs font-semibold text-white">{v.tables.map((t) => t.label).join(", ")}</span>
                 </button>
               </li>
             );

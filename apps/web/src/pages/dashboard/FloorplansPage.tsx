@@ -8,7 +8,7 @@ import { formatSize, fromUnits, unitLabel } from "../../lib/floorplan";
 import { ErrorCard, LoadingCards, PageHeader } from "./ui";
 
 const inputClass =
-  "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";
+  "mt-1 w-full rounded-xl border border-ink/15 bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none";
 
 /** The organizer's floorplan library: room layouts they design once and reuse for their shows. */
 export default function FloorplansPage() {
@@ -37,8 +37,8 @@ export default function FloorplansPage() {
       ) : plans.error ? (
         <ErrorCard message={plans.error.message} />
       ) : plans.data.length === 0 ? (
-        <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">
-          <p className="text-lg font-extrabold">No floorplans yet</p>
+        <div className="rounded-2xl bg-white p-10 text-center ring-1 ring-ink/5">
+          <p className="text-lg font-semibold">No floorplans yet</p>
           <p className="mx-auto mt-1 max-w-md text-ink-soft">
             Start with the room's size, then drop in tables, walls and landmarks. Vendors will be able to pick their table on the map.
           </p>
@@ -70,12 +70,12 @@ function PlanCard({ plan }: { plan: Floorplan }) {
   const landmarks = plan.items.filter((i) => i.kind === "landmark").length;
 
   return (
-    <li className="flex flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
+    <li className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-ink/5">
       <Link to={`/dashboard/floorplans/${plan.id}`} className="block bg-cream-50 p-3" aria-label={`Edit ${plan.name}`}>
         <FloorplanView plan={plan} className="max-h-56" label={`${plan.name} floorplan`} />
       </Link>
       <div className="flex flex-1 flex-col p-5">
-        <h2 className="truncate text-lg font-extrabold">{plan.name}</h2>
+        <h2 className="truncate text-lg font-semibold">{plan.name}</h2>
         <p className="mt-0.5 text-sm text-ink-soft">
           {formatSize(plan.widthMm, plan.depthMm, plan.units)} · {plan.tableCount} {plan.tableCount === 1 ? "table" : "tables"}
           {landmarks > 0 && ` · ${landmarks} ${landmarks === 1 ? "landmark" : "landmarks"}`}
@@ -86,16 +86,16 @@ function PlanCard({ plan }: { plan: Floorplan }) {
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/5 pt-3">
           {confirming ? (
             <>
-              <span className="text-sm font-semibold">Delete this plan?</span>
+              <span className="text-sm font-medium">Delete this plan?</span>
               <button
                 type="button"
                 onClick={() => remove.mutate(plan.id)}
                 disabled={remove.isPending}
-                className="rounded-full bg-coral-ink px-3.5 py-1.5 text-sm font-bold text-white disabled:opacity-50"
+                className="rounded-full bg-coral-ink px-3.5 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {remove.isPending ? "Deleting…" : "Delete"}
               </button>
-              <button type="button" onClick={() => setConfirming(false)} className="rounded-full px-3 py-1.5 text-sm font-bold text-ink-soft hover:bg-cream">
+              <button type="button" onClick={() => setConfirming(false)} className="rounded-full px-3 py-1.5 text-sm font-semibold text-ink-soft hover:bg-cream">
                 Keep
               </button>
             </>
@@ -103,7 +103,7 @@ function PlanCard({ plan }: { plan: Floorplan }) {
             <>
               <Link
                 to={`/dashboard/floorplans/${plan.id}`}
-                className="inline-flex items-center gap-1.5 rounded-full bg-slate px-3.5 py-1.5 text-sm font-bold text-white transition hover:bg-slate-deep"
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-deep"
               >
                 <PencilIcon className="size-4" /> Edit
               </Link>
@@ -111,14 +111,14 @@ function PlanCard({ plan }: { plan: Floorplan }) {
                 type="button"
                 onClick={() => duplicate.mutate(plan.id)}
                 disabled={duplicate.isPending}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold text-slate hover:bg-cream disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-slate hover:bg-cream disabled:opacity-50"
               >
                 <CopyIcon className="size-4" /> {duplicate.isPending ? "Copying…" : "Duplicate"}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirming(true)}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold text-coral-ink hover:bg-peach"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-coral-ink hover:bg-peach"
                 aria-label={`Delete ${plan.name}`}
               >
                 <TrashIcon className="size-4" />
@@ -127,7 +127,7 @@ function PlanCard({ plan }: { plan: Floorplan }) {
           )}
         </div>
         {(remove.error || duplicate.error) && (
-          <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="mt-2 text-sm font-medium text-coral-ink" role="alert">
             {(remove.error ?? duplicate.error)!.message}
           </p>
         )}
@@ -191,16 +191,16 @@ function NewPlanDialog({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="new-plan-title">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <form onSubmit={onSubmit} className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
+      <form onSubmit={onSubmit} className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-pop sm:p-8">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
           <CloseIcon className="size-5" />
         </button>
-        <h2 id="new-plan-title" className="pr-8 text-2xl font-extrabold">
+        <h2 id="new-plan-title" className="pr-8 text-2xl font-semibold">
           New floorplan
         </h2>
         <p className="mt-1 text-sm text-ink-soft">Start with the room. You can change its size later.</p>
 
-        <label className="mt-5 block text-sm font-bold">
+        <label className="mt-5 block text-sm font-semibold">
           Name
           <input ref={ref} className={inputClass} value={name} required maxLength={80} placeholder="e.g. Legion Hall, main floor" onChange={(e) => setName(e.target.value)} />
         </label>
@@ -213,7 +213,7 @@ function NewPlanDialog({ onClose }: { onClose: () => void }) {
               role="radio"
               aria-checked={units === u}
               onClick={() => units !== u && switchUnits(u)}
-              className={`flex-1 rounded-full px-3 py-1.5 text-sm font-bold transition ${units === u ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
+              className={`flex-1 rounded-full px-3 py-1.5 text-sm font-semibold transition ${units === u ? "bg-white text-ink shadow-card" : "text-ink-soft"}`}
             >
               {u === "ft" ? "Feet" : "Metres"}
             </button>
@@ -221,11 +221,11 @@ function NewPlanDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <label className="block text-sm font-bold">
+          <label className="block text-sm font-semibold">
             Width ({unitLabel[units]})
             <input className={inputClass} type="number" inputMode="decimal" min={units === "ft" ? 4 : 1} max={units === "ft" ? 980 : 300} step="any" required value={width} onChange={(e) => setWidth(e.target.value)} />
           </label>
-          <label className="block text-sm font-bold">
+          <label className="block text-sm font-semibold">
             Depth ({unitLabel[units]})
             <input className={inputClass} type="number" inputMode="decimal" min={units === "ft" ? 4 : 1} max={units === "ft" ? 980 : 300} step="any" required value={depth} onChange={(e) => setDepth(e.target.value)} />
           </label>
@@ -236,7 +236,7 @@ function NewPlanDialog({ onClose }: { onClose: () => void }) {
               key={p.label}
               type="button"
               onClick={() => (setWidth(String(p.w)), setDepth(String(p.d)))}
-              className="rounded-full bg-cream px-3 py-1 text-xs font-bold text-ink-soft transition hover:text-ink"
+              className="rounded-full bg-cream px-3 py-1 text-xs font-semibold text-ink-soft transition hover:text-ink"
             >
               {p.label}
             </button>
@@ -244,13 +244,13 @@ function NewPlanDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         {error && (
-          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
             {error}
           </p>
         )}
 
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
+          <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-semibold text-ink-soft hover:bg-cream">
             Cancel
           </button>
           <button type="submit" disabled={save.isPending} className="btn btn-primary px-6 py-3">

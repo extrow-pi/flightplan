@@ -94,12 +94,12 @@ export default function AuthPage({ mode }: { mode: Mode }) {
         <Logo className="lg:hidden" />
 
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10">
-          <h1 className="text-3xl font-extrabold tracking-tight">{t.title}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">{t.title}</h1>
           <p className="mt-2 text-ink-soft">{t.subtitle}</p>
 
           <GoogleButton redirectTo={redirectTo} mode={mode} onError={setError} />
 
-          <div className="my-6 flex items-center gap-4 text-sm font-semibold text-ink-muted">
+          <div className="my-6 flex items-center gap-4 text-sm font-medium text-ink-muted">
             <span className="h-px flex-1 bg-ink/10" />
             or with email
             <span className="h-px flex-1 bg-ink/10" />
@@ -144,7 +144,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
-                  className="absolute inset-y-0 right-2 my-auto h-9 rounded-lg px-3 text-sm font-bold text-slate hover:bg-cream"
+                  className="absolute inset-y-0 right-2 my-auto h-9 rounded-lg px-3 text-sm font-semibold text-slate hover:bg-cream"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? "Hide" : "Show"}
@@ -153,7 +153,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
             </Field>
 
             {error && (
-              <p className="rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+              <p className="rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
                 {error}
               </p>
             )}
@@ -170,11 +170,11 @@ export default function AuthPage({ mode }: { mode: Mode }) {
           {mode === "signup" && (
             <p className="mt-4 text-center text-sm text-ink-muted">
               By creating an account you agree to our{" "}
-              <Link to="/terms" className="font-semibold text-coral-ink hover:underline">
+              <Link to="/terms" className="font-medium text-coral-ink hover:underline">
                 Terms
               </Link>{" "}
               and{" "}
-              <Link to="/privacy" className="font-semibold text-coral-ink hover:underline">
+              <Link to="/privacy" className="font-medium text-coral-ink hover:underline">
                 Privacy Policy
               </Link>
               .
@@ -183,7 +183,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
 
           <p className="mt-8 text-center text-ink-soft">
             {t.switchText}{" "}
-            <Link to={switchTo} className="font-bold text-coral-ink hover:underline">
+            <Link to={switchTo} className="font-semibold text-coral-ink hover:underline">
               {t.switchLink}
             </Link>
           </p>
@@ -227,7 +227,7 @@ function GoogleButton({
         type="button"
         onClick={onClick}
         disabled={!enabled || pending}
-        className="flex w-full items-center justify-center gap-3 rounded-full border-2 border-ink/10 bg-white px-6 py-3 font-bold text-ink shadow-sm transition hover:border-ink/20 hover:bg-cream-50 focus-visible:ring-4 focus-visible:ring-coral/25 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55"
+        className="flex w-full items-center justify-center gap-3 rounded-full border border-ink/10 bg-white px-6 py-3 font-semibold text-ink shadow-card transition hover:border-ink/20 hover:bg-cream-50 focus-visible:ring-4 focus-visible:ring-coral/25 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55"
       >
         <GoogleLogo />
         {pending ? "Redirecting to Google…" : mode === "signup" ? "Sign up with Google" : "Continue with Google"}
@@ -243,7 +243,7 @@ function GoogleButton({
 
 function BrandPanel() {
   return (
-    <aside className="relative hidden overflow-hidden bg-gradient-to-br from-coral via-[#ec9a6c] to-gold p-12 text-white lg:flex lg:flex-col">
+    <aside className="relative hidden overflow-hidden bg-ink p-12 text-white lg:flex lg:flex-col">
       <svg
         className="pointer-events-none absolute -right-10 bottom-24 w-[560px] text-white/30"
         viewBox="0 0 560 260"
@@ -253,7 +253,7 @@ function BrandPanel() {
         <path d="M0 240 C 180 240, 260 40, 550 30" stroke="currentColor" strokeWidth="3" strokeDasharray="10 12" />
       </svg>
 
-      <Link to="/" className="flex items-center gap-2.5 text-xl font-extrabold">
+      <Link to="/" className="flex items-center gap-2.5 text-xl font-semibold">
         <span className="flex size-10 items-center justify-center rounded-full bg-white/25">
           <PlaneIcon className="size-5" />
         </span>
@@ -261,8 +261,8 @@ function BrandPanel() {
       </Link>
 
       <div className="relative mt-auto max-w-md">
-        <p className="text-4xl leading-tight font-extrabold">Your show's flight deck is one step away.</p>
-        <ul className="mt-8 space-y-3 text-lg font-semibold text-white/90">
+        <p className="text-4xl leading-tight font-semibold">Your show's flight deck is one step away.</p>
+        <ul className="mt-8 space-y-3 text-lg font-medium text-white/90">
           {(
             [
               [PlaneIcon, "Sell vendor tables with a shareable floor plan"],
@@ -284,7 +284,7 @@ function BrandPanel() {
 }
 
 const inputClass =
-  "w-full rounded-xl border-2 border-cream bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";
+  "w-full rounded-xl border border-ink/15 bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none";
 
 function Field({
   label,
@@ -299,7 +299,7 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={htmlFor} className="text-sm font-bold">
+      <label htmlFor={htmlFor} className="text-sm font-semibold">
         {label}
       </label>
       {children}

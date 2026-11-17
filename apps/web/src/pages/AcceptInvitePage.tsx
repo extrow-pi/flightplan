@@ -18,7 +18,7 @@ export default function AcceptInvitePage() {
         <Logo />
       </header>
       <main className="mx-auto max-w-xl px-4 pb-16 sm:px-6">
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+        <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
           {invite.isPending ? (
             <div role="status" className="space-y-3 py-4">
               <span className="sr-only">Loading…</span>
@@ -44,7 +44,7 @@ export default function AcceptInvitePage() {
 function Message({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-extrabold">{title}</h1>
+      <h1 className="text-2xl font-semibold">{title}</h1>
       <div className="mt-2 text-ink-soft">{children}</div>
     </div>
   );
@@ -61,7 +61,7 @@ function Invite({ token, invite }: { token: string; invite: CollaboratorInvitePr
   if (invite.status === "accepted") {
     return (
       <Message title="Invitation already accepted">
-        <Link to="/dashboard/events" className="font-bold text-coral-ink hover:underline">
+        <Link to="/dashboard/events" className="font-semibold text-coral-ink hover:underline">
           Go to your dashboard
         </Link>
       </Message>
@@ -86,8 +86,8 @@ function Invite({ token, invite }: { token: string; invite: CollaboratorInvitePr
 
   return (
     <>
-      <p className="text-sm font-bold tracking-wider text-coral-ink uppercase">You're invited</p>
-      <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{invite.eventName}</h1>
+      <p className="text-sm font-semibold tracking-wider text-coral-ink uppercase">You're invited</p>
+      <h1 className="mt-1 text-3xl font-semibold tracking-tight">{invite.eventName}</h1>
       <p className="mt-3 text-ink-soft">
         <strong className="text-ink">{invite.inviterName}</strong> invited you to help organize this {what} as{" "}
         {invite.role === "editor" ? "an editor" : "a viewer"}.{" "}
@@ -115,7 +115,7 @@ function Invite({ token, invite }: { token: string; invite: CollaboratorInvitePr
               </Link>
               <Link
                 to={`/signup${authQuery}`}
-                className="rounded-full border-2 border-slate px-6 py-3 text-center font-bold text-slate transition hover:bg-slate hover:text-white"
+                className="btn btn-secondary px-6 py-3 text-center"
               >
                 Create an account
               </Link>
@@ -131,21 +131,21 @@ function Invite({ token, invite }: { token: string; invite: CollaboratorInvitePr
             {accept.isPending ? "Joining…" : `Accept and open the ${what}`}
           </button>
         ) : (
-          <div className="rounded-2xl bg-peach px-5 py-4 text-sm text-coral-ink" role="alert">
-            <p className="font-bold">
+          <div className="rounded-xl bg-peach px-5 py-4 text-sm text-coral-ink" role="alert">
+            <p className="font-semibold">
               This invitation is for {invite.email}, but you're signed in as {signedInAs}.
             </p>
             <button
               type="button"
               onClick={() => void signOut()}
-              className="mt-3 rounded-full bg-coral-ink px-4 py-2 font-bold text-white"
+              className="mt-3 rounded-full bg-coral-ink px-4 py-2 font-semibold text-white"
             >
               Sign out and switch account
             </button>
           </div>
         )}
         {accept.error && (
-          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
             {accept.error.message}
           </p>
         )}

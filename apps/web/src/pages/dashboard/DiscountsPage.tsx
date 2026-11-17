@@ -1,3 +1,4 @@
+import { SkeletonLine } from "../../components/Skeleton";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { DiscountCode, DiscountCodeKind } from "@flightplan/shared";
@@ -15,7 +16,7 @@ import { closedLabel } from "../../components/bookings";
 import { ErrorCard, LoadingCards, PageHeader } from "./ui";
 
 const inputClass =
-  "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";
+  "mt-1 w-full rounded-xl border border-ink/15 bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none";
 
 const statusStyles: Record<DiscountCode["status"], [string, string]> = {
   active: ["Active", "bg-success-soft text-success"],
@@ -50,11 +51,11 @@ export default function DiscountsPage() {
         }
       />
 
-      <p className="mb-6 flex items-start gap-3 rounded-2xl bg-cream px-5 py-4 text-sm text-ink-soft">
+      <p className="mb-6 flex items-start gap-3 rounded-xl bg-cream px-5 py-4 text-sm text-ink-soft">
         <TableIcon className="mt-0.5 size-5 shrink-0 text-gold-ink" />
         <span>
           <strong className="text-ink">Multi-table discounts</strong> (e.g. 3+ tables 10% off) are set on each show's{" "}
-          <Link to="/dashboard/events" className="font-bold text-coral-ink hover:underline">
+          <Link to="/dashboard/events" className="font-semibold text-coral-ink hover:underline">
             details page
           </Link>
           . When a vendor has both, they get whichever saves more.
@@ -66,8 +67,8 @@ export default function DiscountsPage() {
       ) : codes.isPending ? (
         <LoadingCards />
       ) : !codes.data.length ? (
-        <div className="rounded-3xl bg-white p-8 text-center ring-1 ring-ink/5">
-          <p className="text-lg font-extrabold">No codes yet</p>
+        <div className="rounded-2xl bg-white p-8 text-center ring-1 ring-ink/5">
+          <p className="text-lg font-semibold">No codes yet</p>
           <p className="mt-1 text-ink-soft">
             Create one like <strong>EARLYBIRD</strong> for 15% off, or <strong>RETURNING</strong> for $20 off.
           </p>
@@ -96,23 +97,23 @@ function CodeRow({ code: c, onEdit, onUses }: { code: DiscountCode; onEdit: () =
   ].filter(Boolean);
 
   return (
-    <li className="flex flex-col gap-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5 sm:flex-row sm:items-center">
+    <li className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink/5 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-lg bg-slate px-2.5 py-1 font-mono text-sm font-extrabold tracking-wide text-white">{c.code}</span>
-          <span className="font-extrabold">{amountLabel(c)}</span>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${tone}`}>{label}</span>
+          <span className="rounded-lg bg-slate px-2.5 py-1 font-mono text-sm font-semibold tracking-wide text-white">{c.code}</span>
+          <span className="font-semibold">{amountLabel(c)}</span>
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone}`}>{label}</span>
         </div>
         {c.description && <p className="mt-1.5 text-sm text-ink-soft">{c.description}</p>}
         <p className="mt-1.5 text-xs text-ink-muted">{limits.length ? limits.join(" · ") : "No limits · all your shows"}</p>
       </div>
       <div className="flex items-center gap-3 sm:shrink-0">
         <button type="button" onClick={onUses} className="text-left text-sm sm:text-right">
-          <span className="block font-extrabold">
+          <span className="block font-semibold">
             {c.uses}
             {c.maxUses !== null && ` / ${c.maxUses}`} {c.uses === 1 && c.maxUses === null ? "use" : "uses"}
           </span>
-          <span className="block text-xs font-semibold text-coral-ink hover:underline">
+          <span className="block text-xs font-medium text-coral-ink hover:underline">
             {c.discountGivenCents > 0 ? `${formatMoney(c.discountGivenCents)} given · ` : ""}View
           </span>
         </button>
@@ -142,11 +143,11 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="code-dialog-title">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <div ref={ref} tabIndex={-1} className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-xl focus:outline-none sm:p-8">
+      <div ref={ref} tabIndex={-1} className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-pop focus:outline-none sm:p-8">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
           <CloseIcon className="size-5" />
         </button>
-        <h2 id="code-dialog-title" className="pr-8 text-2xl font-extrabold">
+        <h2 id="code-dialog-title" className="pr-8 text-2xl font-semibold">
           {title}
         </h2>
         {children}
@@ -167,8 +168,8 @@ function LimitToggle({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5">
-      <label className="flex items-center gap-2 text-sm font-bold">
+    <div className="rounded-xl bg-cream-50 p-3 ring-1 ring-ink/5">
+      <label className="flex items-center gap-2 text-sm font-semibold">
         <input type="checkbox" className="size-4 accent-coral" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         {label}
       </label>
@@ -224,7 +225,7 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
     <Dialog title={code ? `Edit ${code.code}` : "New discount code"} onClose={onClose}>
       <form onSubmit={onSubmit} className="mt-5 space-y-4">
         <label className="block">
-          <span className="text-sm font-bold">Code</span>
+          <span className="text-sm font-semibold">Code</span>
           <input
             className={`${inputClass} font-mono uppercase`}
             value={form.code}
@@ -235,14 +236,14 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
             required
             maxLength={30}
           />
-          {errors.code && <span className="mt-1 block text-sm font-semibold text-coral-ink">{errors.code[0]}</span>}
+          {errors.code && <span className="mt-1 block text-sm font-medium text-coral-ink">{errors.code[0]}</span>}
           {code && code.uses > 0 && (
             <span className="mt-1 block text-xs text-ink-muted">Already used {code.uses} times. Changes apply to new bookings only.</span>
           )}
         </label>
 
         <div>
-          <span className="text-sm font-bold">Discount</span>
+          <span className="text-sm font-semibold">Discount</span>
           <div className="mt-1 flex gap-2">
             <div className="flex rounded-xl bg-cream-50 p-1 ring-1 ring-ink/5" role="radiogroup" aria-label="Discount type">
               {(["percent", "amount"] as const).map((k) => (
@@ -252,7 +253,7 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
                   role="radio"
                   aria-checked={form.kind === k}
                   onClick={() => set("kind", k)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-bold transition ${form.kind === k ? "bg-white text-ink shadow-sm" : "text-ink-soft"}`}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${form.kind === k ? "bg-white text-ink shadow-card" : "text-ink-soft"}`}
                 >
                   {k === "percent" ? "% off" : "$ off"}
                 </button>
@@ -276,18 +277,18 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
           <span className="mt-1 block text-xs text-ink-muted">
             {form.kind === "percent" ? "Percent off the vendor's whole request." : "Taken off the vendor's whole request total."}
           </span>
-          {errors.value && <span className="mt-1 block text-sm font-semibold text-coral-ink">{errors.value[0]}</span>}
+          {errors.value && <span className="mt-1 block text-sm font-medium text-coral-ink">{errors.value[0]}</span>}
         </div>
 
         <label className="block">
-          <span className="text-sm font-bold">
+          <span className="text-sm font-semibold">
             Note <span className="font-normal text-ink-muted">(optional, only you see it)</span>
           </span>
           <input className={inputClass} value={form.description} onChange={(e) => set("description", e.target.value)} maxLength={200} placeholder="Early bird for returning vendors" />
         </label>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-bold">Limits (all optional)</legend>
+          <legend className="text-sm font-semibold">Limits (all optional)</legend>
           <LimitToggle label="Limit how many times it can be used" checked={form.limitUses} onChange={(v) => set("limitUses", v)}>
             <input
               type="number"
@@ -331,13 +332,13 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
           </LimitToggle>
         </fieldset>
 
-        <label className="flex items-center gap-2 text-sm font-bold">
+        <label className="flex items-center gap-2 text-sm font-semibold">
           <input type="checkbox" className="size-4 accent-coral" checked={form.active} onChange={(e) => set("active", e.target.checked)} />
           Active (uncheck to pause it)
         </label>
 
         {save.error && !Object.keys(errors).length && (
-          <p className="text-sm font-semibold text-coral-ink" role="alert">
+          <p className="text-sm font-medium text-coral-ink" role="alert">
             {save.error.message}
           </p>
         )}
@@ -350,21 +351,21 @@ function CodeDialog({ code, onClose }: { code: DiscountCode | null; onClose: () 
                   type="button"
                   onClick={() => del.mutate(code.id, { onSuccess: onClose })}
                   disabled={del.isPending}
-                  className="rounded-full bg-coral-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+                  className="rounded-full bg-coral-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {del.isPending ? "Deleting…" : "Delete code"}
                 </button>
-                <button type="button" onClick={() => setConfirmDelete(false)} className="text-sm font-bold text-ink-soft">
+                <button type="button" onClick={() => setConfirmDelete(false)} className="text-sm font-semibold text-ink-soft">
                   Cancel
                 </button>
               </span>
             ) : (
-              <button type="button" onClick={() => setConfirmDelete(true)} className="text-sm font-bold text-coral-ink hover:underline">
+              <button type="button" onClick={() => setConfirmDelete(true)} className="text-sm font-semibold text-coral-ink hover:underline">
                 Delete
               </button>
             ))}
           <div className="flex gap-3 sm:ml-auto">
-            <button type="button" onClick={onClose} className="flex-1 rounded-full px-5 py-2.5 font-bold text-ink-soft hover:bg-cream sm:flex-none">
+            <button type="button" onClick={onClose} className="flex-1 rounded-full px-5 py-2.5 font-semibold text-ink-soft hover:bg-cream sm:flex-none">
               Cancel
             </button>
             <button
@@ -396,20 +397,20 @@ function UsesDialog({ code, onClose }: { code: DiscountCode; onClose: () => void
         cancelled requests aren't counted.
       </p>
       {uses.isPending ? (
-        <p className="mt-4 text-ink-muted">Loading…</p>
+        <SkeletonLine className="mt-4 w-2/3" />
       ) : uses.data?.length ? (
-        <ul className="mt-4 divide-y divide-ink/5 rounded-2xl bg-cream-50 px-4 ring-1 ring-ink/5">
+        <ul className="mt-4 divide-y divide-ink/5 rounded-xl bg-cream-50 px-4 ring-1 ring-ink/5">
           {uses.data.map((u) => (
             <li key={u.requestId} className="py-3 text-sm">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="font-bold">{u.vendorName}</span>
-                <span className="font-semibold">
+                <span className="font-semibold">{u.vendorName}</span>
+                <span className="font-medium">
                   {formatMoney(u.totalCents)} <span className="text-success">(−{formatMoney(u.discountCents)})</span>
                 </span>
               </div>
               <div className="flex flex-wrap justify-between gap-x-3 text-xs text-ink-soft">
                 <span>
-                  <Link to={`/dashboard/events/${u.eventId}/tables`} className="font-semibold text-coral-ink hover:underline">
+                  <Link to={`/dashboard/events/${u.eventId}/tables`} className="font-medium text-coral-ink hover:underline">
                     {u.eventName}
                   </Link>{" "}
                   · {u.tableLabels.length > 1 ? "tables" : "table"} {u.tableLabels.join(", ")}

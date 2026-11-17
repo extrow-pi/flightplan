@@ -20,8 +20,8 @@ export function PageHeader({
   return (
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
-        <p className="text-sm font-bold tracking-wider text-coral-ink uppercase">{eyebrow}</p>
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
+        <p className="text-sm font-semibold tracking-wider text-coral-ink uppercase">{eyebrow}</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
         {subtitle && <p className="mt-2 text-ink-soft">{subtitle}</p>}
       </div>
       {action !== undefined ? action : (
@@ -41,7 +41,7 @@ export function LoadingCards() {
   return (
     <div className="space-y-3" role="status" aria-label="Loading">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="h-24 animate-pulse rounded-3xl bg-white ring-1 ring-ink/5" />
+        <div key={i} className="h-24 animate-pulse rounded-2xl bg-white ring-1 ring-ink/5" />
       ))}
     </div>
   );
@@ -49,7 +49,7 @@ export function LoadingCards() {
 
 export function ErrorCard({ message }: { message: string }) {
   return (
-    <p className="rounded-3xl bg-peach px-6 py-5 font-semibold text-coral-ink" role="alert">
+    <p className="rounded-2xl bg-peach px-6 py-5 font-medium text-coral-ink" role="alert">
       Couldn't load your events: {message}
     </p>
   );
@@ -71,13 +71,13 @@ export function PrimaryButton({ onClick, pending, children }: { onClick: () => v
 }
 
 export const inputClass =
-  "w-full rounded-xl border-2 border-cream bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
+  "w-full rounded-xl border border-ink/15 bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+    <fieldset className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
       <legend className="sr-only">{title}</legend>
-      <h2 className="text-lg font-extrabold" aria-hidden="true">
+      <h2 className="text-lg font-semibold" aria-hidden="true">
         {title}
       </h2>
       <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">{children}</div>
@@ -104,12 +104,12 @@ export function Field({
 }) {
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
-      <label htmlFor={id} className="text-sm font-bold">
+      <label htmlFor={id} className="text-sm font-semibold">
         {label} {optional && <span className="font-normal text-ink-muted">(optional)</span>}
       </label>
       {children}
       {error ? (
-        <p className="text-sm font-semibold text-coral-ink">{error}</p>
+        <p className="text-sm font-medium text-coral-ink">{error}</p>
       ) : (
         hint && <p className="text-xs text-ink-muted">{hint}</p>
       )}
@@ -147,7 +147,7 @@ export function Toggle({
         className="relative mt-0.5 h-7 w-12 shrink-0 rounded-full bg-ink/15 transition peer-checked:bg-coral peer-focus-visible:ring-4 peer-focus-visible:ring-coral/25 after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"
       />
       <span>
-        <span className="block font-bold">{label}</span>
+        <span className="block font-semibold">{label}</span>
         {description && <span className="mt-0.5 block text-sm text-ink-soft">{description}</span>}
       </span>
     </label>
@@ -194,10 +194,10 @@ function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave
         aria-modal="true"
         aria-labelledby="unsaved-title"
         aria-describedby="unsaved-body"
-        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-pop"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="unsaved-title" className="text-xl font-extrabold">
+        <h2 id="unsaved-title" className="text-xl font-semibold">
           You have unsaved changes
         </h2>
         <p id="unsaved-body" className="mt-2 text-ink-soft">
@@ -207,7 +207,7 @@ function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave
           <button
             type="button"
             onClick={onLeave}
-            className="rounded-full px-5 py-3 font-bold text-coral-ink transition hover:bg-peach"
+            className="rounded-full px-5 py-3 font-semibold text-coral-ink transition hover:bg-peach"
           >
             Discard and leave
           </button>
@@ -232,7 +232,7 @@ function UnsavedChangesDialog({ onStay, onLeave }: { onStay: () => void; onLeave
 export function SaveStatus({ dirty, onDiscard, saved }: { dirty: boolean; onDiscard: () => void; saved?: string | null }) {
   if (!dirty) {
     return saved ? (
-      <span className="flex items-center gap-1.5 self-start rounded-full bg-success-soft px-3 py-1.5 text-sm font-bold text-success sm:mr-auto sm:self-auto" role="status">
+      <span className="flex items-center gap-1.5 self-start rounded-full bg-success-soft px-3 py-1.5 text-sm font-semibold text-success sm:mr-auto sm:self-auto" role="status">
         <CheckIcon className="size-4" />
         {saved}
       </span>
@@ -240,11 +240,11 @@ export function SaveStatus({ dirty, onDiscard, saved }: { dirty: boolean; onDisc
   }
   return (
     <span className="flex items-center gap-3 text-sm sm:mr-auto">
-      <span className="flex items-center gap-1.5 font-bold text-gold-ink">
+      <span className="flex items-center gap-1.5 font-semibold text-gold-ink">
         <span className="size-2 rounded-full bg-gold" aria-hidden="true" />
         Unsaved changes
       </span>
-      <button type="button" onClick={onDiscard} className="rounded-full px-3 py-1.5 font-bold text-ink-soft transition hover:bg-cream hover:text-ink">
+      <button type="button" onClick={onDiscard} className="rounded-full px-3 py-1.5 font-semibold text-ink-soft transition hover:bg-cream hover:text-ink">
         Discard changes
       </button>
     </span>
@@ -317,9 +317,9 @@ export function ImageDropzone({
         picker.take(e.dataTransfer.files);
       }}
       disabled={busy}
-      className={`flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-coral/40 bg-peach/20 px-6 text-center transition hover:border-coral hover:bg-peach/40 disabled:opacity-60 ${className}`}
+      className={`flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-coral/40 bg-peach/20 px-6 text-center transition hover:border-coral hover:bg-peach/40 disabled:opacity-60 ${className}`}
     >
-      <span className="font-bold text-coral-ink">{busy ? "Uploading…" : label}</span>
+      <span className="font-semibold text-coral-ink">{busy ? "Uploading…" : label}</span>
       <span className="mt-1 text-sm text-ink-soft">
         {hint ? `${hint} ` : ""}PNG, JPEG or WebP, up to {IMAGE_MAX_MB} MB. Click or drop {multiple ? "files" : "a file"} here.
       </span>

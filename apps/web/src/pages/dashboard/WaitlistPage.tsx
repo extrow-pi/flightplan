@@ -16,7 +16,7 @@ import {
   useWaitlistAction,
   type WaitlistAction,
 } from "../../lib/api";
-import { PageSkeleton } from "../../components/Skeleton";
+import { PageSkeleton, BodySkeleton } from "../../components/Skeleton";
 
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
 
@@ -33,11 +33,11 @@ export default function WaitlistPage() {
   if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
-      <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">
-        <p className="text-lg font-extrabold">
+      <div className="rounded-2xl bg-white p-10 text-center ring-1 ring-ink/5">
+        <p className="text-lg font-semibold">
           {error instanceof ApiRequestError && error.status === 404 ? "Not found" : "Couldn't load this"}
         </p>
-        <Link to="/dashboard" className="mt-4 inline-block font-bold text-coral-ink hover:underline">
+        <Link to="/dashboard" className="mt-4 inline-block font-semibold text-coral-ink hover:underline">
           Back to dashboard
         </Link>
       </div>
@@ -56,28 +56,26 @@ export default function WaitlistPage() {
 
   return (
     <>
-      <Link to="/dashboard/events" className="inline-flex items-center gap-2 text-sm font-bold text-ink-soft transition hover:text-ink">
+      <Link to="/dashboard/events" className="inline-flex items-center gap-2 text-sm font-semibold text-ink-soft transition hover:text-ink">
         <ArrowLeftIcon className="size-4" /> All events
       </Link>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{event.name}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{event.name}</h1>
         <SharedBadge event={event} />
       </div>
       <EventTabs event={event} />
 
       {waitlist.error ? (
-        <p className="mt-6 rounded-2xl bg-peach px-5 py-4 font-semibold text-coral-ink" role="alert">
+        <p className="mt-6 rounded-xl bg-peach px-5 py-4 font-medium text-coral-ink" role="alert">
           Couldn't load the waitlist: {waitlist.error.message}
         </p>
       ) : !data ? (
-        <p className="mt-6 text-ink-muted" role="status">
-          Loading waitlist…
-        </p>
+        <BodySkeleton />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-6">
             {data.openTables > 0 && inLine.some((e) => e.status === "waiting") && canEdit(event) && (
-              <p className="rounded-2xl bg-success-soft px-5 py-4 font-semibold text-success" role="status">
+              <p className="rounded-xl bg-success-soft px-5 py-4 font-medium text-success" role="status">
                 {data.openTables === 1 ? "A table is" : `${data.openTables} tables are`} open. Assign{" "}
                 {data.openTables === 1 ? "it" : "them"} to the next vendors in line.
               </p>
@@ -89,7 +87,7 @@ export default function WaitlistPage() {
                   <button
                     type="button"
                     onClick={() => setAdding(true)}
-                    className="inline-flex items-center gap-1.5 rounded-full border-2 border-coral/30 px-3.5 py-1.5 text-sm font-bold text-coral-ink transition hover:border-coral"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-coral/30 px-3.5 py-1.5 text-sm font-semibold text-coral-ink transition hover:border-coral"
                   >
                     <PlusIcon className="size-4" /> Add from your vendors
                   </button>
@@ -97,7 +95,7 @@ export default function WaitlistPage() {
               }
             >
               {reorder.error && (
-                <p className="mb-2 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+                <p className="mb-2 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
                   {reorder.error.message}
                 </p>
               )}
@@ -134,16 +132,16 @@ export default function WaitlistPage() {
           </div>
           <aside className="space-y-6">
             <Card title="Tables">
-              <p className="text-3xl font-extrabold">
+              <p className="text-3xl font-semibold">
                 {data.openTables}
-                <span className="text-base font-bold text-ink-soft"> of {data.totalTables} open</span>
+                <span className="text-base font-semibold text-ink-soft"> of {data.totalTables} open</span>
               </p>
               <p className="mt-2 text-sm text-ink-soft">
                 {data.openTables === 0
                   ? "The show is full, so your booking link offers the waitlist instead of tables."
                   : "Your booking link shows open tables, so new vendors can book them directly."}
               </p>
-              <Link to={`/dashboard/events/${event.id}/tables`} className="mt-3 inline-block text-sm font-bold text-coral-ink hover:underline">
+              <Link to={`/dashboard/events/${event.id}/tables`} className="mt-3 inline-block text-sm font-semibold text-coral-ink hover:underline">
                 Open Tables & vendors
               </Link>
             </Card>
@@ -171,9 +169,9 @@ export default function WaitlistPage() {
 
 function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5">
+    <section className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink/5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-extrabold">{title}</h2>
+        <h2 className="font-semibold">{title}</h2>
         {action}
       </div>
       <div className="mt-3">{children}</div>
@@ -212,7 +210,7 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
             isDisabled={(v) => (inLine.has(v.id) ? "Already on the waitlist" : null)}
             badge={(v) =>
               inLine.has(v.id) ? (
-                <span className="rounded-full bg-sky/20 px-2 py-0.5 text-xs font-bold text-slate">In line</span>
+                <span className="rounded-full bg-sky/20 px-2 py-0.5 text-xs font-semibold text-slate">In line</span>
               ) : (
                 <HasTablesBadge count={waitlist.tablesByVendor[v.id] ?? 0} />
               )
@@ -225,7 +223,7 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
         )}
       </div>
 
-      <label className="mt-5 block text-sm font-bold">
+      <label className="mt-5 block text-sm font-semibold">
         Tables wanted
         <input
           type="number"
@@ -237,7 +235,7 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
         />
       </label>
 
-      <label className="mt-4 block text-sm font-bold">
+      <label className="mt-4 block text-sm font-semibold">
         Note <span className="font-normal text-ink-muted">(optional)</span>
         <textarea
           className={`${smallInput} min-h-20 text-base sm:text-sm`}
@@ -249,13 +247,13 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
       </label>
 
       {add.error && (
-        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
           {errorMessage(add.error)}
         </p>
       )}
 
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
+        <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-semibold text-ink-soft hover:bg-cream">
           Cancel
         </button>
         <button
@@ -274,7 +272,7 @@ function AddDialog({ event, waitlist, onClose }: { event: EventRecord; waitlist:
 function HasTablesBadge({ count }: { count: number }) {
   if (!count) return null;
   return (
-    <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-bold whitespace-nowrap text-success">
+    <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-success">
       Has {tablesCount(count)} here
     </span>
   );
@@ -306,7 +304,7 @@ function StatusBadge({ entry }: { entry: WaitlistEntry }) {
         : entry.status === "removed"
           ? ["Removed", "bg-ink/5 text-ink-soft"]
           : ["Waiting", "bg-sky/20 text-slate"];
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${tone}`}>{label}</span>;
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${tone}`}>{label}</span>;
 }
 
 function EntryRow({
@@ -347,8 +345,8 @@ function EntryRow({
         </span>
       )}
       <span
-        className={`flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
-          e.position !== null ? "bg-gradient-to-br from-coral to-gold text-white" : "bg-cream text-ink-muted"
+        className={`flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+          e.position !== null ? "bg-primary text-white" : "bg-cream text-ink-muted"
         }`}
         aria-label={e.position !== null ? `Number ${e.position} in line` : undefined}
       >
@@ -356,8 +354,8 @@ function EntryRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-          <span className="font-extrabold">{e.businessName || e.name}</span>
-          {e.businessName && <span className="font-semibold text-ink-soft">· {e.name}</span>}
+          <span className="font-semibold">{e.businessName || e.name}</span>
+          {e.businessName && <span className="font-medium text-ink-soft">· {e.name}</span>}
           <HasTablesBadge count={tablesHeld} />
           {e.banned && <BannedBadge />}
         </p>
@@ -369,7 +367,7 @@ function EntryRow({
         </p>
         {e.message && <p className="mt-1.5 rounded-xl bg-cream-50 px-3 py-2 text-sm whitespace-pre-line ring-1 ring-ink/5">{e.message}</p>}
         {act.error && (
-          <p className="mt-1.5 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="mt-1.5 text-sm font-medium text-coral-ink" role="alert">
             {act.error.message}
           </p>
         )}
@@ -383,14 +381,14 @@ function EntryRow({
                 type="button"
                 onClick={() => run("remove")}
                 disabled={act.isPending}
-                className="rounded-full bg-coral-ink px-3 py-1.5 text-sm font-bold text-white disabled:opacity-60"
+                className="rounded-full bg-coral-ink px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {act.isPending ? "…" : "Remove"}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className="rounded-full px-2.5 py-1.5 text-sm font-bold text-ink-soft hover:bg-cream"
+                className="rounded-full px-2.5 py-1.5 text-sm font-semibold text-ink-soft hover:bg-cream"
               >
                 Cancel
               </button>
@@ -428,7 +426,7 @@ function EntryRow({
               <button
                 type="button"
                 onClick={() => setConfirming(true)}
-                className="rounded-full px-3 py-1.5 text-sm font-bold text-coral-ink hover:bg-peach"
+                className="rounded-full px-3 py-1.5 text-sm font-semibold text-coral-ink hover:bg-peach"
               >
                 Remove
               </button>

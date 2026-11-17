@@ -38,7 +38,7 @@ export default function EventsPage() {
               role="tab"
               aria-selected={active}
               onClick={() => setFilter(key)}
-              className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition ${
+              className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                 active ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
               }`}
             >
@@ -60,8 +60,8 @@ export default function EventsPage() {
           ))}
         </ul>
       ) : (
-        <div className="rounded-3xl border-2 border-dashed border-coral/30 bg-white px-6 py-14 text-center">
-          <p className="text-lg font-extrabold">
+        <div className="rounded-2xl border border-dashed border-coral/30 bg-white px-6 py-14 text-center">
+          <p className="text-lg font-semibold">
             {filter === "past" ? "No past events yet" : filter === "drafts" ? "No drafts" : "No events here yet"}
           </p>
           {filter !== "past" && (

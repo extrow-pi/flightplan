@@ -1,3 +1,4 @@
+import { SkeletonLine } from "../../components/Skeleton";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { paymentMethodLabels, type BookingStatus, type VendorGroup, type VendorListItem } from "@flightplan/shared";
@@ -23,7 +24,7 @@ import { ErrorCard, LoadingCards, PageHeader } from "./ui";
 type Filter = { kind: "all" } | { kind: "favourites" } | { kind: "banned" } | { kind: "group"; id: string };
 
 const inputClass =
-  "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";
+  "mt-1 w-full rounded-xl border border-ink/15 bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none";
 
 /** The organizer's vendor list: favourites, groups, ban list, history, CSV export and import. */
 export default function VendorsPage() {
@@ -107,7 +108,7 @@ export default function VendorsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, business, email or phone"
-              className="w-full rounded-full border-2 border-cream bg-white py-2.5 pr-4 pl-10 text-ink placeholder:text-ink-muted/70 focus:border-coral focus:outline-none"
+              className="w-full rounded-full border border-ink/15 bg-white py-2.5 pr-4 pl-10 text-ink placeholder:text-ink-muted/70 focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
             />
           </label>
 
@@ -130,7 +131,7 @@ export default function VendorsPage() {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setFilter(f)}
-                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-bold transition ${
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition ${
                     active ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
                   }`}
                 >
@@ -147,31 +148,31 @@ export default function VendorsPage() {
           ) : vendors.isPending ? (
             <LoadingCards />
           ) : !all.length ? (
-            <div className="rounded-3xl bg-white p-8 text-center ring-1 ring-ink/5">
-              <p className="text-lg font-extrabold">No vendors yet</p>
+            <div className="rounded-2xl bg-white p-8 text-center ring-1 ring-ink/5">
+              <p className="text-lg font-semibold">No vendors yet</p>
               <p className="mt-1 text-ink-soft">
                 Vendors are added automatically when they book a table at one of your shows. You can also{" "}
-                <button type="button" onClick={() => setAdding(true)} className="font-bold text-coral-ink hover:underline">
+                <button type="button" onClick={() => setAdding(true)} className="font-semibold text-coral-ink hover:underline">
                   add one yourself
                 </button>
                 .
               </p>
             </div>
           ) : shown.length ? (
-            <ul className="divide-y divide-ink/5 overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
+            <ul className="divide-y divide-ink/5 overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-ink/5">
               {shown.map((v) => (
                 <VendorRow key={v.id} vendor={v} groupName={groupName} onOpen={() => setEditing(v.id)} />
               ))}
             </ul>
           ) : (
-            <p className="rounded-3xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">No vendors match.</p>
+            <p className="rounded-2xl bg-white p-6 text-center text-ink-soft ring-1 ring-ink/5">No vendors match.</p>
           )}
         </div>
 
         <aside className="space-y-6">
           <GroupsCard groups={groupList} onPick={(id) => setFilter({ kind: "group", id })} />
-          <section className="rounded-3xl bg-white p-5 text-sm text-ink-soft shadow-sm ring-1 ring-ink/5">
-            <h2 className="font-extrabold text-ink">How these work</h2>
+          <section className="rounded-2xl bg-white p-5 text-sm text-ink-soft shadow-card ring-1 ring-ink/5">
+            <h2 className="font-semibold text-ink">How these work</h2>
             <ul className="mt-2 list-disc space-y-1.5 pl-4">
               <li>
                 <strong className="text-ink">Favourites</strong> come first when you assign a table.
@@ -216,8 +217,8 @@ function VendorRow({ vendor: v, groupName, onOpen }: { vendor: VendorListItem; g
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {/* The business is what organizers know vendors by; the person's name is secondary */}
-          <span className="font-extrabold">{v.businessName || v.name}</span>
-          {v.businessName && <span className="font-semibold text-ink-soft">{v.name}</span>}
+          <span className="font-semibold">{v.businessName || v.name}</span>
+          {v.businessName && <span className="font-medium text-ink-soft">{v.name}</span>}
           {v.banned && <BannedBadge reason={v.banReason} />}
         </span>
         <span className="mt-0.5 block truncate text-sm text-ink-soft">
@@ -227,7 +228,7 @@ function VendorRow({ vendor: v, groupName, onOpen }: { vendor: VendorListItem; g
         {v.groupIds.length > 0 && (
           <span className="mt-1.5 flex flex-wrap gap-1">
             {v.groupIds.map((id) => (
-              <span key={id} className="rounded-full bg-cream px-2 py-0.5 text-xs font-bold text-ink-soft">
+              <span key={id} className="rounded-full bg-cream px-2 py-0.5 text-xs font-semibold text-ink-soft">
                 {groupName.get(id)}
               </span>
             ))}
@@ -278,8 +279,8 @@ function GroupsCard({ groups, onPick }: { groups: VendorGroup[]; onPick: (id: st
   }
 
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-ink/5">
-      <h2 className="font-extrabold">Groups</h2>
+    <section className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink/5">
+      <h2 className="font-semibold">Groups</h2>
       {groups.length ? (
         <ul className="mt-3 space-y-1">
           {groups.map((g) =>
@@ -297,12 +298,12 @@ function GroupsCard({ groups, onPick }: { groups: VendorGroup[]; onPick: (id: st
                     aria-label="Group name"
                     value={renaming.name}
                     onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
-                    className="min-w-0 flex-1 rounded-lg border-2 border-cream px-2 py-1 text-base focus:border-coral focus:outline-none sm:text-sm"
+                    className="min-w-0 flex-1 rounded-lg border border-ink/15 px-2 py-1 text-base focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none sm:text-sm"
                   />
-                  <button type="submit" className="rounded-full bg-slate px-3 text-xs font-bold text-white">
+                  <button type="submit" className="rounded-full bg-slate px-3 text-xs font-semibold text-white">
                     Save
                   </button>
-                  <button type="button" onClick={() => setRenaming(null)} className="rounded-full px-2 text-xs font-bold text-ink-soft">
+                  <button type="button" onClick={() => setRenaming(null)} className="rounded-full px-2 text-xs font-semibold text-ink-soft">
                     Cancel
                   </button>
                 </form>
@@ -312,7 +313,7 @@ function GroupsCard({ groups, onPick }: { groups: VendorGroup[]; onPick: (id: st
                 <button
                   type="button"
                   onClick={() => onPick(g.id)}
-                  className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-sm font-semibold hover:bg-cream-50"
+                  className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-sm font-medium hover:bg-cream-50"
                 >
                   {g.name} <span className="text-ink-muted">({g.vendorCount})</span>
                 </button>
@@ -321,11 +322,11 @@ function GroupsCard({ groups, onPick }: { groups: VendorGroup[]; onPick: (id: st
                     <button
                       type="button"
                       onClick={() => del.mutate(g.id, { onSuccess: () => setConfirming(null) })}
-                      className="rounded-full bg-coral-ink px-2.5 py-1 text-xs font-bold text-white"
+                      className="rounded-full bg-coral-ink px-2.5 py-1 text-xs font-semibold text-white"
                     >
                       Delete
                     </button>
-                    <button type="button" onClick={() => setConfirming(null)} className="px-1.5 text-xs font-bold text-ink-soft">
+                    <button type="button" onClick={() => setConfirming(null)} className="px-1.5 text-xs font-semibold text-ink-soft">
                       Cancel
                     </button>
                   </>
@@ -363,18 +364,18 @@ function GroupsCard({ groups, onPick }: { groups: VendorGroup[]; onPick: (id: st
           value={name}
           maxLength={40}
           onChange={(e) => setName(e.target.value)}
-          className="min-w-0 flex-1 rounded-full border-2 border-cream bg-white px-3 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
+          className="min-w-0 flex-1 rounded-full border border-ink/15 bg-white px-3 py-1.5 text-base focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none sm:text-sm"
         />
         <button
           type="submit"
           disabled={!name.trim() || create.isPending}
-          className="rounded-full bg-slate px-3.5 text-sm font-bold text-white disabled:opacity-50"
+          className="rounded-full bg-slate px-3.5 text-sm font-semibold text-white disabled:opacity-50"
         >
           Add
         </button>
       </form>
       {error && (
-        <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-2 text-sm font-medium text-coral-ink" role="alert">
           {error.message}
         </p>
       )}
@@ -398,12 +399,12 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
       <div
         ref={ref}
         tabIndex={-1}
-        className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-xl focus:outline-none sm:p-8"
+        className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-pop focus:outline-none sm:p-8"
       >
         <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
           <CloseIcon className="size-5" />
         </button>
-        <h2 id="vendor-dialog-title" className="pr-8 text-2xl font-extrabold">
+        <h2 id="vendor-dialog-title" className="pr-8 text-2xl font-semibold">
           {title}
         </h2>
         {children}
@@ -415,9 +416,9 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-sm font-bold">{label}</span>
+      <span className="text-sm font-semibold">{label}</span>
       {children}
-      {error && <span className="mt-1 block text-sm font-semibold text-coral-ink">{error}</span>}
+      {error && <span className="mt-1 block text-sm font-medium text-coral-ink">{error}</span>}
     </label>
   );
 }
@@ -461,12 +462,12 @@ function AddVendorDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (
           <textarea className={inputClass} rows={2} value={form.notes} onChange={set("notes")} />
         </Field>
         {create.error && !Object.keys(errors).length && (
-          <p className="text-sm font-semibold text-coral-ink" role="alert">
+          <p className="text-sm font-medium text-coral-ink" role="alert">
             {create.error.message}
           </p>
         )}
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-bold text-ink-soft hover:bg-cream">
+          <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-semibold text-ink-soft hover:bg-cream">
             Cancel
           </button>
           <button
@@ -520,7 +521,7 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
   return (
     <Dialog title={vendor.name} onClose={onClose}>
       <form onSubmit={onSubmit} className="mt-5 space-y-4">
-        <label className="flex items-center gap-2 text-sm font-bold">
+        <label className="flex items-center gap-2 text-sm font-semibold">
           <input
             type="checkbox"
             className="size-4 accent-coral"
@@ -549,7 +550,7 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
         </Field>
 
         <fieldset>
-          <legend className="text-sm font-bold">Groups</legend>
+          <legend className="text-sm font-semibold">Groups</legend>
           {groups.length ? (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {groups.map((g) => {
@@ -560,7 +561,7 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
                     type="button"
                     aria-pressed={on}
                     onClick={() => toggleGroup(g.id)}
-                    className={`rounded-full px-3 py-1 text-sm font-bold transition ${
+                    className={`rounded-full px-3 py-1 text-sm font-semibold transition ${
                       on ? "bg-slate text-white" : "bg-white text-ink-soft ring-1 ring-ink/10 hover:text-ink"
                     }`}
                   >
@@ -574,8 +575,8 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
           )}
         </fieldset>
 
-        <div className={`rounded-2xl p-4 ring-1 ${form.banned ? "bg-peach/50 ring-coral/30" : "bg-cream-50 ring-ink/5"}`}>
-          <label className="flex items-center gap-2 text-sm font-bold">
+        <div className={`rounded-xl p-4 ring-1 ${form.banned ? "bg-peach/50 ring-coral/30" : "bg-cream-50 ring-ink/5"}`}>
+          <label className="flex items-center gap-2 text-sm font-semibold">
             <input
               type="checkbox"
               className="size-4 accent-coral"
@@ -596,15 +597,15 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
         </div>
 
         <section>
-          <h3 className="text-sm font-bold">History</h3>
+          <h3 className="text-sm font-semibold">History</h3>
           {history.isPending ? (
-            <p className="mt-1 text-sm text-ink-muted">Loading…</p>
+            <SkeletonLine className="mt-2 w-2/3" />
           ) : history.data?.length ? (
-            <ul className="mt-1.5 divide-y divide-ink/5 rounded-2xl bg-cream-50 px-3 ring-1 ring-ink/5">
+            <ul className="mt-1.5 divide-y divide-ink/5 rounded-xl bg-cream-50 px-3 ring-1 ring-ink/5">
               {history.data.map((r) => (
                 <li key={r.requestId} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2 text-sm">
                   <span className="min-w-0">
-                    <Link to={`/dashboard/events/${r.eventId}/tables`} className="font-bold text-coral-ink hover:underline">
+                    <Link to={`/dashboard/events/${r.eventId}/tables`} className="font-semibold text-coral-ink hover:underline">
                       {r.eventName}
                     </Link>
                     {r.eventStartDate && (
@@ -614,7 +615,7 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
                       {r.tableLabels.length > 1 ? "Tables" : "Table"} {r.tableLabels.join(", ")}
                     </span>
                   </span>
-                  <span className="text-xs font-semibold text-ink-soft">
+                  <span className="text-xs font-medium text-ink-soft">
                     {statusText[r.status]}
                     {r.status === "paid" && r.paymentMethod && ` · ${paymentMethodLabels[r.paymentMethod]}`}
                   </span>
@@ -627,12 +628,12 @@ function VendorDialog({ vendor, groups, onClose }: { vendor: VendorListItem; gro
         </section>
 
         {update.error && !Object.keys(errors).length && (
-          <p className="text-sm font-semibold text-coral-ink" role="alert">
+          <p className="text-sm font-medium text-coral-ink" role="alert">
             {update.error.message}
           </p>
         )}
         <div className="flex justify-end gap-3 pt-1">
-          <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-bold text-ink-soft hover:bg-cream">
+          <button type="button" onClick={onClose} className="rounded-full px-5 py-2.5 font-semibold text-ink-soft hover:bg-cream">
             Cancel
           </button>
           <button

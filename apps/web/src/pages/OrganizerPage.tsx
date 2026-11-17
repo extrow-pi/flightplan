@@ -26,8 +26,8 @@ export default function OrganizerPage() {
         {isPending ? (
           <CardSkeleton />
         ) : error || !data ? (
-          <section className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-ink/5">
-            <h1 className="text-2xl font-extrabold">
+          <section className="rounded-2xl bg-white p-10 text-center shadow-card ring-1 ring-ink/5">
+            <h1 className="text-2xl font-semibold">
               {error instanceof ApiRequestError && error.status === 404 ? "Organizer not found" : "Couldn't load this page"}
             </h1>
             <p className="mt-2 text-ink-soft">
@@ -71,17 +71,17 @@ function Page({ data }: { data: PublicOrganizerPage }) {
     <>
       <header className="flex flex-col items-center gap-5 text-center sm:flex-row sm:items-start sm:text-left">
         {profile.logoUrl ? (
-          <img src={profile.logoUrl} alt="" className="size-24 shrink-0 rounded-3xl bg-white object-contain shadow-sm ring-1 ring-ink/5" />
+          <img src={profile.logoUrl} alt="" className="size-24 shrink-0 rounded-2xl bg-white object-contain shadow-card ring-1 ring-ink/5" />
         ) : (
-          <span className="flex size-24 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-coral to-gold text-4xl font-extrabold text-white shadow-sm">
+          <span className="flex size-24 shrink-0 items-center justify-center rounded-2xl bg-primary text-4xl font-semibold text-white shadow-card">
             {profile.displayName.trim()[0]?.toUpperCase()}
           </span>
         )}
         <div className="min-w-0">
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{profile.displayName}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{profile.displayName}</h1>
           {profile.bio && <p className="mt-2 max-w-2xl whitespace-pre-line text-ink-soft">{profile.bio}</p>}
           {links.length > 0 && (
-            <ul className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm font-bold sm:justify-start">
+            <ul className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm font-semibold sm:justify-start">
               {links.map((l) => (
                 <li key={l.href}>
                   <a
@@ -101,7 +101,7 @@ function Page({ data }: { data: PublicOrganizerPage }) {
       </header>
 
       <section className="mt-12" aria-labelledby="upcoming-title">
-        <h2 id="upcoming-title" className="text-sm font-bold tracking-wider text-coral-ink uppercase">
+        <h2 id="upcoming-title" className="text-sm font-semibold tracking-wider text-coral-ink uppercase">
           Upcoming shows
         </h2>
         {upcoming.length ? (
@@ -111,7 +111,7 @@ function Page({ data }: { data: PublicOrganizerPage }) {
             ))}
           </ul>
         ) : (
-          <p className="mt-4 rounded-3xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
+          <p className="mt-4 rounded-2xl bg-white p-6 text-ink-soft ring-1 ring-ink/5">
             No upcoming shows right now. Check back soon!
           </p>
         )}
@@ -119,13 +119,13 @@ function Page({ data }: { data: PublicOrganizerPage }) {
 
       {past.length > 0 && (
         <section className="mt-12" aria-labelledby="past-title">
-          <h2 id="past-title" className="text-sm font-bold tracking-wider text-ink-muted uppercase">
+          <h2 id="past-title" className="text-sm font-semibold tracking-wider text-ink-muted uppercase">
             Past shows
           </h2>
-          <ul className="mt-4 divide-y divide-ink/5 rounded-3xl bg-white/70 ring-1 ring-ink/5">
+          <ul className="mt-4 divide-y divide-ink/5 rounded-2xl bg-white/70 ring-1 ring-ink/5">
             {past.map((s) => (
               <li key={s.url} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-5 py-3">
-                <Link to={s.url} className="font-bold hover:text-coral-ink hover:underline">
+                <Link to={s.url} className="font-semibold hover:text-coral-ink hover:underline">
                   {s.name}
                 </Link>
                 <span className="text-sm text-ink-soft">
@@ -150,7 +150,7 @@ function dateLabel(s: PublicShow) {
 function ShowCard({ show: s }: { show: PublicShow }) {
   const single = s.days.length === 1;
   return (
-    <li className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-ink/5">
+    <li className="overflow-hidden rounded-2xl bg-white shadow-card ring-1 ring-ink/5">
       {s.coverUrl && (
         <Link to={s.url} tabIndex={-1} aria-hidden="true">
           <img src={s.coverUrl} alt="" className="aspect-[3/1] w-full object-cover" />
@@ -160,7 +160,7 @@ function ShowCard({ show: s }: { show: PublicShow }) {
       <div className="flex gap-4">
         <DateTile event={s} size="lg" />
         <div className="min-w-0 flex-1">
-          <h3 className="text-xl font-extrabold">
+          <h3 className="text-xl font-semibold">
             <Link to={s.url} className="hover:text-coral-ink hover:underline">
               {s.name}
             </Link>
@@ -185,14 +185,14 @@ function ShowCard({ show: s }: { show: PublicShow }) {
       </div>
       {s.description && <p className="mt-4 whitespace-pre-line text-ink-soft">{s.description}</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-ink/5 pt-4">
-        <span className="rounded-full bg-cream px-3 py-1 text-sm font-bold text-ink-soft">
+        <span className="rounded-full bg-cream px-3 py-1 text-sm font-semibold text-ink-soft">
           {s.ticketPriceCents > 0 ? `Admission ${formatMoney(s.ticketPriceCents)}` : "Free admission"}
         </span>
-        <Link to={s.url} className="inline-flex items-center gap-1.5 text-sm font-bold text-coral-ink hover:underline">
+        <Link to={s.url} className="inline-flex items-center gap-1.5 text-sm font-semibold text-coral-ink hover:underline">
           Show details <ArrowRightIcon className="size-4" />
         </Link>
         {s.mapUrl && (
-          <Link to={s.mapUrl} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate hover:underline">
+          <Link to={s.mapUrl} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate hover:underline">
             <MapPinIcon className="size-4" /> Vendor map
           </Link>
         )}
@@ -219,9 +219,9 @@ function ShowCard({ show: s }: { show: PublicShow }) {
         {s.hasTickets && (
           <Link
             to={`${s.url}#tickets`}
-            className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 ${
+            className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 ${
               s.booking && s.booking.tablesLeft > 0
-                ? "border-2 border-coral text-coral-ink"
+                ? "border border-coral text-coral-ink"
                 : "ml-auto bg-primary hover:bg-primary-hover text-white"
             }`}
           >

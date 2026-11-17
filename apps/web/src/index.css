@@ -27,20 +27,24 @@
   --color-warning-soft: #fff4cc;
   --color-info-soft: #eef3fb;
 
-  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Geist", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  /* Surfaces: a hairline lift for cards, a deeper float for dialogs and pop-overs */
+  --shadow-card: 0 1px 2px rgb(74 55 40 / 0.04), 0 2px 12px -4px rgb(74 55 40 / 0.07);
+  --shadow-pop: 0 2px 6px rgb(74 55 40 / 0.06), 0 24px 48px -16px rgb(74 55 40 / 0.22);
 }
 
 /* Buttons: shape and colours live here; each button keeps its own size and spacing classes */
 @utility btn {
-  @apply rounded-full font-bold transition disabled:opacity-50;
+  @apply rounded-full font-semibold transition duration-150 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100;
 }
 
 @utility btn-primary {
-  @apply bg-primary text-white hover:bg-primary-hover disabled:hover:bg-primary;
+  @apply bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(74_55_40/0.2)] hover:bg-primary-hover disabled:hover:bg-primary;
 }
 
 @utility btn-secondary {
-  @apply border-2 border-slate/30 bg-white text-slate hover:border-slate disabled:hover:border-slate/30;
+  @apply border border-ink/15 bg-white text-ink shadow-[0_1px_2px_rgb(74_55_40/0.05)] hover:border-ink/30 hover:bg-cream-50 disabled:hover:border-ink/15 disabled:hover:bg-white;
 }
 
 html {
@@ -56,6 +60,12 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Numbers line up in tables, counts and prices */
+:where(td, th, dd, [data-num]) {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Fieldsets default to their content's minimum width, which pushed wide form rows off screen */
@@ -65,6 +75,11 @@ fieldset {
 
 :where(h1, h2, h3) {
   text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+
+:where(h1) {
+  letter-spacing: -0.03em;
 }
 
 :where(p) {

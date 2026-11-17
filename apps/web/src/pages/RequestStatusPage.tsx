@@ -16,14 +16,14 @@ export default function RequestStatusPage() {
     <div className="min-h-dvh bg-gradient-to-b from-[#fff4e2] to-cream-50">
       <header className="mx-auto flex max-w-3xl items-center justify-between px-4 py-5 sm:px-6">
         <Logo />
-        <span className="text-sm font-bold text-ink-soft">Your booking</span>
+        <span className="text-sm font-semibold text-ink-soft">Your booking</span>
       </header>
       <main className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
         {isPending ? (
           <CardSkeleton />
         ) : error || !data ? (
-          <section className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-ink/5">
-            <h1 className="text-2xl font-extrabold">Booking not found</h1>
+          <section className="rounded-2xl bg-white p-8 text-center shadow-card ring-1 ring-ink/5">
+            <h1 className="text-2xl font-semibold">Booking not found</h1>
             <p className="mt-2 text-ink-soft">
               {error instanceof ApiRequestError && error.status === 404
                 ? "This link may be incomplete. Try opening it again from your email."
@@ -97,9 +97,9 @@ function Status({ data }: { data: PublicRequestStatus }) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
-        <p className="text-sm font-bold tracking-wider text-coral-ink uppercase">Hi {data.vendorName.split(" ")[0]}</p>
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{event.name}</h1>
+      <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
+        <p className="text-sm font-semibold tracking-wider text-coral-ink uppercase">Hi {data.vendorName.split(" ")[0]}</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{event.name}</h1>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-ink-soft">
           <span className="flex items-center gap-1.5">
             <ClockIcon className="size-4 text-ink-muted" />
@@ -115,7 +115,7 @@ function Status({ data }: { data: PublicRequestStatus }) {
         <ul className="mt-4 flex flex-wrap gap-2">
           {event.days.map((d) => (
             <li key={d.dayOffset} className="rounded-lg bg-cream-50 px-2.5 py-1 text-sm ring-1 ring-ink/5">
-              <span className="font-bold">
+              <span className="font-semibold">
                 {formatDate(addDays(event.startDate, d.dayOffset), { weekday: "short", month: "short", day: "numeric" })}
               </span>{" "}
               · {timeRange(d.startTime, d.endTime)}
@@ -123,8 +123,8 @@ function Status({ data }: { data: PublicRequestStatus }) {
           ))}
         </ul>
 
-        <div className={`mt-6 rounded-2xl px-5 py-4 ${banner.tone}`} role="status">
-          <p className="flex items-center gap-2 font-extrabold">
+        <div className={`mt-6 rounded-xl px-5 py-4 ${banner.tone}`} role="status">
+          <p className="flex items-center gap-2 font-semibold">
             {data.status === "paid" && <CheckIcon className="size-5" strokeWidth={3} />}
             {banner.title}
           </p>
@@ -133,9 +133,9 @@ function Status({ data }: { data: PublicRequestStatus }) {
 
         {count > 0 && (
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-ink-soft">{count > 1 ? "Your tables:" : "Your table:"}</span>
+            <span className="text-sm font-medium text-ink-soft">{count > 1 ? "Your tables:" : "Your table:"}</span>
             {data.tableLabels.map((l) => (
-              <span key={l} className="rounded-lg bg-slate px-2.5 py-1 text-sm font-extrabold text-white">
+              <span key={l} className="rounded-lg bg-slate px-2.5 py-1 text-sm font-semibold text-white">
                 {l}
               </span>
             ))}
@@ -143,8 +143,8 @@ function Status({ data }: { data: PublicRequestStatus }) {
         )}
 
         {data.paymentInstructions && (
-          <div className="mt-5 rounded-2xl bg-cream-50 p-5 ring-1 ring-ink/5">
-            <p className="text-xs font-bold tracking-wider text-ink-muted uppercase">How to pay</p>
+          <div className="mt-5 rounded-xl bg-cream-50 p-5 ring-1 ring-ink/5">
+            <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">How to pay</p>
             <p className="mt-2 whitespace-pre-line">{data.paymentInstructions}</p>
             {data.status === "pending" && <p className="mt-2 text-sm text-ink-soft">Once you're approved.</p>}
           </div>
@@ -159,14 +159,14 @@ function Status({ data }: { data: PublicRequestStatus }) {
       </section>
 
       {event.floorMapUrl && count > 0 && (
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-          <h2 className="font-extrabold">Floor map</h2>
+        <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5">
+          <h2 className="font-semibold">Floor map</h2>
           <a
             href={event.floorMapUrl}
             target="_blank"
             rel="noreferrer"
             title="Open full size"
-            className="mt-3 block overflow-hidden rounded-2xl ring-1 ring-ink/10"
+            className="mt-3 block overflow-hidden rounded-xl ring-1 ring-ink/10"
           >
             <img src={event.floorMapUrl} alt="Floor map with table numbers" className="w-full bg-cream-50 object-contain" />
           </a>

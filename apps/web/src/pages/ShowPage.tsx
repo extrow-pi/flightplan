@@ -84,7 +84,7 @@ function TicketsWidget({ url, height, title }: { url: string; height: number; ti
       ref={ref}
       src={checkout ? `${url}?ext=1` : url}
       title={title}
-      className="w-full rounded-2xl border-0"
+      className="w-full rounded-xl border-0"
       style={{ height: autoHeight ?? height }}
       allow="payment *"
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation"
@@ -120,8 +120,8 @@ export default function ShowPage() {
         {isPending ? (
           <CardSkeleton />
         ) : error || !data ? (
-          <section className="mt-4 rounded-3xl bg-[var(--card)] p-10 text-center shadow-sm ring-1 ring-[var(--line)]">
-            <h1 className="text-2xl font-extrabold">
+          <section className="mt-4 rounded-2xl bg-[var(--card)] p-10 text-center shadow-card ring-1 ring-[var(--line)]">
+            <h1 className="text-2xl font-semibold">
               {error instanceof ApiRequestError && error.status === 404 ? "Show not found" : "Couldn't load this page"}
             </h1>
             <p className="mt-2 text-[var(--soft)]">
@@ -130,7 +130,7 @@ export default function ShowPage() {
                 : "Please try again in a moment."}
             </p>
             {handle && (
-              <Link to={`/o/${handle}`} className="mt-4 inline-block font-bold underline decoration-[var(--accent)] decoration-2">
+              <Link to={`/o/${handle}`} className="mt-4 inline-block font-semibold underline decoration-[var(--accent)] decoration-2">
                 See all shows
               </Link>
             )}
@@ -158,10 +158,10 @@ export default function ShowPage() {
   );
 }
 
-const card = "rounded-3xl bg-[var(--card)] shadow-sm ring-1 ring-[var(--line)]";
+const card = "rounded-2xl bg-[var(--card)] shadow-card ring-1 ring-[var(--line)]";
 const accentButton =
-  "inline-flex items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 font-bold text-[var(--on-accent)] shadow-sm transition hover:-translate-y-0.5 hover:brightness-105";
-const textLink = "font-bold underline decoration-[var(--accent)] decoration-2 underline-offset-2 hover:decoration-4";
+  "inline-flex items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 font-semibold text-[var(--on-accent)] shadow-card transition hover:-translate-y-0.5 hover:brightness-105";
+const textLink = "font-semibold underline decoration-[var(--accent)] decoration-2 underline-offset-2 hover:decoration-4";
 
 function Page({ data }: { data: PublicShowPage }) {
   const { organizer, show: s, page } = data;
@@ -177,7 +177,7 @@ function Page({ data }: { data: PublicShowPage }) {
 
   return (
     <div>
-      <Link to={`/o/${organizer.handle}`} className="inline-flex items-center gap-2 text-sm font-bold text-[var(--soft)] transition hover:text-[var(--text)]">
+      <Link to={`/o/${organizer.handle}`} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--soft)] transition hover:text-[var(--text)]">
         <ArrowLeftIcon className="size-4" />
         {organizer.logoUrl && <img src={organizer.logoUrl} alt="" className="size-6 rounded-md bg-white object-contain" />}
         All shows by {organizer.displayName}
@@ -189,7 +189,7 @@ function Page({ data }: { data: PublicShowPage }) {
           <div className="flex gap-4">
             <DateTile event={s} size="xl" accent />
             <div className="min-w-0 flex-1">
-              <h1 className="text-3xl font-extrabold tracking-tight break-words sm:text-4xl">{s.name}</h1>
+              <h1 className="text-3xl font-semibold tracking-tight break-words sm:text-4xl">{s.name}</h1>
               {s.tagline && <p className="mt-1 text-lg text-[var(--soft)]">{s.tagline}</p>}
             </div>
           </div>
@@ -199,13 +199,13 @@ function Page({ data }: { data: PublicShowPage }) {
               <img
                 src={uploadPath(page.flyer)}
                 alt={`Flyer for ${s.name}`}
-                className="mx-auto max-h-[80vh] w-auto max-w-full rounded-2xl shadow-sm ring-1 ring-[var(--line)]"
+                className="mx-auto max-h-[80vh] w-auto max-w-full rounded-xl shadow-card ring-1 ring-[var(--line)]"
               />
             </a>
           )}
 
           {!s.upcoming && (
-            <p className="mt-5 rounded-2xl bg-[var(--chip)] px-4 py-3 text-sm font-bold text-[var(--soft)]">This show has ended. Thanks to everyone who came!</p>
+            <p className="mt-5 rounded-xl bg-[var(--chip)] px-4 py-3 text-sm font-semibold text-[var(--soft)]">This show has ended. Thanks to everyone who came!</p>
           )}
 
           <dl className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -213,7 +213,7 @@ function Page({ data }: { data: PublicShowPage }) {
               <ClockIcon className="mt-0.5 size-5 shrink-0 text-[var(--accent)]" />
               <div>
                 <dt className="sr-only">When</dt>
-                <dd className="font-bold">{dates}</dd>
+                <dd className="font-semibold">{dates}</dd>
                 {single ? (
                   <dd className="text-[var(--soft)]">{timeRange(s.days[0].startTime, s.days[0].endTime)}</dd>
                 ) : (
@@ -227,7 +227,7 @@ function Page({ data }: { data: PublicShowPage }) {
               <MapPinIcon className="mt-0.5 size-5 shrink-0 text-[var(--accent)]" />
               <div className="min-w-0">
                 <dt className="sr-only">Where</dt>
-                <dd className="font-bold">{s.venueName}</dd>
+                <dd className="font-semibold">{s.venueName}</dd>
                 <dd className="text-[var(--soft)]">{[s.address, s.city].filter(Boolean).join(", ")}</dd>
                 <dd>
                   <a href={mapsUrl} target="_blank" rel="noreferrer noopener" className={`text-sm ${textLink}`}>
@@ -240,7 +240,7 @@ function Page({ data }: { data: PublicShowPage }) {
               <TicketIcon className="mt-0.5 size-5 shrink-0 text-[var(--accent)]" />
               <div>
                 <dt className="sr-only">Admission</dt>
-                <dd className="font-bold">{s.ticketPriceCents > 0 ? `Admission ${formatMoney(s.ticketPriceCents)}` : "Free admission"}</dd>
+                <dd className="font-semibold">{s.ticketPriceCents > 0 ? `Admission ${formatMoney(s.ticketPriceCents)}` : "Free admission"}</dd>
               </div>
             </div>
           </dl>
@@ -256,12 +256,12 @@ function Page({ data }: { data: PublicShowPage }) {
                 (s.booking.tablesLeft > 0 ? (
                   <Link
                     to={s.booking.url}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-[var(--accent)] px-6 py-2.5 font-bold transition hover:bg-[var(--accent)] hover:text-[var(--on-accent)]"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--accent)] px-6 py-2.5 font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--on-accent)]"
                   >
                     <TableIcon className="size-5" /> Book a vendor table
                   </Link>
                 ) : (
-                  <span className="text-sm font-semibold text-[var(--muted)]">Vendor tables are sold out</span>
+                  <span className="text-sm font-medium text-[var(--muted)]">Vendor tables are sold out</span>
                 ))}
             </div>
           )}
@@ -283,7 +283,7 @@ function BlockSection({ id, title, children }: { id?: string; title: string; chi
   return (
     <section id={id} className={`mt-6 scroll-mt-4 p-5 sm:p-8 ${card}`} aria-label={title || undefined}>
       {title && (
-        <h2 className="mb-4 flex items-center gap-2 text-2xl font-extrabold break-words">
+        <h2 className="mb-4 flex items-center gap-2 text-2xl font-semibold break-words">
           <span className="h-6 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden="true" />
           {title}
         </h2>
@@ -321,7 +321,7 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
           <div className="divide-y divide-[var(--line)]">
             {b.items.map((item, i) => (
               <details key={i} className="group py-3">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
                   {item.question}
                   <span className="text-xl text-[var(--accent)] transition group-open:rotate-45" aria-hidden="true">
                     +
@@ -338,7 +338,7 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
         <BlockSection title={b.title}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {b.images.map((file) => (
-              <a key={file} href={uploadPath(file)} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl ring-1 ring-[var(--line)]">
+              <a key={file} href={uploadPath(file)} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl ring-1 ring-[var(--line)]">
                 <img src={uploadPath(file)} alt="" loading="lazy" className="aspect-square w-full object-cover transition hover:scale-105" />
               </a>
             ))}
@@ -353,7 +353,7 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
           <iframe
             src={src}
             title={b.title || `Video for ${s.name}`}
-            className="aspect-video w-full rounded-2xl border-0"
+            className="aspect-video w-full rounded-xl border-0"
             loading="lazy"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
             allowFullScreen
@@ -380,10 +380,10 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
             {b.items.map((item, i) => {
               const logo = (
                 <>
-                  <span className="flex aspect-[3/2] items-center justify-center rounded-2xl bg-white p-3 ring-1 ring-[var(--line)]">
+                  <span className="flex aspect-[3/2] items-center justify-center rounded-xl bg-white p-3 ring-1 ring-[var(--line)]">
                     <img src={uploadPath(item.image)} alt={item.name} loading="lazy" className="max-h-full max-w-full object-contain" />
                   </span>
-                  {item.name && <span className="mt-2 block text-center text-sm font-bold text-[var(--soft)]">{item.name}</span>}
+                  {item.name && <span className="mt-2 block text-center text-sm font-semibold text-[var(--soft)]">{item.name}</span>}
                 </>
               );
               return (
@@ -409,12 +409,12 @@ function Block({ block: b, data, place, mapsUrl }: { block: ShowPageBlock; data:
           <iframe
             src={`https://www.google.com/maps?q=${encodeURIComponent(place)}&output=embed`}
             title={`Map of ${s.venueName}`}
-            className="aspect-[4/3] w-full rounded-2xl border-0 sm:aspect-[16/7]"
+            className="aspect-[4/3] w-full rounded-xl border-0 sm:aspect-[16/7]"
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
           />
           <p className="mt-3 text-[var(--soft)]">
-            <span className="font-bold text-[var(--text)]">{s.venueName}</span>
+            <span className="font-semibold text-[var(--text)]">{s.venueName}</span>
             {[s.address, s.city].filter(Boolean).length > 0 && ` · ${[s.address, s.city].filter(Boolean).join(", ")}`} ·{" "}
             <a href={mapsUrl} target="_blank" rel="noreferrer noopener" className={textLink}>
               Directions<ExternalLinkIcon className="ml-1 inline size-3.5 -translate-y-px" aria-hidden="true" />
@@ -445,15 +445,15 @@ function OrganizerCard({ organizer: o }: { organizer: PublicShowPage["organizer"
   return (
     <section className={`mt-6 flex flex-col items-center gap-4 p-5 text-center sm:flex-row sm:p-6 sm:text-left ${card}`} aria-label="Organizer">
       {o.logoUrl ? (
-        <img src={o.logoUrl} alt="" className="size-14 shrink-0 rounded-2xl bg-white object-contain ring-1 ring-[var(--line)]" />
+        <img src={o.logoUrl} alt="" className="size-14 shrink-0 rounded-xl bg-white object-contain ring-1 ring-[var(--line)]" />
       ) : (
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-2xl font-extrabold text-[var(--on-accent)]">
+        <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-2xl font-semibold text-[var(--on-accent)]">
           {o.displayName.trim()[0]?.toUpperCase()}
         </span>
       )}
       <div className="min-w-0 flex-1">
         <p className="text-sm text-[var(--muted)]">Organized by</p>
-        <p className="text-lg font-extrabold">{o.displayName}</p>
+        <p className="text-lg font-semibold">{o.displayName}</p>
         {links.length > 0 && (
           <ul className="mt-1 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm sm:justify-start">
             {links.map((l) => (
@@ -467,7 +467,7 @@ function OrganizerCard({ organizer: o }: { organizer: PublicShowPage["organizer"
           </ul>
         )}
       </div>
-      <Link to={`/o/${o.handle}`} className="shrink-0 rounded-full border-2 border-[var(--accent)] px-5 py-2 text-sm font-bold transition hover:bg-[var(--accent)] hover:text-[var(--on-accent)]">
+      <Link to={`/o/${o.handle}`} className="shrink-0 rounded-full border border-[var(--accent)] px-5 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--on-accent)]">
         More shows
       </Link>
     </section>

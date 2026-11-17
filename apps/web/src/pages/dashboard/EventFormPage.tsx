@@ -210,11 +210,11 @@ export default function EventFormPage({ kind: newKind = "event" }: { kind?: Kind
   if (isPending) return <PageSkeleton />;
   if (error || !event) {
     return (
-      <div className="rounded-3xl bg-white p-10 text-center ring-1 ring-ink/5">
-        <p className="text-lg font-extrabold">
+      <div className="rounded-2xl bg-white p-10 text-center ring-1 ring-ink/5">
+        <p className="text-lg font-semibold">
           {error instanceof ApiRequestError && error.status === 404 ? "Not found" : "Couldn't load this"}
         </p>
-        <Link to="/dashboard" className="mt-4 inline-block font-bold text-coral-ink hover:underline">
+        <Link to="/dashboard" className="mt-4 inline-block font-semibold text-coral-ink hover:underline">
           Back to dashboard
         </Link>
       </div>
@@ -385,13 +385,13 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
       {guard.dialog}
       <Link
         to={listPath}
-        className="inline-flex items-center gap-2 text-sm font-bold text-ink-soft transition hover:text-ink"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-ink-soft transition hover:text-ink"
       >
         <ArrowLeftIcon className="size-4" /> {isTemplateForm ? "All templates" : "All events"}
       </Link>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           {isTemplateForm
             ? isNew
               ? "Create a template"
@@ -403,7 +403,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                 : `Edit ${event.name}`}
         </h1>
         {isTemplateForm && (
-          <span className="rounded-full bg-peach px-3 py-1 text-sm font-bold text-coral-ink">Template</span>
+          <span className="rounded-full bg-peach px-3 py-1 text-sm font-semibold text-coral-ink">Template</span>
         )}
         {event && <SharedBadge event={event} />}
       </div>
@@ -420,16 +420,16 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
       {!isNew && <EventTabs event={event} />}
 
       {readOnly && event && (
-        <p className="mt-6 rounded-2xl bg-sky/15 px-5 py-4 font-semibold text-slate" role="status">
+        <p className="mt-6 rounded-xl bg-sky/15 px-5 py-4 font-medium text-slate" role="status">
           You have view-only access to this {isTemplateForm ? "template" : "event"}. Ask {event.access.ownerName} to make you
           an editor if you need to change it.
         </p>
       )}
 
       {fromTemplate && !isTemplateForm && (
-        <div className="mt-6 flex items-start gap-3 rounded-2xl bg-success-soft px-5 py-4 text-success" role="status">
+        <div className="mt-6 flex items-start gap-3 rounded-xl bg-success-soft px-5 py-4 text-success" role="status">
           <CopyIcon className="mt-0.5 size-5 shrink-0" />
-          <p className="font-semibold">
+          <p className="font-medium">
             Draft created from template “{fromTemplate}”. Customize anything below, then publish when you're ready.
           </p>
         </div>
@@ -548,11 +548,11 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                   aria-invalid={!!errors.paymentDueDays}
                   onChange={(e) => update("paymentDueDays", e.target.value)}
                 />
-                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-semibold text-ink-muted">
+                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-medium text-ink-muted">
                   days
                 </span>
               </div>
-              <label className="flex shrink-0 items-center gap-2 text-sm font-semibold">
+              <label className="flex shrink-0 items-center gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
                   className="size-4 accent-coral"
@@ -629,16 +629,16 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
         </fieldset>
 
         {generalError && (
-          <p className="rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+          <p className="rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
             {saveError?.message}
           </p>
         )}
 
         {savedTemplate && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-success-soft px-5 py-4 font-semibold text-success" role="status">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-success-soft px-5 py-4 font-medium text-success" role="status">
             <CopyIcon className="size-5" />
             Saved “{savedTemplate.name}” as a template.
-            <Link to="/dashboard/templates" className="font-bold underline">
+            <Link to="/dashboard/templates" className="font-semibold underline">
               View templates
             </Link>
           </div>
@@ -650,7 +650,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
             {!isNew && owner &&
               (confirmDelete ? (
                 <>
-                  <span className="text-sm font-semibold text-coral-ink">Delete permanently?</span>
+                  <span className="text-sm font-medium text-coral-ink">Delete permanently?</span>
                   <button
                     type="button"
                     disabled={del.isPending}
@@ -662,14 +662,14 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                         },
                       })
                     }
-                    className="rounded-full bg-coral-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+                    className="rounded-full bg-coral-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   >
                     {del.isPending ? "Deleting…" : "Delete"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(false)}
-                    className="rounded-full px-3 py-2 text-sm font-bold text-ink-soft hover:bg-cream"
+                    className="rounded-full px-3 py-2 text-sm font-semibold text-ink-soft hover:bg-cream"
                   >
                     Cancel
                   </button>
@@ -678,7 +678,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(true)}
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold text-coral-ink hover:bg-peach"
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-coral-ink hover:bg-peach"
                 >
                   <TrashIcon className="size-4" /> Delete {isTemplateForm ? "template" : "event"}
                 </button>
@@ -688,7 +688,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                 type="button"
                 onClick={onSaveAsTemplate}
                 disabled={saveAsTemplate.isPending}
-                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold text-slate hover:bg-cream disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-slate hover:bg-cream disabled:opacity-60"
               >
                 <CopyIcon className="size-4" /> {saveAsTemplate.isPending ? "Saving template…" : "Save as template"}
               </button>
@@ -705,7 +705,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                     onClick={() => setSpawning(true)}
                     disabled={dirty}
                     title={dirty ? "Save your changes first" : undefined}
-                    className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-slate px-6 py-3 font-bold text-slate transition hover:bg-slate hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-slate"
+                    className="inline-flex items-center justify-center gap-2 btn btn-secondary px-6 py-3 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-slate"
                   >
                     <CopyIcon className="size-4" /> Use template
                   </button>
@@ -720,7 +720,7 @@ function EventForm({ kind, event }: { kind: Kind; event?: EventRecord }) {
                   type="button"
                   onClick={() => submit("draft")}
                   disabled={save.isPending}
-                  className="rounded-full border-2 border-slate px-6 py-3 font-bold text-slate transition hover:bg-slate hover:text-white disabled:opacity-60"
+                  className="btn btn-secondary px-6 py-3 disabled:opacity-60"
                 >
                   {save.isPending && save.variables?.status === "draft"
                     ? "Saving…"
@@ -764,10 +764,10 @@ function ScheduleEditor({
   onRemove: (key: number) => void;
 }) {
   return (
-    <fieldset id="schedule" className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+    <fieldset id="schedule" className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
       <legend className="sr-only">Schedule</legend>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-extrabold" aria-hidden="true">
+        <h2 className="text-lg font-semibold" aria-hidden="true">
           Schedule
         </h2>
         <p className="text-sm text-ink-muted">
@@ -775,10 +775,10 @@ function ScheduleEditor({
         </p>
       </div>
 
-      <div className="mt-5 hidden grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] gap-3 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+      <div className="mt-5 hidden grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] gap-3 px-1 text-xs font-semibold tracking-wider text-ink-muted uppercase sm:grid">
         <span>{dated ? "Date" : "Day"}</span>
         <span title="When vendors can start setting up (optional)">
-          Setup <span className="font-semibold normal-case">(optional)</span>
+          Setup <span className="font-medium normal-case">(optional)</span>
         </span>
         <span>Opens</span>
         <span>Closes</span>
@@ -796,7 +796,7 @@ function ScheduleEditor({
           return (
             <li
               key={d.key}
-              className="grid grid-cols-3 gap-3 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
+              className="grid grid-cols-3 gap-3 rounded-xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] sm:items-start sm:bg-transparent sm:p-0 sm:ring-0"
             >
               <div className="col-span-3 sm:col-span-1">
                 {dated ? (
@@ -824,11 +824,11 @@ function ScheduleEditor({
                     ))}
                   </select>
                 )}
-                {dated && d.date && <p className="mt-1 px-1 text-xs font-semibold text-ink-soft">{label}</p>}
+                {dated && d.date && <p className="mt-1 px-1 text-xs font-medium text-ink-soft">{label}</p>}
                 <RowError message={rowErrors.date ?? rowErrors.day} />
               </div>
               <div>
-                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Setup</span>
+                <span className="mb-1 block px-1 text-xs font-semibold text-ink-muted sm:hidden">Setup</span>
                 <input
                   type="time"
                   aria-label={`${label}: vendor setup starts (optional)`}
@@ -840,7 +840,7 @@ function ScheduleEditor({
                 <RowError message={rowErrors.setupTime} />
               </div>
               <div>
-                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Opens</span>
+                <span className="mb-1 block px-1 text-xs font-semibold text-ink-muted sm:hidden">Opens</span>
                 <input
                   type="time"
                   aria-label={`${label}: opens`}
@@ -852,7 +852,7 @@ function ScheduleEditor({
                 <RowError message={rowErrors.startTime} />
               </div>
               <div>
-                <span className="mb-1 block px-1 text-xs font-bold text-ink-muted sm:hidden">Closes</span>
+                <span className="mb-1 block px-1 text-xs font-semibold text-ink-muted sm:hidden">Closes</span>
                 <input
                   type="time"
                   aria-label={`${label}: closes`}
@@ -867,7 +867,7 @@ function ScheduleEditor({
                 type="button"
                 onClick={() => onRemove(d.key)}
                 disabled={days.length === 1}
-                className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-12 sm:py-0"
+                className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-12 sm:py-0"
                 aria-label={`Remove ${label}`}
                 title="Remove day"
               >
@@ -880,7 +880,7 @@ function ScheduleEditor({
       </ol>
 
       {errors.days && (
-        <p className="mt-3 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-3 text-sm font-medium text-coral-ink" role="alert">
           {errors.days}
         </p>
       )}
@@ -889,7 +889,7 @@ function ScheduleEditor({
         <button
           type="button"
           onClick={onAdd}
-          className="mt-4 inline-flex items-center gap-2 rounded-full border-2 border-dashed border-coral/40 px-5 py-2.5 text-sm font-bold text-coral-ink transition hover:border-coral hover:bg-peach/40"
+          className="mt-4 inline-flex items-center gap-2 rounded-full border border-dashed border-coral/40 px-5 py-2.5 text-sm font-semibold text-coral-ink transition hover:border-coral hover:bg-peach/40"
         >
           <PlusIcon className="size-4" strokeWidth={3} /> Add another day
         </button>
@@ -899,7 +899,7 @@ function ScheduleEditor({
 }
 
 function RowError({ message }: { message?: string }) {
-  return message ? <p className="mt-1 px-1 text-sm font-semibold text-coral-ink">{message}</p> : null;
+  return message ? <p className="mt-1 px-1 text-sm font-medium text-coral-ink">{message}</p> : null;
 }
 
 /**
@@ -931,34 +931,34 @@ function TableTypesField({
     })
     .filter(Boolean);
   const cell =
-    "w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-base text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:outline-none disabled:bg-cream-50 disabled:text-ink-soft";
+    "w-full rounded-xl border border-ink/15 bg-white px-3 py-2 text-base text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none disabled:bg-cream-50 disabled:text-ink-soft";
 
   return (
     <div className="sm:col-span-2">
-      <p className="text-sm font-bold">Vendor tables</p>
+      <p className="text-sm font-semibold">Vendor tables</p>
       <p className="mt-0.5 text-sm text-ink-soft">One row per kind of table, e.g. 6 ft and 8 ft tables at different prices. Prices are for the whole show.</p>
       {planned && (
         <p className="mt-2 rounded-xl bg-info-soft px-3 py-2 text-sm text-slate-deep">
           This show has a floorplan, so its tables come from the plan: counts below are the plan's tables of each type. Set each
           table's type in the{" "}
-          <Link to={planPath!} className="font-bold underline">
+          <Link to={planPath!} className="font-semibold underline">
             floorplan editor
           </Link>
           .
         </p>
       )}
-      <div className="mt-3 hidden grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] gap-2 px-1 text-xs font-bold tracking-wider text-ink-muted uppercase sm:grid">
+      <div className="mt-3 hidden grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] gap-2 px-1 text-xs font-semibold tracking-wider text-ink-muted uppercase sm:grid">
         <span>Type</span>
         <span>Tables</span>
         <span>Price each</span>
         <span>
-          Prefix <span className="font-semibold normal-case">(optional)</span>
+          Prefix <span className="font-medium normal-case">(optional)</span>
         </span>
         <span className="w-10" />
       </div>
       <ol className="mt-2 space-y-2">
         {types.map((t, i) => (
-          <li key={t.key} className="grid grid-cols-3 gap-2 rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] sm:items-center sm:bg-transparent sm:p-0 sm:ring-0">
+          <li key={t.key} className="grid grid-cols-3 gap-2 rounded-xl bg-cream-50 p-3 ring-1 ring-ink/5 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] sm:items-center sm:bg-transparent sm:p-0 sm:ring-0">
             <input
               className={`${cell} col-span-3 sm:col-span-1`}
               aria-label={`Table type ${i + 1}: name`}
@@ -980,7 +980,7 @@ function TableTypesField({
               onChange={(e) => set(t.key, { count: e.target.value })}
             />
             <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-bold text-ink-muted">$</span>
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-semibold text-ink-muted">$</span>
               <input
                 className={`${cell} pl-7`}
                 aria-label={`Table type ${i + 1}: price per table`}
@@ -1007,7 +1007,7 @@ function TableTypesField({
               type="button"
               onClick={() => onChange(types.filter((x) => x.key !== t.key))}
               disabled={types.length === 1}
-              className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-bold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-10 sm:py-0"
+              className="col-span-3 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold text-ink-soft transition hover:bg-peach hover:text-coral-ink disabled:invisible sm:col-span-1 sm:size-10 sm:py-0"
               aria-label={`Remove table type ${t.name || i + 1}`}
               title="Remove this table type"
             >
@@ -1018,7 +1018,7 @@ function TableTypesField({
         ))}
       </ol>
       {error && (
-        <p className="mt-2 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-2 text-sm font-medium text-coral-ink" role="alert">
           {error}
         </p>
       )}
@@ -1027,7 +1027,7 @@ function TableTypesField({
           <button
             type="button"
             onClick={() => onChange([...types, typeRow({ id: crypto.randomUUID(), name: "", count: planned ? "0" : "", price: "", prefix: "" })])}
-            className="inline-flex items-center gap-2 rounded-full border-2 border-dashed border-coral/40 px-4 py-2 text-sm font-bold text-coral-ink transition hover:border-coral hover:bg-peach/40"
+            className="inline-flex items-center gap-2 rounded-full border border-dashed border-coral/40 px-4 py-2 text-sm font-semibold text-coral-ink transition hover:border-coral hover:bg-peach/40"
           >
             + Add a table type
           </button>
@@ -1064,7 +1064,7 @@ function MoneyInput({
 }) {
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center font-bold text-ink-muted">$</span>
+      <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center font-semibold text-ink-muted">$</span>
       <input
         id={id}
         type="number"
@@ -1111,9 +1111,9 @@ function TiersSection({
   };
 
   return (
-    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+    <fieldset className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
       <legend className="sr-only">Multi-table discounts</legend>
-      <h2 className="text-lg font-extrabold" aria-hidden="true">
+      <h2 className="text-lg font-semibold" aria-hidden="true">
         Multi-table discounts
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
@@ -1123,8 +1123,8 @@ function TiersSection({
       {tiers.length > 0 && (
         <ul className="mt-5 space-y-3">
           {tiers.map((t, i) => (
-            <li key={t.key} className="rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5">
-              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+            <li key={t.key} className="rounded-xl bg-cream-50 p-3 ring-1 ring-ink/5">
+              <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                 <input
                   type="number"
                   inputMode="numeric"
@@ -1133,7 +1133,7 @@ function TiersSection({
                   aria-label={`Tier ${i + 1}: minimum tables`}
                   value={t.minTables}
                   onChange={(e) => set(t.key, { minTables: e.target.value })}
-                  className="w-16 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none"
+                  className="w-16 rounded-xl border border-ink/15 bg-white px-2 py-1.5 text-base focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
                 />
                 <span>+ tables get</span>
                 {t.kind === "per_table" && <span>$</span>}
@@ -1145,13 +1145,13 @@ function TiersSection({
                   aria-label={`Tier ${i + 1}: ${t.kind === "percent" ? "percent off" : "dollars off each table"}`}
                   value={t.value}
                   onChange={(e) => set(t.key, { value: e.target.value })}
-                  className="w-20 rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none"
+                  className="w-20 rounded-xl border border-ink/15 bg-white px-2 py-1.5 text-base focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
                 />
                 <select
                   aria-label={`Tier ${i + 1}: discount type`}
                   value={t.kind}
                   onChange={(e) => set(t.key, { kind: e.target.value as BulkDiscountKind })}
-                  className="rounded-xl border-2 border-cream bg-white px-2 py-1.5 text-base focus:border-coral focus:outline-none sm:text-sm"
+                  className="rounded-xl border border-ink/15 bg-white px-2 py-1.5 text-base focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none sm:text-sm"
                 >
                   <option value="percent">% off the total</option>
                   <option value="per_table">off each table</option>
@@ -1166,7 +1166,7 @@ function TiersSection({
                 </button>
               </div>
               {Number(t.minTables) > maxPerRequest ? (
-                <p className="mt-1.5 text-xs font-semibold text-gold-ink">
+                <p className="mt-1.5 text-xs font-medium text-gold-ink">
                   Vendors can pick up to {maxPerRequest} {maxPerRequest === 1 ? "table" : "tables"} per request, so they
                   can't reach this tier. Raise “Max tables per request” above, or lower this tier.
                 </p>
@@ -1178,7 +1178,7 @@ function TiersSection({
         </ul>
       )}
       {error && (
-        <p className="mt-3 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-3 text-sm font-medium text-coral-ink" role="alert">
           {error}
         </p>
       )}
@@ -1197,9 +1197,9 @@ function TiersSection({
 /** Upload, replace or remove the floor map image. Needs a saved event to attach it to. */
 function FloorMapSection({ event }: { event?: EventRecord }) {
   return (
-    <fieldset className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5 sm:p-8">
+    <fieldset className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5 sm:p-8">
       <legend className="sr-only">Floor map</legend>
-      <h2 className="text-lg font-extrabold" aria-hidden="true">
+      <h2 className="text-lg font-semibold" aria-hidden="true">
         Floor map
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
@@ -1208,7 +1208,7 @@ function FloorMapSection({ event }: { event?: EventRecord }) {
       {event ? (
         <FloorMapUpload event={event} />
       ) : (
-        <p className="mt-4 rounded-2xl bg-cream-50 px-4 py-3 text-sm font-semibold text-ink-soft ring-1 ring-ink/5">
+        <p className="mt-4 rounded-xl bg-cream-50 px-4 py-3 text-sm font-medium text-ink-soft ring-1 ring-ink/5">
           Save first, then you can upload a floor map here.
         </p>
       )}
@@ -1229,7 +1229,7 @@ function FloorMapUpload({ event }: { event: EventRecord }) {
           href={event.floorMapUrl}
           target="_blank"
           rel="noreferrer"
-          className="block overflow-hidden rounded-2xl ring-1 ring-ink/10"
+          className="block overflow-hidden rounded-xl ring-1 ring-ink/10"
           title="Open full size"
         >
           <img
@@ -1258,14 +1258,14 @@ function FloorMapUpload({ event }: { event: EventRecord }) {
             type="button"
             onClick={() => remove.mutate()}
             disabled={remove.isPending}
-            className="rounded-full px-4 py-2 text-sm font-bold text-coral-ink hover:bg-peach disabled:opacity-60"
+            className="rounded-full px-4 py-2 text-sm font-semibold text-coral-ink hover:bg-peach disabled:opacity-60"
           >
             {remove.isPending ? "Removing…" : "Remove"}
           </button>
         </div>
       )}
       {error && (
-        <p className="mt-3 text-sm font-semibold text-coral-ink" role="alert">
+        <p className="mt-3 text-sm font-medium text-coral-ink" role="alert">
           {error}
         </p>
       )}

@@ -75,12 +75,12 @@ export default function VendorImportDialog({
       <div
         ref={ref}
         tabIndex={-1}
-        className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-xl focus:outline-none sm:p-8"
+        className="relative max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-pop focus:outline-none sm:p-8"
       >
         <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
           <CloseIcon className="size-5" />
         </button>
-        <h2 id="import-title" className="pr-8 text-2xl font-extrabold">
+        <h2 id="import-title" className="pr-8 text-2xl font-semibold">
           {event ? `Import vendors to ${event.name}` : "Import vendors"}
         </h2>
 
@@ -95,18 +95,18 @@ export default function VendorImportDialog({
               Nothing is deleted, and vendors already in your list are matched by email.
             </p>
 
-            <div className="mt-5 rounded-2xl bg-cream-50 p-4 text-sm ring-1 ring-ink/5">
+            <div className="mt-5 rounded-xl bg-cream-50 p-4 text-sm ring-1 ring-ink/5">
               <p>
                 <strong>CSV file</strong> with a header row. <strong>Name</strong> and <strong>Email</strong> are required;{" "}
                 <strong>Business</strong>, <strong>Phone</strong> and <strong>Notes</strong> are optional. An export from the
                 Vendors page works as-is.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <label className="inline-flex cursor-pointer items-center rounded-full bg-slate px-4 py-2 font-bold text-white transition hover:bg-slate/90 focus-within:ring-4 focus-within:ring-coral/30">
+                <label className="inline-flex cursor-pointer items-center rounded-full bg-slate px-4 py-2 font-semibold text-white transition hover:bg-slate/90 focus-within:ring-4 focus-within:ring-coral/30">
                   {file ? "Choose another file" : "Choose CSV file"}
                   <input type="file" accept=".csv,text/csv" className="sr-only" onChange={onFile} />
                 </label>
-                <button type="button" onClick={downloadVendorTemplate} className="inline-flex items-center gap-1.5 font-bold text-coral-ink hover:underline">
+                <button type="button" onClick={downloadVendorTemplate} className="inline-flex items-center gap-1.5 font-semibold text-coral-ink hover:underline">
                   <DownloadIcon className="size-4" /> Template
                 </button>
               </div>
@@ -133,12 +133,12 @@ export default function VendorImportDialog({
                 </ul>
 
                 {preview.invalid.length > 0 && (
-                  <details className="rounded-2xl bg-peach/50 px-4 py-3 text-sm">
-                    <summary className="cursor-pointer font-bold text-coral-ink">Rows that will be skipped</summary>
+                  <details className="rounded-xl bg-peach/50 px-4 py-3 text-sm">
+                    <summary className="cursor-pointer font-semibold text-coral-ink">Rows that will be skipped</summary>
                     <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
                       {preview.invalid.map((r) => (
                         <li key={r.line}>
-                          <span className="font-semibold">Line {r.line}:</span> {r.error}
+                          <span className="font-medium">Line {r.line}:</span> {r.error}
                         </li>
                       ))}
                     </ul>
@@ -147,13 +147,13 @@ export default function VendorImportDialog({
 
                 {conflicts.length > 0 && (
                   <section aria-labelledby="conflicts-title">
-                    <h3 id="conflicts-title" className="font-bold">
+                    <h3 id="conflicts-title" className="font-semibold">
                       Overwrite existing vendors?
                     </h3>
                     <p className="text-sm text-ink-soft">
                       Ticked vendors get the file's details. Blank cells in the file never clear what's saved.
                     </p>
-                    <label className="mt-3 flex items-center gap-2 rounded-xl bg-cream-50 px-3 py-2 text-sm font-bold ring-1 ring-ink/5">
+                    <label className="mt-3 flex items-center gap-2 rounded-xl bg-cream-50 px-3 py-2 text-sm font-semibold ring-1 ring-ink/5">
                       <input
                         type="checkbox"
                         className="size-4 accent-coral"
@@ -185,15 +185,15 @@ export default function VendorImportDialog({
                                 }
                               />
                               <span className="min-w-0 flex-1">
-                                <span className="block font-bold break-all">
+                                <span className="block font-semibold break-all">
                                   {c.current.name} · {c.email}
                                   <span className="font-normal text-ink-muted"> (line {c.line})</span>
                                 </span>
                                 {c.fields.map((f) => (
                                   <span key={f} className="mt-0.5 block break-words text-ink-soft">
-                                    <span className="font-semibold">{fieldLabels[f]}:</span>{" "}
+                                    <span className="font-medium">{fieldLabels[f]}:</span>{" "}
                                     <span className={on ? "line-through" : ""}>{c.current[f] || "(blank)"}</span> →{" "}
-                                    <span className={on ? "font-semibold text-ink" : ""}>{c.incoming[f]}</span>
+                                    <span className={on ? "font-medium text-ink" : ""}>{c.incoming[f]}</span>
                                   </span>
                                 ))}
                               </span>
@@ -213,7 +213,7 @@ export default function VendorImportDialog({
             )}
 
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-bold text-ink-soft hover:bg-cream">
+              <button type="button" onClick={onClose} className="rounded-full px-5 py-3 font-semibold text-ink-soft hover:bg-cream">
                 Cancel
               </button>
               <button
@@ -260,7 +260,7 @@ function Summary({ n, text, tone }: { n: number; text: string; tone?: "warn" | "
   return (
     <li className="flex items-baseline gap-2">
       <span
-        className={`min-w-9 rounded-full px-2 py-0.5 text-center text-xs font-extrabold ${
+        className={`min-w-9 rounded-full px-2 py-0.5 text-center text-xs font-semibold ${
           tone === "bad" ? "bg-coral-ink text-white" : tone === "warn" ? "bg-warning-soft text-gold-ink" : "bg-cream text-ink"
         }`}
       >
@@ -273,7 +273,7 @@ function Summary({ n, text, tone }: { n: number; text: string; tone?: "warn" | "
 
 function Alert({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink" role="alert">
+    <p className="mt-4 rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink" role="alert">
       {children}
     </p>
   );

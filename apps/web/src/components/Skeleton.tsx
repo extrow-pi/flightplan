@@ -9,7 +9,7 @@ export function SkeletonLine({ className = "", style }: { className?: string; st
 /** A white card with a heading and a few lines */
 export function SkeletonCard({ lines = 3 }: { lines?: number }) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
+    <div className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-ink/5">
       <SkeletonLine className="h-5 w-1/3" />
       <div className="mt-4 space-y-3">
         {Array.from({ length: lines }, (_, i) => (
@@ -43,6 +43,22 @@ export function PageSkeleton({ tabs = true }: { tabs?: boolean }) {
           <SkeletonCard lines={2} />
           <SkeletonCard lines={3} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** The two-column body under an event's tabs */
+export function BodySkeleton() {
+  return (
+    <div role="status" aria-live="polite" className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <span className="sr-only">Loading…</span>
+      <div className="space-y-6">
+        <SkeletonCard lines={4} />
+        <SkeletonCard lines={3} />
+      </div>
+      <div className="hidden space-y-6 lg:block">
+        <SkeletonCard lines={2} />
       </div>
     </div>
   );

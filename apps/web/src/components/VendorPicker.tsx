@@ -49,7 +49,7 @@ export default function VendorPicker({
         ref={listRef}
         role="radiogroup"
         aria-label="Vendor"
-        className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-2xl bg-cream-50 p-1.5 ring-1 ring-ink/5"
+        className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-xl bg-cream-50 p-1.5 ring-1 ring-ink/5"
       >
         {shown.map((v) => {
           const reason = isDisabled?.(v) ?? null;
@@ -68,16 +68,16 @@ export default function VendorPicker({
               }`}
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold">
+                <span className="block truncate text-sm font-semibold">
                   {v.favourite && (
                     <StarIcon className="mr-1 inline size-3.5 -translate-y-px text-gold-ink" fill="currentColor" aria-label="Favourite" role="img" />
                   )}
                   {v.businessName || v.name}
-                  {v.businessName && <span className="font-semibold text-ink-soft"> · {v.name}</span>}
+                  {v.businessName && <span className="font-medium text-ink-soft"> · {v.name}</span>}
                 </span>
                 <span className="block truncate text-xs text-ink-muted">{v.email}</span>
               </span>
-              {v.banned && <span className="rounded-full bg-coral-ink px-2 py-0.5 text-xs font-bold text-white">Banned</span>}
+              {v.banned && <span className="rounded-full bg-coral-ink px-2 py-0.5 text-xs font-semibold text-white">Banned</span>}
               {badge?.(v)}
             </button>
           );

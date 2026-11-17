@@ -48,8 +48,9 @@ export default function DashboardLayout() {
 
   if (isPending) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-cream-50 text-ink-muted" role="status">
-        Loading your dashboard…
+      <div className="flex min-h-dvh items-center justify-center bg-cream-50" role="status">
+        <span className="size-8 animate-spin rounded-full border-2 border-ink/10 border-t-primary" />
+        <span className="sr-only">Loading your dashboard…</span>
       </div>
     );
   }
@@ -63,7 +64,7 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-dvh bg-cream-50">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-ink/5 bg-white lg:block">{sidebar}</aside>
+      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-ink/[0.06] bg-cream-50 lg:block">{sidebar}</aside>
 
       {/* Mobile top bar + drawer */}
       <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-ink/5 bg-white/90 px-4 backdrop-blur lg:hidden">
@@ -82,7 +83,7 @@ export default function DashboardLayout() {
       {menuOpen && (
         <div className="fixed inset-0 z-40 lg:hidden" id="dashboard-menu">
           <div className="absolute inset-0 bg-ink/30" onClick={() => setMenuOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-xl">
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-pop">
             <button
               type="button"
               onClick={() => setMenuOpen(false)}
@@ -117,12 +118,12 @@ function Sidebar({ user }: { user: { name: string; email: string; image?: string
           item.soon ? (
             <span
               key={item.to}
-              className="flex cursor-default items-center gap-3 rounded-xl px-3 py-2.5 font-semibold text-ink-muted/80"
+              className="flex cursor-default items-center gap-3 rounded-lg px-3 py-2 text-[15px] font-medium text-ink-muted/80"
               aria-disabled="true"
             >
               <item.icon className="size-5" />
               {item.label}
-              <span className="ml-auto rounded-full bg-cream px-2 py-0.5 text-[10px] font-bold tracking-wider text-gold-ink uppercase">
+              <span className="ml-auto rounded-full bg-cream px-2 py-0.5 text-[10px] font-semibold tracking-wider text-gold-ink uppercase">
                 Soon
               </span>
             </span>
@@ -132,8 +133,8 @@ function Sidebar({ user }: { user: { name: string; email: string; image?: string
               to={item.to}
               end={item.end}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold transition ${
-                  isActive ? "bg-peach/70 text-coral-ink" : "text-ink-soft hover:bg-cream-50 hover:text-ink"
+                `flex items-center gap-3 rounded-lg px-3 py-2 text-[15px] font-medium transition ${
+                  isActive ? "bg-white text-ink shadow-card ring-1 ring-ink/5 [&>svg]:text-primary" : "text-ink-soft hover:bg-ink/[0.04] hover:text-ink"
                 }`
               }
             >
@@ -166,17 +167,17 @@ function UserCard({ user }: { user: { name: string; email: string; image?: strin
   }
 
   return (
-    <div className="mt-auto rounded-2xl bg-cream-50 p-3 ring-1 ring-ink/5">
+    <div className="mt-auto rounded-xl bg-cream-50 p-3 ring-1 ring-ink/5">
       <div className="flex items-center gap-3">
         {user.image ? (
           <img src={user.image} alt="" className="size-10 rounded-full" referrerPolicy="no-referrer" />
         ) : (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate text-sm font-bold text-white">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate text-sm font-semibold text-white">
             {initials}
           </span>
         )}
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{user.name}</p>
+          <p className="truncate text-sm font-semibold">{user.name}</p>
           <p className="truncate text-xs text-ink-muted">{user.email}</p>
         </div>
       </div>
@@ -184,7 +185,7 @@ function UserCard({ user }: { user: { name: string; email: string; image?: strin
         type="button"
         onClick={onSignOut}
         disabled={signingOut}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate/20 py-2 text-sm font-bold text-slate transition hover:border-slate disabled:opacity-60"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate/20 py-2 text-sm font-semibold text-slate transition hover:border-slate disabled:opacity-60"
       >
         <LogOutIcon className="size-4" />
         {signingOut ? "Signing out…" : "Sign out"}

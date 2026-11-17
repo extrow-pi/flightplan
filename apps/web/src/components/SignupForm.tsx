@@ -42,7 +42,7 @@ const emptyForm: OrganizerSignupInput = {
 };
 
 const inputClass =
-  "w-full rounded-xl border-2 border-cream bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
+  "w-full rounded-xl border border-ink/15 bg-white px-4 py-3 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none aria-invalid:border-coral-ink";
 
 export default function SignupForm() {
   const [form, setForm] = useState(emptyForm);
@@ -73,10 +73,10 @@ export default function SignupForm() {
   if (mutation.isSuccess) {
     return (
       <div className="flex flex-col items-center py-10 text-center" role="status">
-        <span className="flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-coral to-gold text-white shadow-lg">
+        <span className="flex size-16 items-center justify-center rounded-full bg-primary text-white shadow-lg">
           <CheckIcon className="size-8" />
         </span>
-        <h3 className="mt-6 text-2xl font-extrabold">
+        <h3 className="mt-6 text-2xl font-semibold">
           {mutation.data.alreadyRegistered ? "You're already on the list!" : "You're checked in!"}
         </h3>
         <p className="mt-2 max-w-sm text-ink-soft">
@@ -161,16 +161,16 @@ export default function SignupForm() {
       </Field>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-bold">Events per year</legend>
+        <legend className="mb-2 text-sm font-semibold">Events per year</legend>
         <div className="grid grid-cols-4 gap-2" role="radiogroup">
           {EVENTS_PER_YEAR.map((n) => {
             const selected = form.eventsPerYear === n;
             return (
               <label
                 key={n}
-                className={`cursor-pointer rounded-xl border-2 py-3 text-center font-bold transition has-focus-visible:ring-4 has-focus-visible:ring-coral/25 ${
+                className={`cursor-pointer rounded-xl border py-3 text-center font-semibold transition has-focus-visible:ring-4 has-focus-visible:ring-coral/25 ${
                   selected
-                    ? "border-coral bg-primary hover:bg-primary-hover text-white shadow-sm"
+                    ? "border-coral bg-primary hover:bg-primary-hover text-white shadow-card"
                     : "border-cream bg-white text-ink-soft hover:border-coral/50"
                 }`}
               >
@@ -187,7 +187,7 @@ export default function SignupForm() {
             );
           })}
         </div>
-        {err("eventsPerYear") && <p className="text-sm font-semibold text-coral-ink">{err("eventsPerYear")}</p>}
+        {err("eventsPerYear") && <p className="text-sm font-medium text-coral-ink">{err("eventsPerYear")}</p>}
       </fieldset>
 
       <div className="sm:col-span-2">
@@ -206,7 +206,7 @@ export default function SignupForm() {
       <div className="flex flex-col items-start gap-3 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-ink-muted">
           Free during early access. No credit card needed.{" "}
-          <Link to="/privacy" className="font-semibold text-coral-ink hover:underline">
+          <Link to="/privacy" className="font-medium text-coral-ink hover:underline">
             Privacy
           </Link>
         </p>
@@ -220,7 +220,7 @@ export default function SignupForm() {
       </div>
 
       {generalError && (
-        <p className="rounded-xl bg-peach px-4 py-3 text-sm font-semibold text-coral-ink sm:col-span-2" role="alert">
+        <p className="rounded-xl bg-peach px-4 py-3 text-sm font-medium text-coral-ink sm:col-span-2" role="alert">
           {mutation.error.message}
         </p>
       )}
@@ -243,11 +243,11 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={htmlFor} className="text-sm font-bold">
+      <label htmlFor={htmlFor} className="text-sm font-semibold">
         {label} {optional && <span className="font-normal text-ink-muted">(optional)</span>}
       </label>
       {children}
-      {error && <p className="text-sm font-semibold text-coral-ink">{error}</p>}
+      {error && <p className="text-sm font-medium text-coral-ink">{error}</p>}
     </div>
   );
 }

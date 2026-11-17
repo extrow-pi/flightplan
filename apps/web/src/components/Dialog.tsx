@@ -3,7 +3,7 @@ import { ApiRequestError } from "../lib/api";
 import { CloseIcon } from "./Icons";
 
 export const smallInput =
-  "mt-1 w-full rounded-xl border-2 border-cream bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-coral focus:ring-4 focus:ring-coral/15 focus:outline-none";
+  "mt-1 w-full rounded-xl border border-ink/15 bg-white px-3 py-2 text-ink placeholder:text-ink-muted/70 transition focus:border-primary focus:ring-4 focus:ring-primary/10 focus:ring-4 focus:ring-coral/15 focus:outline-none";
 
 /** Close on Escape and focus the first thing in the dialog. */
 export function useDialog(onClose: () => void) {
@@ -33,11 +33,11 @@ export function Dialog({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <form onSubmit={onSubmit} className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl sm:p-8">
+      <form onSubmit={onSubmit} className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-pop sm:p-8">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 rounded-full p-2 text-ink-soft hover:bg-cream" aria-label="Close">
           <CloseIcon className="size-5" />
         </button>
-        <h2 id="dialog-title" className="pr-8 text-2xl font-extrabold">
+        <h2 id="dialog-title" className="pr-8 text-2xl font-semibold">
           {title}
         </h2>
         <p className="mt-1 text-sm text-ink-soft">{intro}</p>

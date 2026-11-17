@@ -81,7 +81,7 @@ export default function Menu({
             setOpen(true);
           }
         }}
-        className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold text-ink-soft transition hover:bg-cream hover:text-ink disabled:opacity-60"
+        className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold text-ink-soft transition hover:bg-cream hover:text-ink disabled:opacity-60"
       >
         {label}
         <ChevronDownIcon className={`size-4 transition ${open ? "rotate-180" : ""}`} />
@@ -91,7 +91,7 @@ export default function Menu({
           id={menuId}
           role="menu"
           onKeyDown={onMenuKey}
-          className={`absolute top-full z-30 mt-1 min-w-48 rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-ink/10 ${
+          className={`absolute top-full z-30 mt-1 min-w-48 rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-ink/10 ${
             align === "end" ? "right-0" : "left-0"
           }`}
         >
@@ -106,7 +106,7 @@ export default function Menu({
                 close();
                 item.onSelect();
               }}
-              className={`block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition disabled:opacity-50 ${
+              className={`block w-full rounded-xl px-3 py-2 text-left text-sm font-medium transition disabled:opacity-50 ${
                 item.danger ? "text-coral-ink hover:bg-peach focus-visible:bg-peach" : "text-ink hover:bg-cream focus-visible:bg-cream"
               }`}
             >
